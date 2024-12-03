@@ -4,7 +4,21 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, NamedTuple
+
+class ContentProcessingError(Exception):
+    """Custom exception for content processing errors."""
+    pass
+
+class URLInfo(NamedTuple):
+    """Structured information about a URL."""
+    original_url: str
+    normalized_url: str
+    scheme: str
+    netloc: str
+    path: str
+    query: str
+    fragment: str
 
 from bs4 import BeautifulSoup, Comment, NavigableString, Tag
 import markdownify
