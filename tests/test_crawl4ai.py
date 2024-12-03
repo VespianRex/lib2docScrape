@@ -1,0 +1,237 @@
+import pytest
+import asyncio
+from src.backends.crawl4ai import Crawl4AIBackend, Crawl4AIConfig
+from src.backends.selector import BackendSelector, BackendCriteria
+import ssl
+
+@pytest.fixture
+def crawl4ai_backend():
+    config = Crawl4AIConfig(
+        max_retries=2,
+        timeout=10.0,
+        headers={"User-Agent": "Test/1.0"},
+        rate_limit=2.0
+    )
+    return Crawl4AIBackend(config=config)
+
+@pytest.fixture
+def backend_selector():
+    selector = BackendSelector()
+    return selector
+
+@pytest.mark.asyncio
+async def test_crawl_basic(crawl4ai_backend):
+    # Test basic crawling functionality
+    url = "https://example.com"
+    result = await crawl4ai_backend.crawl(url)
+    
+    assert result is not None
+    assert result.url == url
+    assert result.status in [200, 404, 500]  # Accept common status codes
+    assert isinstance(result.content, dict)
+    assert isinstance(result.metadata, dict)
+
+@pytest.mark.asyncio
+async def test_crawl_with_rate_limit(crawl4ai_backend):
+    # Test rate limiting
+    urls = ["https://example.com", "https://example.org"]
+    start_time = asyncio.get_event_loop().time()
+    
+    results = await asyncio.gather(*[
+        crawl4ai_backend.crawl(url) for url in urls
+    ])
+    
+    end_time = asyncio.get_event_loop().time()
+    time_taken = end_time - start_time
+    
+    # With rate_limit=2.0, two requests should take at least 0.5 seconds
+    assert time_taken >= 0.5
+    assert all(result is not None for result in results)
+
+@pytest.mark.asyncio
+async def test_validate_content(crawl4ai_backend):
+    # Test content validation
+    url = "https://example.com"
+    result = await crawl4ai_backend.crawl(url)
+    is_valid = await crawl4ai_backend.validate(result)
+    
+    assert isinstance(is_valid, bool)
+
+@pytest.mark.asyncio
+async def test_process_content(crawl4ai_backend):
+    # Test content processing
+    url = "https://example.com"
+    result = await crawl4ai_backend.crawl(url)
+    processed = await crawl4ai_backend.process(result)
+    
+    assert isinstance(processed, dict)
+    assert "content" in processed or "error" in processed
+
+@pytest.mark.asyncio
+async def test_backend_selection(backend_selector):
+    # Test backend selection with crawl4ai
+    url = "https://example.com"
+    backend = await backend_selector.select_backend(url)
+    
+    assert backend is not None
+    assert isinstance(backend, Crawl4AIBackend)
+
+@pytest.mark.asyncio
+async def test_metrics(crawl4ai_backend):
+    # Test metrics tracking
+    url = "https://example.com"
+    await crawl4ai_backend.crawl(url)
+    
+    metrics = crawl4ai_backend.get_metrics()
+    assert isinstance(metrics, dict)
+    assert "pages_crawled" in metrics
+    assert "success_rate" in metrics
+    assert "average_response_time" in metrics
+
+@pytest.mark.asyncio
+async def test_error_handling(crawl4ai_backend):
+    # Test error handling with invalid URL
+    url = "https://invalid-url-that-does-not-exist.com"
+    result = await crawl4ai_backend.crawl(url)
+    
+    assert result.error is not None
+    assert result.status == 500
+
+@pytest.mark.asyncio
+async def test_concurrent_requests(crawl4ai_backend):
+    # Test concurrent request handling
+    urls = [
+        "https://example.com",
+        "https://example.org",
+        "https://example.net"
+    ]
+    
+    results = await asyncio.gather(*[
+        crawl4ai_backend.crawl(url) for url in urls
+    ])
+    
+    assert len(results) == len(urls)
+    assert all(result is not None for result in results)
+
+@pytest.mark.asyncio
+async def test_cleanup(crawl4ai_backend):
+    # Test resource cleanup
+    url = "https://example.com"
+    await crawl4ai_backend.crawl(url)
+    await crawl4ai_backend.close()
+    
+    # Session should be closed
+    assert crawl4ai_backend._session is None or crawl4ai_backend._session.closed 
+
+def test_crawl4ai_config_validation():
+    """Test Crawl4AIConfig validation."""
+    # Test valid config
+    config = Crawl4AIConfig(
+        max_retries=3,
+        timeout=30.0,
+        headers={"User-Agent": "Test/1.0"},
+        follow_redirects=True,
+        verify_ssl=True,
+        max_depth=5,
+        rate_limit=2.0,
+        follow_links=True,
+        max_pages=100,
+        allowed_domains=["example.com"],
+        concurrent_requests=10
+    )
+    assert config.max_retries == 3
+    assert config.timeout == 30.0
+    
+    # Test invalid values
+    with pytest.raises(ValueError):
+        Crawl4AIConfig(max_retries=-1)
+    
+    with pytest.raises(ValueError):
+        Crawl4AIConfig(timeout=0)
+    
+    with pytest.raises(ValueError):
+        Crawl4AIConfig(max_depth=-1)
+    
+    with pytest.raises(ValueError):
+        Crawl4AIConfig(rate_limit=0)
+
+@pytest.mark.asyncio
+async def test_ssl_context_configuration(crawl4ai_backend):
+    """Test SSL context configuration."""
+    # Test with SSL verification enabled
+    config = Crawl4AIConfig(verify_ssl=True)
+    backend = Crawl4AIBackend(config=config)
+    await backend._ensure_session()
+    assert backend._session.connector._ssl.verify_mode == ssl.CERT_REQUIRED
+    await backend.close()
+    
+    # Test with SSL verification disabled
+    config = Crawl4AIConfig(verify_ssl=False)
+    backend = Crawl4AIBackend(config=config)
+    await backend._ensure_session()
+    assert backend._session.connector._ssl.verify_mode == ssl.CERT_NONE
+    await backend.close()
+
+@pytest.mark.asyncio
+async def test_custom_headers_handling(crawl4ai_backend):
+    """Test custom headers handling."""
+    custom_headers = {
+        "User-Agent": "CustomBot/1.0",
+        "Accept-Language": "en-US",
+        "Custom-Header": "Value"
+    }
+    config = Crawl4AIConfig(headers=custom_headers)
+    backend = Crawl4AIBackend(config=config)
+    await backend._ensure_session()
+    
+    # Verify headers are set
+    for key, value in custom_headers.items():
+        assert backend._session._default_headers.get(key) == value
+    
+    await backend.close()
+
+@pytest.mark.asyncio
+async def test_domain_filtering(crawl4ai_backend):
+    """Test domain filtering."""
+    config = Crawl4AIConfig(allowed_domains=["example.com"])
+    backend = Crawl4AIBackend(config=config)
+    
+    # Test allowed domain
+    result = await backend.crawl("https://example.com/page")
+    assert result.status != 403
+    
+    # Test disallowed domain
+    result = await backend.crawl("https://other-domain.com/page")
+    assert result.status == 403
+    assert "Domain not allowed" in result.error
+    
+    await backend.close()
+
+@pytest.mark.asyncio
+async def test_url_queue_management(crawl4ai_backend):
+    """Test URL queue management."""
+    urls = [f"https://example.com/page{i}" for i in range(5)]
+    
+    # Test queue processing order
+    results = []
+    for url in urls:
+        result = await crawl4ai_backend.crawl(url)
+        results.append(result)
+    
+    # Verify order and uniqueness
+    processed_urls = [r.url for r in results]
+    assert processed_urls == urls
+    assert len(set(processed_urls)) == len(urls)
+    
+    # Test queue size limits
+    config = Crawl4AIConfig(max_pages=3)
+    backend = Crawl4AIBackend(config=config)
+    results = []
+    for url in urls:
+        result = await backend.crawl(url)
+        results.append(result)
+    
+    successful_results = [r for r in results if r.status != 403]
+    assert len(successful_results) == 3
+    
+    await backend.close()

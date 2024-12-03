@@ -1,0 +1,16 @@
+Metadata-Version: 2.1
+Name: lib2docscrape
+Version: 0.1.0
+Summary: A web scraping tool for library documentation
+Author: Your Name
+Requires-Python: >=3.7
+Requires-Dist: beautifulsoup4>=4.12.2
+Requires-Dist: aiohttp>=3.9.1
+Requires-Dist: asyncio>=3.4.3
+Requires-Dist: pydantic>=2.5.2
+Provides-Extra: test
+Requires-Dist: pytest>=7.0.0; extra == "test"
+Requires-Dist: pytest-cov>=4.1.0; extra == "test"
+Requires-Dist: pytest-html>=4.1.1; extra == "test"
+Requires-Dist: pytest-asyncio>=0.24.0; extra == "test"
+Requires-Dist: pytest-html-reporter>=0.2.9; extra == "test"

@@ -1,0 +1,162 @@
+crawler:
+  concurrent_requests: 5
+  requests_per_second: 2.0
+  max_retries: 3
+  request_timeout: 30.0
+  respect_robots_txt: true
+  follow_redirects: true
+  verify_ssl: true
+  user_agent: "Lib2DocScraper/1.0"
+  headers:
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+    Accept-Language: "en-US,en;q=0.5"
+  max_pages: 1000
+
+processing:
+  allowed_tags:
+    - h1
+    - h2
+    - h3
+    - h4
+    - h5
+    - h6
+    - p
+    - a
+    - code
+    - pre
+    - blockquote
+    - ul
+    - ol
+    - li
+    - table
+    - thead
+    - tbody
+    - tr
+    - th
+    - td
+    - img
+    - em
+    - strong
+    - br
+    - hr
+    - div
+    - span
+  preserve_whitespace_elements:
+    - pre
+    - code
+  code_languages:
+    - python
+    - javascript
+    - typescript
+    - java
+    - cpp
+    - csharp
+    - go
+    - rust
+    - php
+    - ruby
+    - swift
+    - kotlin
+    - scala
+    - html
+    - css
+    - sql
+  max_heading_level: 6
+  max_content_length: 1000000
+  min_content_length: 50
+
+quality:
+  min_content_length: 100
+  max_content_length: 100000
+  min_headings: 1
+  max_heading_depth: 6
+  min_internal_links: 1
+  max_broken_links_ratio: 0.1
+  required_metadata_fields:
+    - title
+    - description
+    - keywords
+  allowed_heading_skips: 1
+  min_readability_score: 60.0
+  max_duplicate_content_ratio: 0.2
+
+organization:
+  min_similarity_score: 0.3
+  max_versions_to_keep: 10
+  index_chunk_size: 1000
+  category_rules:
+    api:
+      - api
+      - endpoint
+      - rest
+      - graphql
+    guide:
+      - guide
+      - tutorial
+      - how-to
+      - howto
+    reference:
+      - reference
+      - doc
+      - documentation
+    example:
+      - example
+      - sample
+      - demo
+    concept:
+      - concept
+      - overview
+      - introduction
+  stop_words:
+    - a
+    - an
+    - and
+    - are
+    - as
+    - at
+    - be
+    - by
+    - for
+    - from
+    - has
+    - he
+    - in
+    - is
+    - it
+    - its
+    - of
+    - on
+    - that
+    - the
+    - to
+    - was
+    - were
+    - will
+    - with
+
+crawl4ai:
+  max_retries: 3
+  timeout: 30.0
+  headers:
+    User-Agent: "Crawl4AI/1.0 Documentation Crawler"
+  follow_redirects: true
+  verify_ssl: true
+  max_depth: 5
+
+backend:
+  max_retries: 3
+  timeout: 30.0
+  follow_redirects: true
+  verify_ssl: true
+  max_depth: 5
+
+targets:
+  - https://docs.python.org/3/
+  - https://docs.readthedocs.io/
+  - https://docs.github.com/
+  - https://docs.docker.com/
+
+logging:
+  level: INFO
+  file: crawler.log
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"

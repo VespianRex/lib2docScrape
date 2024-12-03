@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lib2docscrape"
+version = "0.1.0"
+description = "A web scraping tool for library documentation"
+authors = [{name = "Your Name"}]
+requires-python = ">=3.7"
+dependencies = [
+    "beautifulsoup4>=4.12.2",
+    "aiohttp>=3.9.1",
+    "asyncio>=3.4.3",
+    "pydantic>=2.5.2"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-html>=4.1.1",
+    "pytest-asyncio>=0.24.0",
+    "pytest-html-reporter>=0.2.9"
+]
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "."
+]
+addopts = "--html=report.html --self-contained-html"
+testpaths = ["tests"]
+asyncio_mode = "auto"

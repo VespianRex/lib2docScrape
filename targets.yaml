@@ -1,0 +1,94 @@
+# Example targets configuration for documentation crawling
+# Each target specifies a documentation site to crawl and its parameters
+
+- url: "https://docs.python.org/3/"
+  depth: 2
+  follow_external: false
+  content_types:
+    - "text/html"
+  exclude_patterns:
+    - "/download/"
+    - "/bugs/"
+    - "/search/"
+  required_patterns:
+    - "/reference/"
+    - "/tutorial/"
+    - "/library/"
+  max_pages: 1000
+
+- url: "https://fastapi.tiangolo.com/"
+  depth: 3
+  follow_external: false
+  content_types:
+    - "text/html"
+  exclude_patterns:
+    - "/release-notes/"
+    - "/contributing/"
+  required_patterns:
+    - "/tutorial/"
+    - "/advanced/"
+    - "/deployment/"
+  max_pages: 500
+
+- url: "https://docs.aiohttp.org/en/stable/"
+  depth: 2
+  follow_external: false
+  content_types:
+    - "text/html"
+  exclude_patterns:
+    - "/contributing/"
+    - "/changes/"
+  required_patterns:
+    - "/client/"
+    - "/server/"
+    - "/web/"
+  max_pages: 300
+
+- url: "https://www.sqlalchemy.org/docs/"
+  depth: 2
+  follow_external: false
+  content_types:
+    - "text/html"
+  exclude_patterns:
+    - "/changelog/"
+    - "/download/"
+  required_patterns:
+    - "/core/"
+    - "/orm/"
+    - "/tutorial/"
+  max_pages: 400
+
+- url: "https://redis.io/documentation"
+  depth: 2
+  follow_external: false
+  content_types:
+    - "text/html"
+  exclude_patterns:
+    - "/community/"
+    - "/download/"
+  required_patterns:
+    - "/commands/"
+    - "/topics/"
+    - "/clients/"
+  max_pages: 600
+
+# Example of a more specific documentation target with strict patterns
+- url: "https://docs.scrapy.org/en/latest/"
+  depth: 3
+  follow_external: false
+  content_types:
+    - "text/html"
+  exclude_patterns:
+    - "/news/"
+    - "/community/"
+    - "/download/"
+    - "/support/"
+  required_patterns:
+    - "/intro/"
+    - "/topics/"
+    - "/basics/"
+    - "/settings/"
+    - "/spiders/"
+    - "/selectors/"
+    - "/extensions/"
+  max_pages: 200
