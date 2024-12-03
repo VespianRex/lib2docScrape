@@ -163,7 +163,8 @@ class ContentProcessor:
         self.result.title = "Untitled Document"
         
         # Process JSON-LD first
-        for script in soup.find_all('script', type='application/ld+json'):
+        json_ld_scripts = soup.find_all('script', type='application/ld+json')
+        for script in json_ld_scripts:
             try:
                 data = json.loads(script.string)
                 if isinstance(data, dict):
@@ -180,10 +181,16 @@ class ContentProcessor:
         for meta in meta_tags:
             name = meta.get('name', '').lower() or meta.get('property', '').lower()
             content = meta.get('content', '')
+            
+            # Handle meta redirects
+            if meta.get('http-equiv', '').lower() == 'refresh':
+                redirect_match = re.search(r'url=[\'"]*([^\'"]+)', content, re.IGNORECASE)
+                if redirect_match:
+                    self.result.metadata.setdefault('meta_redirects', []).append(redirect_match.group(1))
+            
             if name and content:
-                # Only add the first occurrence of a metadata tag
-                if name not in self.result.metadata:
-                    self.result.metadata[name] = content
+                # Overwrite existing metadata with latest value
+                self.result.metadata[name] = content
 
         # Extract title, prioritizing <head> section
         head_title = soup.find('head', recursive=False)
@@ -239,7 +246,7 @@ class ContentProcessor:
 
         # Helper function to process URLs
         def process_url(url):
-            if not url:
+            if not url or not url.strip():
                 return None
             # Keep data URLs as is
             if url.startswith('data:'):
@@ -257,7 +264,7 @@ class ContentProcessor:
             href = link.get('href')
             if href:
                 url = process_url(href)
-                if url and url not in result.assets['stylesheets']:
+                if url:
                     result.assets['stylesheets'].append(url)
 
         # Extract images
@@ -265,11 +272,10 @@ class ContentProcessor:
             src = img.get('src')
             if src and src.strip():  # Ensure src is not empty
                 if src.startswith('data:'):
-                    if src not in result.assets['images']:
-                        result.assets['images'].append(src)
+                    result.assets['images'].append(src)
                 elif not src.lower().startswith(('javascript:', 'vbscript:')):
                     url = process_url(src)
-                    if url and url not in result.assets['images']:
+                    if url:
                         result.assets['images'].append(url)
 
         # Extract scripts
@@ -277,7 +283,7 @@ class ContentProcessor:
             src = script.get('src')
             if src and not src.lower().startswith(('javascript:', 'data:', 'vbscript:')):
                 url = process_url(src)
-                if url and url not in result.assets['scripts']:
+                if url:
                     result.assets['scripts'].append(url)
 
         # Extract media
@@ -286,7 +292,7 @@ class ContentProcessor:
             if src and src.strip():  # Ensure src is not empty
                 if not src.lower().startswith(('javascript:', 'data:', 'vbscript:')):
                     url = process_url(src)
-                    if url and url not in result.assets['media']:
+                    if url:
                         result.assets['media'].append(url)
 
     def _sanitize_url(self, url, base_url=None):
@@ -652,6 +658,7 @@ class ContentProcessor:
             content_length = len(str(soup))
             if content_length > self.config.max_content_length:
                 self.result.title = "Content Too Large"
+                self.result.errors.append("Content exceeds maximum length")
                 return
             
             # Initialize content and structure
@@ -689,6 +696,20 @@ class ContentProcessor:
                     if not filter_func(filtered_content):
                         self.result.content["formatted_content"] = ""
                         break
+            
+            # Add headings to content
+            self.result.content["headings"] = self.result.structure.get('headings', [])
+            
+            # Add structure to content
+            self.result.content["structure"] = self.result.structure
+            
+            # Process custom content extractors
+            for name, extractor in self.content_extractors.items():
+                try:
+                    extracted_content = extractor(body)
+                    self.result.content[name] = extracted_content
+                except Exception as e:
+                    self.result.errors.append(f"Error in custom extractor {name}: {str(e)}")
             
         except Exception as e:
             self.result.errors.append(f"Error processing content: {str(e)}")
