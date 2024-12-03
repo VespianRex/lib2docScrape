@@ -566,7 +566,6 @@ class ContentProcessor:
                 abbr.replace_with(f"{abbr.get_text()} ({title})")
             else:
                 abbr.replace_with(abbr.get_text())
-                dl.replace_with(BeautifulSoup('\n'.join(terms), 'html.parser'))
     def _process_iframes(self, soup):
         """Process iframes to markdown format."""
         for iframe in soup.find_all('iframe'):
