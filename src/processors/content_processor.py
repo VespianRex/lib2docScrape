@@ -53,6 +53,7 @@ class ContentProcessor:
         self.content_filters = []
         self.url_filters = []
         self.metadata_extractors = []
+        self.content_extractors = {}  # Add this line
         self.markdownify_options = {
             'heading_style': 'ATX',
             'strong_style': '**',
@@ -161,14 +162,22 @@ class ContentProcessor:
                 continue
 
         # Extract standard meta tags
-        for meta in soup.find_all('meta'):
+        meta_tags = soup.find_all('meta')
+        for meta in meta_tags:
             name = meta.get('name', '').lower() or meta.get('property', '').lower()
             content = meta.get('content', '')
             if name and content:
-                self.result.metadata[name] = content
+                # Only add the first occurrence of a metadata tag
+                if name not in self.result.metadata:
+                    self.result.metadata[name] = content
 
-        # Extract title
-        title_tag = soup.find('title')
+        # Extract title, prioritizing <head> section
+        head_title = soup.find('head', recursive=False)
+        if head_title:
+            title_tag = head_title.find('title')
+        else:
+            title_tag = soup.find('title')
+
         if title_tag and title_tag.string:
             self.result.title = title_tag.string.strip()
             self.result.metadata['title'] = self.result.title
@@ -240,7 +249,7 @@ class ContentProcessor:
         # Extract images
         for img in soup.find_all('img'):
             src = img.get('src')
-            if src:
+            if src and src.strip():  # Ensure src is not empty
                 if src.startswith('data:'):
                     if src not in result.assets['images']:
                         result.assets['images'].append(src)
@@ -260,10 +269,11 @@ class ContentProcessor:
         # Extract media
         for media in soup.find_all(['audio', 'video', 'source']):
             src = media.get('src')
-            if src and not src.lower().startswith(('javascript:', 'data:', 'vbscript:')):
-                url = process_url(src)
-                if url and url not in result.assets['media']:
-                    result.assets['media'].append(url)
+            if src and src.strip():  # Ensure src is not empty
+                if not src.lower().startswith(('javascript:', 'data:', 'vbscript:')):
+                    url = process_url(src)
+                    if url and url not in result.assets['media']:
+                        result.assets['media'].append(url)
 
     def _sanitize_url(self, url, base_url=None):
         """Sanitize and normalize URLs."""
@@ -625,6 +635,12 @@ class ContentProcessor:
     def _process_content(self, soup, base_url=None):
         """Process HTML content with all features."""
         try:
+            # Check content length
+            content_length = len(str(soup))
+            if content_length > self.config.max_content_length:
+                self.result.title = "Content Too Large"
+                return
+            
             # Initialize content and structure
             self.result.content = {}
             self.result.structure = {'headings': [], 'sections': [], 'custom_elements': []}
@@ -652,6 +668,14 @@ class ContentProcessor:
             # Convert to markdown
             markdown = self._convert_to_markdown(body)
             self.result.content["formatted_content"] = markdown.strip()
+            
+            # Apply content filters
+            if self.content_filters:
+                filtered_content = self.result.content["formatted_content"]
+                for filter_func in self.content_filters:
+                    if not filter_func(filtered_content):
+                        self.result.content["formatted_content"] = ""
+                        break
             
         except Exception as e:
             self.result.errors.append(f"Error processing content: {str(e)}")
