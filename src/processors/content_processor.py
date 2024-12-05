@@ -49,12 +49,86 @@ class ProcessedContent:
     content: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
     assets: Dict[str, List[str]] = field(default_factory=lambda: {
-        'images': [], 'stylesheets': [], 'scripts': [], 'media': []
+        'images': [],
+        'stylesheets': [],
+        'scripts': [],
+        'media': []
     })
     headings: List[Dict[str, Any]] = field(default_factory=list)
-    structure: List[Dict[str, Any]] = field(default_factory=list)
+    structure: Dict[str, List] = field(default_factory=lambda: {
+        'headings': [],
+        'sections': [],
+        'custom_elements': []
+    })
     errors: List[str] = field(default_factory=list)
-    title: str = field(default="Untitled Document")
+    title: str = field(default='Untitled Document')
+
+    def __str__(self) -> str:
+        """Convert to string representation."""
+        if 'main' in self.content:
+            return str(self.content['main'])
+        return ''
+
+    def __contains__(self, item: str) -> bool:
+        """Check if string is in content."""
+        if isinstance(item, str):
+            content_str = str(self)
+            return item in content_str
+        return False
+
+    def __len__(self) -> int:
+        """Get length of main content."""
+        return len(str(self))
+
+    def __bool__(self) -> bool:
+        """Check if content exists."""
+        return bool(self.content)
+
+    def __iter__(self):
+        """Iterate over content."""
+        return iter(str(self))
+
+    @property
+    def processed_content(self) -> Dict[str, str]:
+        """Get processed content."""
+        return self.content
+
+    @property
+    def main_content(self) -> str:
+        """Get main content."""
+        return str(self)
+
+    @property
+    def has_errors(self) -> bool:
+        """Check if processing had errors."""
+        return bool(self.errors)
+
+    def get_content_section(self, section: str) -> str:
+        """Get content for a specific section."""
+        return str(self.content.get(section, ''))
+
+    def add_error(self, error: str) -> None:
+        """Add an error message."""
+        self.errors.append(str(error))
+
+    def add_content(self, section: str, content: Any) -> None:
+        """Add content to a section."""
+        self.content[section] = content
+
+    def add_metadata(self, key: str, value: Any) -> None:
+        """Add metadata."""
+        self.metadata[key] = value
+
+    def add_asset(self, asset_type: str, url: str) -> None:
+        """Add an asset URL."""
+        if asset_type in self.assets:
+            if url not in self.assets[asset_type]:
+                self.assets[asset_type].append(url)
+
+    def add_heading(self, heading: Dict[str, Any]) -> None:
+        """Add a heading."""
+        self.headings.append(heading)
+        self.structure['headings'].append(heading)
 
 
 class ContentProcessor:
@@ -67,7 +141,7 @@ class ContentProcessor:
         self.content_filters = []
         self.url_filters = []
         self.metadata_extractors = []
-        self.content_extractors = {}  # Add this line
+        self.content_extractors = {}  
         self.markdownify_options = {
             'heading_style': 'ATX',
             'strong_style': '**',
