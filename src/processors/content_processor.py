@@ -189,16 +189,21 @@ class ContentProcessor:
 
         try:
             soup = BeautifulSoup(html, 'html.parser')
-            
+                
             # Extract metadata first
             self._extract_metadata(soup)
-            
+                
             # Process content
             self._process_content(soup, base_url)
-            
+                
+            # Ensure formatted_content is set
+            if 'formatted_content' not in self.result.content:
+                self.result.content['formatted_content'] = ''
+                
             return self.result
         except Exception as e:
             self.result.errors.append(f"Error processing content: {str(e)}")
+            self.result.content['formatted_content'] = ''
             return self.result
 
     def add_content_filter(self, filter_func):
@@ -261,8 +266,12 @@ class ContentProcessor:
             title_tag = soup.find('title')
 
         if title_tag and title_tag.string:
-            self.result.title = title_tag.string.strip()
-            self.result.metadata['title'] = self.result.title
+            title = title_tag.string.strip()
+            self.result.title = title
+            self.result.metadata['title'] = title
+        else:
+            self.result.title = "Untitled Document"
+            self.result.metadata['title'] = "Untitled Document"
 
         # Process microdata
         for element in soup.find_all(True, itemtype=True):
