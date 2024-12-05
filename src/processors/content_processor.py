@@ -1,3 +1,206 @@
+import re
+import json
+import logging
+import html
+from typing import Any, Dict, List, Optional, Union
+from bs4 import BeautifulSoup, Tag
+from markdown import markdown
+from pydantic import BaseModel, Field
+
+class ProcessedContent(BaseModel):
+    content: Dict[str, Any] = Field(default_factory=dict)
+    metadata: Dict[str, Any] = Field(default_factory=dict)
+    assets: Dict[str, List[str]] = Field(default_factory=lambda: {
+        'images': [], 'stylesheets': [], 'scripts': [], 'media': []
+    })
+    headings: List[Dict[str, Any]] = Field(default_factory=list)
+    structure: Dict[str, Any] = Field(default_factory=lambda: {
+        'headings': [], 'sections': [], 'custom_elements': []
+    })
+    errors: List[str] = Field(default_factory=list)
+    title: str = "Untitled Document"
+
+class ContentProcessor:
+    def __init__(self, config: Optional[Dict[str, Any]] = None):
+        self.config = config or {}
+        self.logger = logging.getLogger(__name__)
+
+    def process(self, content: str, base_url: Optional[str] = None) -> ProcessedContent:
+        try:
+            # Validate input
+            if not content or not isinstance(content, str):
+                return ProcessedContent(errors=["Invalid content input"])
+
+            # Parse HTML
+            soup = BeautifulSoup(content, 'html.parser')
+
+            # Extract metadata
+            metadata = self._extract_metadata(soup)
+            title = metadata.get('title', "Untitled Document")
+
+            # Extract content and convert to markdown
+            formatted_content = self._convert_to_markdown(soup)
+
+            # Collect assets
+            assets = self._collect_assets(soup, base_url)
+
+            # Extract headings and structure
+            headings = self._extract_headings(soup)
+            structure = {
+                'headings': headings,
+                'sections': [],  # Placeholder for future implementation
+                'custom_elements': []  # Placeholder for future implementation
+            }
+
+            return ProcessedContent(
+                content={'formatted_content': formatted_content},
+                metadata=metadata,
+                assets=assets,
+                headings=headings,
+                structure=structure,
+                title=title
+            )
+
+        except Exception as e:
+            self.logger.error(f"Content processing error: {e}")
+            return ProcessedContent(
+                errors=[f"Error processing content: {str(e)}"],
+                title="Untitled Document"
+            )
+
+    def _extract_metadata(self, soup: BeautifulSoup) -> Dict[str, Any]:
+        metadata = {}
+
+        # Extract title
+        title_tag = soup.find('title')
+        metadata['title'] = title_tag.string.strip() if title_tag else "Untitled Document"
+
+        # Extract meta tags
+        for meta in soup.find_all('meta'):
+            name = meta.get('name') or meta.get('property')
+            content = meta.get('content')
+            if name and content:
+                metadata[name.lower()] = content
+
+        # Extract JSON-LD metadata
+        for script in soup.find_all('script', type='application/ld+json'):
+            try:
+                json_ld = json.loads(script.string)
+                for key, value in json_ld.items():
+                    if not key.startswith('@'):
+                        metadata[key.lower()] = value
+            except json.JSONDecodeError:
+                pass
+
+        return metadata
+
+    def _convert_to_markdown(self, soup: BeautifulSoup) -> str:
+        # Remove scripts, styles, and comments
+        for script in soup.find_all(['script', 'style', 'comment']):
+            script.decompose()
+
+        # Convert to markdown
+        markdown_text = self._html_to_markdown(soup)
+        return markdown_text.strip()
+
+    def _html_to_markdown(self, element: Union[BeautifulSoup, Tag]) -> str:
+        # Recursive markdown conversion
+        if isinstance(element, str):
+            return html.escape(element)
+
+        markdown_parts = []
+
+        for child in element.children:
+            if child.name == 'h1':
+                markdown_parts.append(f"# {child.get_text(strip=True)}\n\n")
+            elif child.name == 'h2':
+                markdown_parts.append(f"## {child.get_text(strip=True)}\n\n")
+            elif child.name == 'h3':
+                markdown_parts.append(f"### {child.get_text(strip=True)}\n\n")
+            elif child.name == 'h4':
+                markdown_parts.append(f"#### {child.get_text(strip=True)}\n\n")
+            elif child.name == 'h5':
+                markdown_parts.append(f"##### {child.get_text(strip=True)}\n\n")
+            elif child.name == 'h6':
+                markdown_parts.append(f"###### {child.get_text(strip=True)}\n\n")
+            elif child.name == 'p':
+                markdown_parts.append(f"{child.get_text(strip=True)}\n\n")
+            elif child.name == 'ul':
+                for li in child.find_all('li', recursive=False):
+                    markdown_parts.append(f"- {li.get_text(strip=True)}\n")
+                markdown_parts.append("\n")
+            elif child.name == 'ol':
+                for i, li in enumerate(child.find_all('li', recursive=False), 1):
+                    markdown_parts.append(f"{i}. {li.get_text(strip=True)}\n")
+                markdown_parts.append("\n")
+            elif child.name == 'a':
+                href = child.get('href', '')
+                text = child.get_text(strip=True)
+                markdown_parts.append(f"[{text}]({href})")
+            elif child.name == 'code':
+                markdown_parts.append(f"`{child.get_text(strip=True)}`")
+            elif isinstance(child, str):
+                markdown_parts.append(html.escape(child.strip()))
+
+        return ' '.join(markdown_parts)
+
+    def _collect_assets(self, soup: BeautifulSoup, base_url: Optional[str] = None) -> Dict[str, List[str]]:
+        assets = {
+            'images': [],
+            'stylesheets': [],
+            'scripts': [],
+            'media': []
+        }
+
+        # Collect images
+        for img in soup.find_all('img'):
+            src = img.get('src', '')
+            if src:
+                full_url = self._resolve_url(src, base_url)
+                assets['images'].append(full_url)
+
+        # Collect stylesheets
+        for link in soup.find_all('link', rel='stylesheet'):
+            href = link.get('href', '')
+            if href:
+                full_url = self._resolve_url(href, base_url)
+                assets['stylesheets'].append(full_url)
+
+        # Collect scripts
+        for script in soup.find_all('script', src=True):
+            src = script.get('src', '')
+            if src:
+                full_url = self._resolve_url(src, base_url)
+                assets['scripts'].append(full_url)
+
+        # Collect media
+        for media in soup.find_all(['video', 'audio', 'source']):
+            src = media.get('src', '')
+            if src:
+                full_url = self._resolve_url(src, base_url)
+                assets['media'].append(full_url)
+
+        return assets
+
+    def _resolve_url(self, url: str, base_url: Optional[str] = None) -> str:
+        # Simple URL resolution logic
+        if base_url and not url.startswith(('http://', 'https://')):
+            return f"{base_url.rstrip('/')}/{url.lstrip('/')}"
+        return url
+
+    def _extract_headings(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
+        headings = []
+        for heading in soup.find_all(re.compile('^h[1-6]$')):
+            level = int(heading.name[1])
+            text = heading.get_text(strip=True)
+            heading_info = {
+                'level': level,
+                'text': text,
+                'id': heading.get('id', ''),
+                'classes': heading.get('class', [])
+            }
+            headings.append(heading_info)
+        return headings
 # src/processors/content_processor.py
 
 import json
@@ -49,18 +252,12 @@ class ProcessedContent:
     content: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
     assets: Dict[str, List[str]] = field(default_factory=lambda: {
-        'images': [],
-        'stylesheets': [],
-        'scripts': [],
-        'media': []
+        'images': [], 'stylesheets': [], 'scripts': [], 'media': []
     })
     headings: List[Dict[str, Any]] = field(default_factory=list)
-    structure: Dict[str, List] = field(default_factory=lambda: {
-        'headings': [],
-        'sections': [],
-        'custom_elements': []
-    })
+    structure: List[Dict[str, Any]] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
+    title: str = field(default="Untitled Document")
     title: str = field(default='Untitled Document')
 
     def __str__(self) -> str:
@@ -130,7 +327,6 @@ class ProcessedContent:
         self.headings.append(heading)
         self.structure['headings'].append(heading)
 
-
 class ContentProcessor:
     """Process HTML content into structured data and markdown."""
     
@@ -141,7 +337,7 @@ class ContentProcessor:
         self.content_filters = []
         self.url_filters = []
         self.metadata_extractors = []
-        self.content_extractors = {}  
+        self.content_extractors = {}  # Add this line
         self.markdownify_options = {
             'heading_style': 'ATX',
             'strong_style': '**',
@@ -831,3 +1027,4 @@ class ContentProcessor:
 
 # Alias for backward compatibility
 ProcessingResult = ProcessedContent
+
