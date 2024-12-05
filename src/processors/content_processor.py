@@ -769,6 +769,10 @@ class ContentProcessor:
             markdown = self._convert_to_markdown(body)
             self.result.content["formatted_content"] = markdown.strip()
             
+            # Extract headings
+            self.result.headings = self._extract_headings(body)
+            self.result.content["headings"] = self.result.headings
+            
             # Apply content filters
             if self.content_filters:
                 filtered_content = self.result.content["formatted_content"]
@@ -776,9 +780,6 @@ class ContentProcessor:
                     if not filter_func(filtered_content):
                         self.result.content["formatted_content"] = ""
                         break
-            
-            # Add headings to content
-            self.result.content["headings"] = self.result.structure.get('headings', [])
             
             # Add structure to content
             self.result.content["structure"] = self.result.structure
