@@ -204,6 +204,15 @@ class ContentProcessor:
         except Exception as e:
             self.result.errors.append(f"Error processing content: {str(e)}")
             self.result.content['formatted_content'] = ''
+            self.result.content['structure'] = {'headings': [], 'sections': [], 'custom_elements': []}
+            self.result.content['headings'] = self.result.structure.get('headings', [])
+            self.result.content['assets'] = {
+                'images': [],
+                'stylesheets': [],
+                'scripts': [],
+                'media': []
+            }
+            self.result.content['metadata'] = self.result.metadata
             return self.result
 
     def add_content_filter(self, filter_func):
