@@ -108,7 +108,16 @@ class LinkProcessor:
                 'is_internal': False,
                 'is_secure': False
             }
-
+    def process_links(self, urls: List[str]) -> List[Dict[str, Any]]:
+        """Process multiple URLs and return their processed information.
+        
+        Args:
+            urls: List of URLs to process
+            
+        Returns:
+            List of processed URL information
+        """
+        return [self.process_link(url) for url in urls]
     def _validate_url(self, parsed_url: urlparse) -> Tuple[bool, List[str]]:
         """Validate a parsed URL against configuration rules."""
         issues = []

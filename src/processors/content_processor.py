@@ -53,8 +53,8 @@ class ProcessedContent:
 
     def __str__(self) -> str:
         """Convert to string representation."""
-        if 'main' in self.content:
-            return str(self.content['main'])
+        if 'formatted_content' in self.content:
+            return str(self.content['formatted_content'])
         return ''
 
     def __contains__(self, item: str) -> bool:
@@ -116,7 +116,11 @@ class ProcessedContent:
     def add_heading(self, heading: Dict[str, Any]) -> None:
         """Add a heading."""
         self.headings.append(heading)
-        self.structure['headings'].append(heading)
+        if 'headings' in self.structure:  # Ensure 'headings' key exists
+            self.structure['headings'].append(heading)
+        else:
+            self.structure = {'headings': [heading], 'sections': [], 'custom_elements': []}  # Initialize if not present
+
 
 class ContentProcessor:
     """Process HTML content into structured data and markdown."""
@@ -154,32 +158,11 @@ class ContentProcessor:
         """Configure the processor with custom settings."""
         if isinstance(config, dict):
             # Update configuration from dictionary
-            if 'allowed_tags' in config:
-                self.config.allowed_tags = config['allowed_tags']
-            
-            if 'max_heading_level' in config:
-                self.config.max_heading_level = config['max_heading_level']
-            
-            if 'preserve_whitespace_elements' in config:
-                self.config.preserve_whitespace_elements = config['preserve_whitespace_elements']
-            
-            if 'code_languages' in config:
-                self.config.code_languages = config['code_languages']
-            
-            if 'sanitize_urls' in config:
-                self.config.sanitize_urls = config['sanitize_urls']
-            
-            if 'metadata_prefixes' in config:
-                self.config.metadata_prefixes = config['metadata_prefixes']
-            
-            if 'extract_comments' in config:
-                self.config.extract_comments = config['extract_comments']
-            
-            if 'max_content_length' in config:
-                self.config.max_content_length = config['max_content_length']
-            
-            if 'min_content_length' in config:
-                self.config.min_content_length = config['min_content_length']
+            for key in ['allowed_tags', 'max_heading_level', 'preserve_whitespace_elements',
+                        'code_languages', 'sanitize_urls', 'metadata_prefixes',
+                        'extract_comments', 'max_content_length', 'min_content_length']:
+                if key in config:
+                    setattr(self.config, key, config[key])
     
     def process(self, html, base_url=None):
         """Process HTML content and return structured result."""
@@ -195,10 +178,6 @@ class ContentProcessor:
                 
             # Process content
             self._process_content(soup, base_url)
-                
-            # Ensure formatted_content is set
-            if 'formatted_content' not in self.result.content:
-                self.result.content['formatted_content'] = ''
                 
             return self.result
         except Exception as e:
@@ -268,11 +247,14 @@ class ContentProcessor:
                 self.result.metadata[name] = content
 
         # Extract title, prioritizing <head> section
-        head_title = soup.find('head', recursive=False)
+        head_title = soup.head
         if head_title:
             title_tag = head_title.find('title')
         else:
             title_tag = soup.find('title')
+
+        if not title_tag:
+            title_tag = soup.find('h1')
 
         if title_tag and title_tag.string:
             title = title_tag.string.strip()
@@ -743,14 +725,11 @@ class ContentProcessor:
             
             # Initialize content and structure
             self.result.content = {}
-            self.result.structure = {'headings': [], 'sections': [], 'custom_elements': []}
+            self.result.structure = self._extract_structure(soup)  # Extract structure before processing
 
             # Process body or full document
             body = soup.find('body') or soup
 
-            # Extract structure first
-            self.result.structure = self._extract_structure(body)
-            
             # Process special elements
             self._process_definition_lists(body)
             self._process_footnotes(body)
@@ -782,7 +761,7 @@ class ContentProcessor:
                         break
             
             # Add structure to content
-            self.result.content["structure"] = self.result.structure
+            # self.result.content["structure"] = self.result.structure  # No longer needed
             
             # Process custom content extractors
             for name, extractor in self.content_extractors.items():
@@ -798,28 +777,19 @@ class ContentProcessor:
     def _convert_to_markdown(self, soup):
         """Convert HTML to markdown with enhanced features."""
         class CustomConverter(markdownify.MarkdownConverter):
-            def __init__(self, processor, **options):
+            def __init__(self, **options):
                 super().__init__(**options)
-                self.processor = processor
-
-            def convert_table(self, el, text, convert_as_inline):
-                return self.processor._convert_table_to_markdown(el)
+                self.processor = self
 
             def convert_pre(self, el, text, convert_as_inline):
                 code = el.find('code')
                 if code:
-                    # Get language class if present
-                    lang_class = None
-                    language = ''
                     for cls in code.get('class', []):
-                        if cls.startswith('language-'):
-                            lang = cls.replace('language-', '')
-                            if not self.processor.config.code_languages or lang in self.processor.config.code_languages:
-                                lang_class = lang
-                                break
-                        elif cls.startswith(('language-', 'lang-')):
+                        if cls.startswith(('language-', 'lang-')):
                             language = cls.split('-')[1]
                             break
+                    else:
+                        language = ''  # Default language if no class found
                     content = code.get_text().strip()
                     return f'```{language}\n{content}\n```'
                 return f'```\n{text}\n```'
@@ -834,7 +804,12 @@ class ContentProcessor:
                     return f'![{alt}]({src})'
                 return alt
 
-        return CustomConverter(heading_style='atx').convert_soup(soup)
+        converter = CustomConverter()
+        markdown = converter.convert_soup(soup)
+        for table in soup.find_all('table'):
+            markdown += self._convert_table_to_markdown(table)
+        return markdown
+
 
 # Alias for backward compatibility
 ProcessingResult = ProcessedContent
