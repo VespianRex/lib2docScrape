@@ -25678,3 +25678,7 @@ level
 2024-12-06 11:07:37,857 [DEBUG] Using selector: KqueueSelector
 2024-12-06 11:07:37,857 [DEBUG] Using selector: KqueueSelector
 2024-12-06 11:07:37,860 [DEBUG] Using selector: KqueueSelector
+2024-12-06 11:08:42,558 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2024-12-06 11:11:02,615 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2024-12-06 11:12:00,246 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2024-12-06 11:13:15,782 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
