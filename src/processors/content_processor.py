@@ -721,6 +721,7 @@ class ContentProcessor:
             if content_length > self.config.max_content_length:
                 self.result.title = "Content Too Large"
                 self.result.errors.append("Content exceeds maximum length")
+                self.result.content["formatted_content"] = "Content exceeds maximum length"
                 return
             
             # Initialize content and structure
@@ -750,6 +751,10 @@ class ContentProcessor:
                 self.result.content["formatted_content"] = markdown.strip()
             else:
                 self.result.content["formatted_content"] = ""
+            
+            # Extract structure
+            self.result.structure = self._extract_structure(body)
+            self.result.content["structure"] = self.result.structure
             
             # Extract headings
             self.result.headings = self._extract_headings(body)
@@ -810,8 +815,10 @@ class ContentProcessor:
         converter = CustomConverter()
         markdown = converter.convert_soup(soup)
         for table in soup.find_all('table'):
-            markdown += self._convert_table_to_markdown(table)
-        return markdown
+            table_markdown = self._convert_table_to_markdown(table)
+            if table_markdown:
+                markdown += '\n' + table_markdown
+        return markdown.strip()
 
 
 # Alias for backward compatibility
