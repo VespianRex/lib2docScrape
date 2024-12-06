@@ -746,7 +746,10 @@ class ContentProcessor:
             
             # Convert to markdown
             markdown = self._convert_to_markdown(body)
-            self.result.content["formatted_content"] = markdown.strip()
+            if markdown:
+                self.result.content["formatted_content"] = markdown.strip()
+            else:
+                self.result.content["formatted_content"] = ""
             
             # Extract headings
             self.result.headings = self._extract_headings(body)
