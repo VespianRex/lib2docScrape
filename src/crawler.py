@@ -31,6 +31,20 @@ except ImportError:
     DUCKDUCKGO_AVAILABLE = False
     logging.warning("DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search")
 
+class IssueType(str, Enum):
+    """Types of quality issues."""
+    CONTENT_LENGTH = "content_length"
+    HEADING_STRUCTURE = "heading_structure"
+    LINK_COUNT = "link_count"
+    CODE_BLOCK_LENGTH = "code_block_length"
+    METADATA = "metadata"
+    GENERAL = "general"
+
+class IssueLevel(str, Enum):
+    """Severity levels for quality issues."""
+    ERROR = "error"
+    WARNING = "warning"
+    INFO = "info"
 class ProjectType(Enum):
     """Types of software projects that can be identified."""
     PACKAGE = "package"
@@ -515,7 +529,7 @@ class DocumentationCrawler:
             self._crawled_urls.add(url)
             
             # Get backend for this URL
-            backend = self.backend_selector.select_backend(url)
+            backend = await self.backend_selector.select_backend(url)
             if not backend:
                 logging.error(f"No suitable backend found for URL: {url}")
                 return None
@@ -657,9 +671,10 @@ class DocumentationCrawler:
                         stats=stats,
                         documents=[],
                         issues=[QualityIssue(
-                            type="error",
+                            type=IssueType.GENERAL,
+                            level=IssueLevel.WARNING,
                             message=f"Failed to process URL: {target.url}",
-                            severity="high"
+                            details={'url': target.url}
                         )],
                         metrics={}
                     )
@@ -676,7 +691,7 @@ class DocumentationCrawler:
                     type=IssueType.GENERAL,
                     level=IssueLevel.ERROR,
                     message=f"Crawl failed due to processing error: {str(e)}",
-                    details={'error': str(e)}
+                    details={'url': target.url}
                 )],
                 metrics={}
             )
