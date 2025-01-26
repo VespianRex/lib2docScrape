@@ -685,6 +685,7 @@ class DocumentationCrawler:
             # Clean up
             if self.client_session:
                 await self.client_session.close()
+# Added comment to test git
 
     async def close(self) -> None:
         """Cleanup resources with comprehensive error handling."""
