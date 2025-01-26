@@ -25682,3 +25682,29 @@ level
 2024-12-06 11:11:02,615 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
 2024-12-06 11:12:00,246 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
 2024-12-06 11:13:15,782 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2025-01-26 18:01:19,839 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2025-01-26 18:01:42,580 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2025-01-26 18:01:49,356 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2025-01-26 18:01:49,455 [ERROR] Error: 1 validation error for AppConfig
+organization.stop_words.17
+  Input should be a valid string [type=string_type, input_value=True, input_type=bool]
+    For further information visit https://errors.pydantic.dev/2.10/v/string_type
+2025-01-26 18:02:27,586 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2025-01-26 18:02:54,855 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2025-01-26 18:03:25,681 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2025-01-26 18:03:35,956 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2025-01-26 18:03:35,990 [ERROR] Error: setup_logging() got an unexpected keyword argument 'format_string'
+2025-01-26 18:04:16,318 [WARNING] DuckDuckGo search functionality not available. Install with: pip install duckduckgo-search
+2025-01-26 18:04:16,465 [INFO] Initialized Crawl4AI backend with config: Crawl4AIConfig(max_depth=5, max_pages=100, follow_links=True, rate_limit=2.0, verify_ssl=True, concurrent_requests=10)
+2025-01-26 18:04:16,465 [INFO] Initialized Crawl4AI backend with config: Crawl4AIConfig(max_depth=5, max_pages=100, follow_links=True, rate_limit=2.0, verify_ssl=True, concurrent_requests=10)
+2025-01-26 18:04:16,466 [DEBUG] Using selector: EpollSelector
+2025-01-26 18:04:16,467 [INFO] Starting crawl for target: https://docs.python.org/3/
+2025-01-26 18:04:16,468 [ERROR] Error during crawl: 'Timer' object does not support the asynchronous context manager protocol
+2025-01-26 18:04:16,468 [ERROR] Error closing quality checker: 'QualityChecker' object has no attribute 'close'
+2025-01-26 18:04:16,469 [ERROR] Error: 2 validation errors for QualityIssue
+type
+  Input should be 'content_length', 'heading_structure', 'link_count', 'code_block_length', 'metadata' or 'general' [type=enum, input_value='error', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.10/v/enum
+level
+  Field required [type=missing, input_value={'type': 'error', 'messag...ol", 'severity': 'high'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.10/v/missing

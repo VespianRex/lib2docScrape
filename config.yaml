@@ -107,7 +107,7 @@ organization:
       - concept
       - overview
       - introduction
-  stop_words:
+stop_words:
     - a
     - an
     - and

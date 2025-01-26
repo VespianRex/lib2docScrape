@@ -642,7 +642,7 @@ class DocumentationCrawler:
                 
                 target.url = doc_url
             
-            async with Timer("Crawl"):
+            with Timer("Crawl"):
                 # Initialize aiohttp session
                 self.client_session = aiohttp.ClientSession(
                     connector=aiohttp.TCPConnector(verify_ssl=self.config.verify_ssl)
@@ -673,9 +673,10 @@ class DocumentationCrawler:
                 stats=stats,
                 documents=[],
                 issues=[QualityIssue(
-                    type="error",
-                    message=str(e),
-                    severity="high"
+                    type=IssueType.GENERAL,
+                    level=IssueLevel.ERROR,
+                    message=f"Crawl failed due to processing error: {str(e)}",
+                    details={'error': str(e)}
                 )],
                 metrics={}
             )
@@ -687,10 +688,7 @@ class DocumentationCrawler:
 
     async def close(self) -> None:
         """Cleanup resources with comprehensive error handling."""
-        try:
-            await self.quality_checker.close()
-        except Exception as e:
-            logging.error(f"Error closing quality checker: {e}")
+        # Quality checker cleanup
         
         # Close backend resources
         for backend in self.backend_selector.get_all_backends().values():
@@ -729,8 +727,8 @@ class DocumentationCrawler:
                 await self.client_session.close()
             self.client_session = None
             
-            if hasattr(self.quality_checker, 'close'):
-                await self.quality_checker.close()
+            
+                
                 
             for backend in self.backend_selector.get_all_backends().values():
                 if hasattr(backend, 'close'):

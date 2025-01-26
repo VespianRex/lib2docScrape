@@ -13,7 +13,7 @@ from .backends.crawl4ai import Crawl4AIBackend, Crawl4AIConfig
 from .backends.selector import BackendCriteria, BackendSelector
 from .crawler import CrawlerConfig, CrawlTarget, DocumentationCrawler
 from .organizers.doc_organizer import DocumentOrganizer, OrganizationConfig
-from .processors.content_processor import ContentProcessor, ProcessingConfig
+from .processors.content_processor import ContentProcessor, ProcessorConfig
 from .processors.quality_checker import QualityChecker, QualityConfig
 from .utils.helpers import setup_logging
 
@@ -21,7 +21,7 @@ from .utils.helpers import setup_logging
 class AppConfig(BaseModel):
     """Application configuration model."""
     crawler: CrawlerConfig
-    processing: ProcessingConfig
+    processing: ProcessorConfig
     quality: QualityConfig
     organization: OrganizationConfig
     crawl4ai: Crawl4AIConfig
@@ -211,7 +211,7 @@ def main() -> None:
         setup_logging(
             level=log_level,
             log_file=config.logging.get("file"),
-            format_string=config.logging.get("format")
+            format_str=config.logging.get("format")
         )
         
         # Load targets
