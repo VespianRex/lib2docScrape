@@ -55,8 +55,7 @@ class Crawl4AIBackend(CrawlerBackend):
 
     def __init__(self, config: Optional[Crawl4AIConfig] = None) -> None:
         """Initialize the Crawl4AI backend."""
-        super().__init__()
-        self.name = "crawl4ai"
+        super().__init__(name="crawl4ai")
         self.config = config or Crawl4AIConfig()
         self._session: Optional[aiohttp.ClientSession] = None
         self._processing_semaphore = asyncio.Semaphore(self.config.concurrent_requests)

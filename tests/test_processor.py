@@ -4,7 +4,8 @@ import pytest
 from bs4 import BeautifulSoup
 
 from src.processors.content_processor import (ContentProcessor, ProcessedContent,
-                                           ProcessorConfig, URLInfo)
+                                            ProcessorConfig)
+from src.processors.content.url_handler import URLInfo
 
 
 def test_content_processor_initialization():

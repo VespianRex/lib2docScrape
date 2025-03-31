@@ -7,12 +7,13 @@ name = "lib2docscrape"
 version = "0.1.0"
 description = "A web scraping tool for library documentation"
 authors = [{name = "Your Name"}]
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 dependencies = [
     "beautifulsoup4>=4.12.2",
     "aiohttp>=3.9.1",
     "asyncio>=3.4.3",
-    "pydantic>=2.5.2"
+    "pydantic>=2.5.2",
+    "markdownify>=0.11.6"
 ]
 
 [project.optional-dependencies]

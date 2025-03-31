@@ -75,52 +75,15 @@ class URLInfo(BaseModel):
             if url.startswith('//'):
                 url = 'http:' + url
 
-            # Handle relative URLs
-            if base_url and not url.startswith(('http://', 'https://')):
-                url = urljoin(base_url, url)
-
-            # Parse URL
-            parsed = urlparse(url)
-            
-            # Normalize scheme
-            scheme = parsed.scheme.lower() or 'http'
-            
-            # Normalize netloc
-            netloc = parsed.netloc
-            if not netloc and parsed.path:
-                # Handle URLs like "example.com/path"
-                path_parts = parsed.path.split('/', 1)
-                netloc = path_parts[0]
-                path = '/' + path_parts[1] if len(path_parts) > 1 else '/'
-            else:
-                path = parsed.path
-
-            # Remove default ports
-            if ':' in netloc:
-                domain, port = netloc.split(':')
-                if (scheme == 'http' and port == '80') or (scheme == 'https' and port == '443'):
-                    netloc = domain
-
-            # Normalize path
-            if not path:
-                path = '/'
-            else:
-                # Remove duplicate slashes
-                path = re.sub(r'/+', '/', path)
-                # Resolve . and .. in path
-                segments = []
-                for segment in path.split('/'):
-                    if segment == '.' or not segment:
-                        continue
-                    elif segment == '..':
-                        if segments:
-                            segments.pop()
-                    else:
-                        segments.append(segment)
-                path = '/' + '/'.join(segments)
-
-            # Handle security checks
-            if any(x in url.lower() for x in ['javascript:', 'data:', '<script', 'alert(', 'eval(']):
+            # Use URLProcessor for proper normalization including IDN handling
+            try:
+                normalized = URLProcessor.normalize_url(url, base_url)
+                parsed = urlparse(normalized)
+                scheme = parsed.scheme
+                netloc = parsed.netloc
+                path = parsed.path or '/'
+            except ValueError:
+                # URL normalization failed, create invalid URL info
                 return cls(
                     raw_url=url,
                     normalized_url="",
@@ -128,18 +91,20 @@ class URLInfo(BaseModel):
                     netloc="",
                     path="",
                     is_valid=False,
-                    error_msg="Potentially malicious URL"
+                    error_msg="URL normalization failed"
                 )
 
-            # Build normalized URL
-            normalized = urlunparse((
-                scheme,
-                netloc,
-                path,
-                '',  # Remove params
-                parsed.query,
-                ''  # Remove fragment
-            ))
+            # Only allow http and https schemes
+            if scheme not in ('http', 'https'):
+                return cls(
+                    raw_url=url,
+                    normalized_url="",
+                    scheme="",
+                    netloc="",
+                    path="",
+                    is_valid=False,
+                    error_msg="Invalid URL scheme"
+                )
 
             return cls(
                 raw_url=url,
@@ -182,67 +147,9 @@ class URLProcessor:
     @staticmethod
     def normalize_url(url: str, base_url: Optional[str] = None) -> str:
         """Normalize URL to canonical form."""
-        if not url:
-            raise ValueError("URL cannot be empty")
-
-        # Handle relative URLs
-        if base_url and not urlparse(url).netloc:
-            url = urljoin(base_url, url)
-
-        # Parse the URL
-        parsed = urlparse(url)
-        
-        # Convert to lowercase and handle Unicode domains
-        netloc = parsed.netloc.lower()
-        if netloc:
-            try:
-                # Convert Unicode domain to IDNA
-                ascii_domain = idna.encode(netloc.split(':')[0]).decode('ascii')
-                if ':' in netloc:
-                    port = netloc.split(':')[1]
-                    if ((parsed.scheme == 'http' and port == '80') or 
-                        (parsed.scheme == 'https' and port == '443')):
-                        netloc = ascii_domain
-                    else:
-                        netloc = f"{ascii_domain}:{port}"
-                else:
-                    netloc = ascii_domain
-            except Exception:
-                # If IDNA encoding fails, keep original
-                pass
-
-        # Normalize path
-        path = parsed.path.lower()
-        if not path:
-            path = '/'
-        elif len(path) > 1:
-            path = path.rstrip('/')
-
-        # Handle query parameters
-        if parsed.query:
-            # Parse and sort query parameters
-            params = parse_qsl(parsed.query, keep_blank_values=True)
-            # Group by parameter name and keep last value
-            param_dict = {}
-            for k, v in params:
-                param_dict[k] = v
-            # Sort parameters by name
-            sorted_params = sorted(param_dict.items())
-            query = urlencode(sorted_params)
-        else:
-            query = ''
-
-        # Rebuild URL without fragment
-        normalized = urlunparse((
-            parsed.scheme.lower(),
-            netloc,
-            path,
-            '',  # params
-            query,
-            ''  # fragment
-        ))
-
-        return normalized
+        # Import here to avoid circular dependencies
+        from .url_utils import URLNormalizer
+        return URLNormalizer.normalize_url(url, base_url)
 
     @classmethod
     def _determine_url_type(cls, url: str, base_url: Optional[str] = None) -> URLType:
@@ -277,6 +184,7 @@ class URLProcessor:
     @classmethod
     def process_url(cls, url: str, base_url: Optional[str] = None) -> URLInfo:
         """Process URL and return comprehensive URL information."""
+        breakpoint() # Breakpoint at start of process_url
         try:
             if not isinstance(url, str):
                 raise ValueError("URL must be a string")
@@ -317,7 +225,7 @@ class URLProcessor:
                 ip = parsed.netloc.split(':')[0]
                 try:
                     ip_obj = ipaddress.ip_address(ip)
-                    if (ip_obj.is_private or ip_obj.is_loopback or 
+                    if (ip_obj.is_private or ip_obj.is_loopback or
                         ip_obj.is_unspecified or ip_obj.is_link_local):
                         raise ValueError("Private/localhost IP not allowed")
                 except ValueError:
@@ -498,3 +406,34 @@ class Timer:
     @property
     def duration(self) -> Optional[float]:
         return self._duration
+
+
+def sanitize_and_join_url(url, base_url=None):
+    """Sanitize and normalize URLs, and join with base URL if necessary."""
+    if not url:
+        return url
+
+    # Handle data URLs
+    if url.startswith('data:'):
+        return url
+
+    # Check null/empty URLs
+    if not url:
+        return '#'
+
+    try:
+        # Normalize URL first
+        normalized_url = url.strip().lower()
+
+        # Check for dangerous protocols first
+        if any(normalized_url.startswith(proto) for proto in ['javascript:', 'data:', 'vbscript:']):
+            return '#'
+
+        # Handle relative URLs
+        if base_url and not normalized_url.startswith(('http://', 'https://', 'mailto:', 'tel:', 'ftp://')):
+            resolved_url = urljoin(base_url, url)
+            return resolved_url
+
+        return url
+    except Exception:
+        return '#'  # Return safe URL on any error

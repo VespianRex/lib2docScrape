@@ -2,6 +2,10 @@ from typing import Dict, Optional, Type
 from urllib.parse import urlparse
 import logging
 
+# Set logging level
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 from pydantic import BaseModel, field_validator
 
 from .base import CrawlerBackend
@@ -19,6 +23,8 @@ class BackendCriteria(BaseModel):
     schemes: list[str] = ['http', 'https', 'file']
     netloc_patterns: list[str] = []
     path_patterns: list[str] = []
+    domains: list[str] = []  # List of domain names to match
+    paths: list[str] = []  # List of URL paths to match
 
     @field_validator('url_patterns')
     def validate_url_patterns(cls, v):
@@ -37,6 +43,13 @@ class BackendSelector:
     """Manages and selects appropriate backends for different crawling tasks."""
 
     def __init__(self) -> None:
+        # Configure logging
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format='%(name)s - %(levelname)s - %(message)s'
+        )
+        self.logger = logging.getLogger(__name__)
+        
         self.backends: Dict[str, CrawlerBackend] = {}
         self.criteria: Dict[str, BackendCriteria] = {}
         
@@ -67,6 +80,10 @@ class BackendSelector:
         )
         
         self.register_backend(crawl4ai_backend, crawl4ai_criteria)
+    def clear_backends(self) -> None:
+        """Clear all registered backends."""
+        self.backends = {}
+        self.criteria = {}
 
     def register_backend(
         self,
@@ -100,40 +117,66 @@ class BackendSelector:
     def _check_url_pattern(self, url: str, patterns: list[str]) -> bool:
         """
         Check if URL matches any of the given patterns.
-        
-        Args:
-            url: URL to check
-            patterns: List of URL patterns to match against
-            
-        Returns:
-            bool indicating if URL matches any pattern
         """
+        breakpoint()  # Set breakpoint here
+        print(f"\nURL pattern check:")
+        print(f"URL: {url}")
+        print(f"Patterns: {patterns}")
+        
         if "*" in patterns:
+            print("Found wildcard pattern '*'")
             return True
             
         parsed_url = urlparse(url)
         domain = parsed_url.netloc
         path = parsed_url.path
+        normalized_url = url.rstrip('/')  # Remove trailing slash for comparison
+        print(f"Normalized URL: {normalized_url}")
         
         for pattern in patterns:
-            # Check domain pattern
-            if pattern.startswith('domain:'):
-                domain_pattern = pattern.split(':', 1)[1]
-                if domain_pattern in domain:
-                    return True
-            # Check path pattern
-            elif pattern.startswith('path:'):
-                path_pattern = pattern.split(':', 1)[1]
-                if path_pattern in path:
-                    return True
-            # Check wildcard pattern
-            elif pattern.endswith('*'):
-                prefix = pattern[:-1]
-                if url.startswith(prefix):
-                    return True
-            # Check full URL pattern
-            elif pattern in url:
-                return True
+            try:
+                # Check domain pattern
+                if pattern.startswith('domain:'):
+                    domain_pattern = pattern.split(':', 1)[1]
+                    match = domain_pattern in domain
+                    print(f"Domain pattern: {domain_pattern} vs {domain} = {match}")
+                    return match
+                # Check path pattern
+                elif pattern.startswith('path:'):
+                    path_pattern = pattern.split(':', 1)[1]
+                    match = path_pattern in path
+                    print(f"Path pattern: {path_pattern} vs {path} = {match}")
+                    return match
+                # Check wildcard pattern
+                elif pattern.endswith('*'):
+                    prefix = pattern[:-1]
+                    match = url.startswith(prefix)
+                    print(f"Wildcard pattern: {prefix} vs {url} = {match}")
+                    return match
+                # Regular URL pattern matching
+                else:
+                    # Normalize both URLs by removing trailing slashes
+                    pattern_norm = pattern.rstrip('/')
+                    url_norm = normalized_url.rstrip('/')
+                    
+                    print(f"Pattern (normalized): {pattern_norm}")
+                    print(f"URL (normalized): {url_norm}")
+                    
+                    # Exact match after normalization
+                    if pattern_norm == url_norm:
+                        print("Exact match found!")
+                        return True
+                        
+                    # Try as prefix match (without adding slash)
+                    if url_norm.startswith(pattern_norm):
+                        print(f"Prefix match found! {url_norm} startswith {pattern_norm}")
+                        return True
+                        
+                    print(f"No match: {url_norm} vs {pattern_norm}")
+                    return False
+            except Exception as e:
+                print(f"Error in pattern matching: {str(e)}")
+                return False
         return False
 
     def _evaluate_backend(
@@ -157,15 +200,62 @@ class BackendSelector:
         criteria = self.criteria[backend_name]
         
         # Start with base score from priority
-        score = float(criteria.priority) / 100
+        score = float(criteria.priority) / 100  # Priority has more influence
         
+        # Calculate initial score based on priority
+        score = float(criteria.priority) / 100
+
+        # Identify backend type
+        is_specialized = bool(criteria.domains or criteria.paths)
+        is_type_specific = criteria.content_types != ["*"]
+        is_fallback = (
+            "*" in criteria.url_patterns and
+            not criteria.domains and
+            not criteria.paths and
+            not is_type_specific
+        )
+
+        # Adjust base score based on backend type
+        if is_fallback:
+            score = float(criteria.priority) / 1000  # Very low base score for fallbacks
+        elif is_specialized:
+            score *= 2  # Double score for specialized backends
+
         # Check content type compatibility
-        if content_type in criteria.content_types:
-            score += 0.3
+        if content_type:  # Only check content type if one is provided
+            if content_type in criteria.content_types:
+                score += 0.3  # Bonus for matching specific content type
+            elif is_type_specific:  # Only penalize if backend has specific content type requirements
+                score -= 0.3  # Penalty for content type mismatch
+
+        # Give small bonus to fallback backends that accept all content types
+        if not content_type and criteria.content_types == ["*"]:
+            score += 0.1
+
+        # Parse URL once
+        parsed_url = urlparse(url)
         
         # Check URL pattern match
-        if self._check_url_pattern(url, criteria.url_patterns):
-            score += 0.3
+        matches_pattern = self._check_url_pattern(url, criteria.url_patterns)
+        if matches_pattern:
+            score += 0.2
+        elif criteria.url_patterns != ["*"]:  # Only penalize if backend has specific patterns
+            score -= 0.1
+        
+        # Check domain match - more lenient for fallback backends
+        if criteria.domains:
+            if parsed_url.netloc in criteria.domains:
+                score += 0.2
+            elif "*" not in criteria.domains:  # Only penalize if not a wildcard domain
+                score -= 0.1
+                
+        # Check path match - more lenient scoring
+        if criteria.paths:
+            if any(parsed_url.path.startswith(p) for p in criteria.paths):
+                score += 0.2
+            elif "*" not in criteria.paths:  # Only penalize if not a wildcard path
+                score -= 0.1
+
         
         # Check backend health
         metrics = backend.get_metrics()
@@ -179,12 +269,15 @@ class BackendSelector:
             if load_factor > criteria.max_load:
                 score -= 0.2
         
+        logging.debug(f"Backend {backend_name} score: {score}") # Debug log
         return min(max(score, 0), 1)  # Ensure score is between 0 and 1
 
     async def select_backend(self, url: str, content_type: Optional[str] = None) -> Optional[CrawlerBackend]:
         """
         Select appropriate backend for URL.
-        
+        """
+        breakpoint() # Breakpoint at start of select_backend
+        """
         Args:
             url: URL to process
             content_type: Optional content type hint
@@ -203,17 +296,30 @@ class BackendSelector:
         if not url_info.is_valid:
             return None
             
+        best_backend: Optional[CrawlerBackend] = None
+        best_score: float = -1.0
+
         for name, backend in self.backends.items():
             try:
                 criteria = self.criteria[name]
                 if await self._matches_criteria(url_info, criteria):
                     if content_type and content_type not in criteria.content_types:
                         continue
-                    return backend
+                    
+                    score = self._evaluate_backend(name, content_type, url)
+                    logging.debug(f"Backend {name} score: {score}") # Debug log
+                    if score > best_score:
+                        best_score = score
+                        best_backend = backend
             except Exception as e:
                 logging.error(f"Error selecting backend {name}: {str(e)}")
                 continue
-                
+
+        if best_backend:
+            logging.debug(f"Best backend selected: {best_backend.name}") # Debug log
+            return best_backend
+        
+        logging.debug("No backend selected.") # Debug log
         return None
 
     def get_all_backends(self) -> Dict[str, CrawlerBackend]:
@@ -251,23 +357,51 @@ class BackendSelector:
         Returns:
             True if URL matches criteria, False otherwise
         """
+        # Always allow fallback backends (those with wildcards and no specific restrictions)
+        is_fallback = (
+            "*" in criteria.url_patterns and
+            not criteria.domains and
+            not criteria.paths and
+            not criteria.netloc_patterns and
+            not criteria.path_patterns and
+            criteria.content_types == ["*"]
+        )
+        if is_fallback:
+            return True
+
         # Check scheme
         if url_info.scheme not in criteria.schemes:
             return False
             
-        # Check URL patterns
-        if "*" in criteria.url_patterns:
-            return True
+        # Check URL patterns - if not wildcard
+        self.logger.debug(f"Checking URL patterns for {url_info.normalized}")
+        self.logger.debug(f"Against patterns: {criteria.url_patterns}")
+        
+        if "*" not in criteria.url_patterns:
+            matches = False
+            for pattern in criteria.url_patterns:
+                match = self._check_url_pattern(url_info.normalized, [pattern])
+                self.logger.debug(f"Pattern '{pattern}' matches '{url_info.normalized}': {match}")
+                if match:
+                    matches = True
+                    break
+            if not matches:
+                self.logger.debug("URL pattern check failed")
+                return False
+        
+        # Check domain match
+        if criteria.domains:
+            matches = url_info.netloc in criteria.domains
+            self.logger.debug(f"Domain check: {url_info.netloc} in {criteria.domains} = {matches}")
+            if not matches:
+                return False
             
-        if not self._check_url_pattern(url_info.normalized, criteria.url_patterns):
-            return False
+        # Check path match
+        if criteria.paths:
+            matches = any(url_info.path.startswith(p) for p in criteria.paths)
+            self.logger.debug(f"Path check: {url_info.path} starts with any of {criteria.paths} = {matches}")
+            if not matches:
+                return False
             
-        # Check netloc patterns if specified
-        if criteria.netloc_patterns and not any(pattern in url_info.netloc for pattern in criteria.netloc_patterns):
-            return False
-            
-        # Check path patterns if specified
-        if criteria.path_patterns and not any(pattern in url_info.path for pattern in criteria.path_patterns):
-            return False
-            
+        self.logger.debug("All criteria matched!")
         return True

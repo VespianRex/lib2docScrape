@@ -1,11 +1,14 @@
-"""Test fixtures for the documentation crawler tests."""
-
-import asyncio
+import pytest
 import os
 import sys
+import asyncio
 from typing import Dict, Any, List
+import platform
 
-import pytest
+if platform.system() != 'Windows':
+    import uvloop
+    uvloop.install()
+
 from bs4 import BeautifulSoup
 
 # Add the project root directory to Python path
@@ -19,12 +22,11 @@ from src.organizers.doc_organizer import DocumentOrganizer, OrganizationConfig
 from src.processors.content_processor import ContentProcessor, ProcessorConfig
 from src.processors.quality_checker import QualityChecker, QualityConfig
 
-
 class MockSuccessBackend(CrawlerBackend):
     """Mock backend that always succeeds."""
     
     def __init__(self):
-        super().__init__()
+        super().__init__(name="mock_success_backend")
         self.crawl_called = False
         self.validate_called = False
         self.process_called = False
@@ -84,12 +86,11 @@ class MockSuccessBackend(CrawlerBackend):
             "assets": {}
         }
 
-
 class MockFailureBackend(CrawlerBackend):
     """Mock backend that always fails."""
     
     def __init__(self):
-        super().__init__()
+        super().__init__(name="mock_failure_backend")
         self.crawl_called = False
         self.validate_called = False
         self.process_called = False
@@ -112,7 +113,6 @@ class MockFailureBackend(CrawlerBackend):
         self.process_called = True
         return {"error": "Processing failed"}
 
-
 @pytest.fixture
 def sample_html() -> str:
     """Sample HTML content for testing."""
@@ -132,12 +132,10 @@ def sample_html() -> str:
     </html>
     """
 
-
 @pytest.fixture
 def soup(sample_html: str) -> BeautifulSoup:
     """BeautifulSoup object for testing."""
     return BeautifulSoup(sample_html, 'html.parser')
-
 
 @pytest.fixture
 def processor_config() -> ProcessorConfig:
@@ -155,12 +153,10 @@ def processor_config() -> ProcessorConfig:
         extract_code_blocks=True
     )
 
-
 @pytest.fixture
 def content_processor(processor_config: ProcessorConfig) -> ContentProcessor:
     """Content processor instance for testing."""
     return ContentProcessor(config=processor_config)
-
 
 @pytest.fixture
 def quality_config() -> QualityConfig:
@@ -176,12 +172,10 @@ def quality_config() -> QualityConfig:
         max_code_block_length=1000
     )
 
-
 @pytest.fixture
 def quality_checker(quality_config: QualityConfig) -> QualityChecker:
     """Quality checker instance for testing."""
     return QualityChecker(config=quality_config)
-
 
 @pytest.fixture
 def create_test_content():
@@ -198,7 +192,6 @@ def create_test_content():
         )
     return _create_content
 
-
 @pytest.fixture
 def sample_urls() -> List[str]:
     """Sample URLs for testing."""
@@ -208,18 +201,15 @@ def sample_urls() -> List[str]:
         "https://example.com/api"
     ]
 
-
 @pytest.fixture
 def mock_success_backend() -> MockSuccessBackend:
     """Mock backend that succeeds."""
     return MockSuccessBackend()
 
-
 @pytest.fixture
 def mock_failure_backend() -> MockFailureBackend:
     """Mock backend that fails."""
     return MockFailureBackend()
-
 
 @pytest.fixture
 def backend_selector(mock_success_backend: MockSuccessBackend) -> BackendSelector:
@@ -235,7 +225,6 @@ def backend_selector(mock_success_backend: MockSuccessBackend) -> BackendSelecto
     )
     return selector
 
-
 @pytest.fixture
 def document_organizer() -> DocumentOrganizer:
     """Configured document organizer."""
@@ -247,7 +236,6 @@ def document_organizer() -> DocumentOrganizer:
             assets_dir="assets"
         )
     )
-
 
 @pytest.fixture
 def crawler(
@@ -270,7 +258,6 @@ def crawler(
         quality_checker=quality_checker,
         document_organizer=document_organizer
     )
-
 
 @pytest.fixture
 def event_loop():

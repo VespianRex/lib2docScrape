@@ -1,289 +1,246 @@
-"""Link processor module for handling and validating URLs and links."""
-
-from typing import Dict, Any, List, Optional, Set, Tuple
-from urllib.parse import urljoin, urlparse, parse_qs, urlencode
 import re
-import idna
-import ipaddress
-from dataclasses import dataclass
+from urllib.parse import urljoin, urlparse, urlunparse
 from bs4 import BeautifulSoup
+from typing import Dict, List, Optional, Set
+from dataclasses import dataclass
+from ..utils.helpers import URLInfo
 
 @dataclass
-class LinkConfig:
-    """Configuration for link processing."""
-    base_url: str = ''
-    allowed_schemes: Set[str] = None
-    allowed_domains: Set[str] = None
-    max_url_length: int = 2048
-    max_query_length: int = 1024
-    max_path_length: int = 1024
-    block_private_ips: bool = True
-    sanitize_fragments: bool = True
-    normalize_idna: bool = True
-    sort_query_params: bool = True
-    remove_default_ports: bool = True
-    strip_authentication: bool = True
-    allowed_ports: Set[int] = None
-    blocked_extensions: Set[str] = None
+class LinkProcessorConfig:
+    """Configuration for the LinkProcessor."""
+    base_url: Optional[str] = None
+    allowed_schemes: List[str] = None
+    allowed_domains: List[str] = None
 
     def __post_init__(self):
-        """Initialize default values."""
         if self.allowed_schemes is None:
-            self.allowed_schemes = {'http', 'https'}
-        if self.allowed_ports is None:
-            self.allowed_ports = {80, 443, 8080, 8443}
-        if self.blocked_extensions is None:
-            self.blocked_extensions = {'.exe', '.dll', '.bat', '.sh', '.jar', '.app'}
+            self.allowed_schemes = ['http', 'https']
+        if self.allowed_domains is None:
+            self.allowed_domains = []
 
 class LinkProcessor:
-    """Processes and validates links and URLs."""
-    
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
-        """Initialize the link processor with optional configuration.
-        
-        Args:
-            config: Optional configuration dictionary with processing rules
-        """
-        self.config = LinkConfig(**config) if config else LinkConfig()
-        self._url_pattern = re.compile(
-            r'(?:(?:https?|ftp):\/\/)?'  # scheme
-            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?)|'  # domain
-            r'localhost|'  # localhost
-            r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})'  # IP
-            r'(?::\d+)?'  # port
-            r'(?:\/[^\"\'<>\s\[\]\{\}\|\\^`\s]+)?'  # path
-            r'(?:\?[^\"\'<>\s\[\]\{\}\|\\^`\s]*)?'  # query string
-            r'(?:#[^\"\'<>\s\[\]\{\}\|\\^`\s]*)?',  # fragment
-            re.IGNORECASE
-        )
+    """Process and validate URLs and extract links from HTML content."""
 
-    def process_link(self, url: str) -> Dict[str, Any]:
-        """Process a single URL and return its components and validation status.
-        
-        Args:
-            url: The URL to process
-            
-        Returns:
-            Dict containing processed URL information
-        """
-        try:
-            # Handle protocol-relative URLs
-            if url.startswith('//'):
-                url = f'https:{url}'
+    def __init__(self, config: Optional[Dict] = None):
+        """Initialize with optional configuration."""
+        if isinstance(config, dict):
+            self.config = LinkProcessorConfig(
+                base_url=config.get('base_url'),
+                allowed_schemes=config.get('allowed_schemes', ['http', 'https']),
+                allowed_domains=config.get('allowed_domains', [])
+            )
+        else:
+            self.config = LinkProcessorConfig()
 
-            # Resolve relative URLs if base_url is provided
-            if self.config.base_url and not bool(urlparse(url).netloc):
-                url = urljoin(self.config.base_url, url)
-            
-            parsed = urlparse(url)
-            validation_result, issues = self._validate_url(parsed)
-            normalized_url = self._normalize_url(parsed) if validation_result else url
-            
+    def process_link(self, url: str) -> Dict:
+        """Process a single URL and return its components and validation status."""
+        if not url:
             return {
-                'original_url': url,
-                'normalized_url': normalized_url,
-                'scheme': parsed.scheme or '',
-                'netloc': parsed.netloc,
-                'path': parsed.path,
-                'params': parsed.params,
-                'query': parsed.query,
-                'fragment': parsed.fragment,
-                'is_valid': validation_result,
-                'validation_issues': issues,
-                'is_relative': not bool(parsed.netloc),
-                'is_internal': self._is_internal_link(parsed),
-                'is_secure': parsed.scheme == 'https',
-                'has_auth': '@' in parsed.netloc,
-                'port': parsed.port,
-                'domain': parsed.hostname,
-                'query_params': parse_qs(parsed.query)
-            }
-        except Exception as e:
-            return {
-                'original_url': url,
-                'normalized_url': '',
+                'url': '',
+                'scheme': '',
+                'netloc': '',
+                'path': '',
+                'query': '',
+                'fragment': '',
                 'is_valid': False,
-                'validation_issues': [str(e)],
                 'is_relative': True,
                 'is_internal': False,
-                'is_secure': False
+                'normalized_url': ''
             }
-    def process_links(self, urls: List[str]) -> List[Dict[str, Any]]:
-        """Process multiple URLs and return their processed information.
-        
-        Args:
-            urls: List of URLs to process
-            
-        Returns:
-            List of processed URL information
-        """
-        return [self.process_link(url) for url in urls]
-    def _validate_url(self, parsed_url: urlparse) -> Tuple[bool, List[str]]:
-        """Validate a parsed URL against configuration rules."""
-        issues = []
-        
-        # Check URL length
-        full_url = parsed_url.geturl()
-        if len(full_url) > self.config.max_url_length:
-            issues.append(f"URL exceeds maximum length of {self.config.max_url_length}")
-
-        # Check scheme
-        if parsed_url.scheme and parsed_url.scheme not in self.config.allowed_schemes:
-            issues.append(f"Scheme '{parsed_url.scheme}' not allowed")
-
-        # Check domain and port
-        if parsed_url.netloc:
-            domain = parsed_url.hostname or ''
-            port = parsed_url.port
-
-            # Check for private IPs
-            if self.config.block_private_ips and domain:
-                try:
-                    ip = ipaddress.ip_address(domain)
-                    if ip.is_private:
-                        issues.append("Private IP addresses not allowed")
-                except ValueError:
-                    pass  # Not an IP address
-
-            # Check domain format
-            if domain:
-                try:
-                    idna.encode(domain)
-                except idna.IDNAError:
-                    issues.append("Invalid domain encoding")
-
-            # Check port
-            if port is not None and port not in self.config.allowed_ports:
-                issues.append(f"Port {port} not allowed")
-
-        # Check path length and extension
-        if parsed_url.path:
-            if len(parsed_url.path) > self.config.max_path_length:
-                issues.append(f"Path exceeds maximum length of {self.config.max_path_length}")
-            
-            ext = parsed_url.path.lower().split('.')[-1] if '.' in parsed_url.path else ''
-            if f'.{ext}' in self.config.blocked_extensions:
-                issues.append(f"File extension '.{ext}' not allowed")
-
-        # Check query length
-        if parsed_url.query and len(parsed_url.query) > self.config.max_query_length:
-            issues.append(f"Query string exceeds maximum length of {self.config.max_query_length}")
-
-        return len(issues) == 0, issues
-
-    def _normalize_url(self, parsed_url: urlparse) -> str:
-        """Normalize a URL by applying various transformations."""
-        # Start with scheme and netloc
-        scheme = parsed_url.scheme or 'https'
-        netloc = parsed_url.netloc
-
-        # Handle IDNA encoding for domain
-        if self.config.normalize_idna and netloc:
-            try:
-                domain = parsed_url.hostname or ''
-                port = f":{parsed_url.port}" if parsed_url.port else ''
-                netloc = idna.encode(domain).decode('ascii') + port
-            except idna.IDNAError:
-                pass
-
-        # Remove default ports if configured
-        if self.config.remove_default_ports and netloc:
-            if ':80' in netloc and scheme == 'http':
-                netloc = netloc.replace(':80', '')
-            elif ':443' in netloc and scheme == 'https':
-                netloc = netloc.replace(':443', '')
-
-        # Strip authentication if configured
-        if self.config.strip_authentication and '@' in netloc:
-            netloc = netloc.split('@')[1]
-
-        # Normalize path
-        path = self._normalize_path(parsed_url.path)
-
-        # Sort query parameters if configured
-        query = parsed_url.query
-        if self.config.sort_query_params and query:
-            params = parse_qs(query, keep_blank_values=True)
-            sorted_params = []
-            for key in sorted(params.keys()):
-                sorted_params.extend((key, val) for val in sorted(params[key]))
-            query = urlencode(sorted_params)
-
-        # Build normalized URL
-        url_parts = [
-            f"{scheme}://" if scheme else '',
-            netloc,
-            path,
-            f"?{query}" if query else '',
-            f"#{parsed_url.fragment}" if parsed_url.fragment and not self.config.sanitize_fragments else ''
-        ]
-        
-        return ''.join(url_parts)
-
-    def _normalize_path(self, path: str) -> str:
-        """Normalize URL path."""
-        if not path:
-            return '/'
-
-        # Split path into segments
-        segments = path.split('/')
-        normalized = []
-        
-        for segment in segments:
-            if segment in ('', '.'):
-                continue
-            elif segment == '..':
-                if normalized:
-                    normalized.pop()
-            else:
-                normalized.append(segment)
-
-        # Ensure leading slash
-        return '/' + '/'.join(normalized)
-
-    def _is_internal_link(self, parsed_url: urlparse) -> bool:
-        """Check if a URL is internal based on the base_url."""
-        if not self.config.base_url:
-            return False
-        
-        base_parsed = urlparse(self.config.base_url)
-        return (not parsed_url.netloc or 
-                parsed_url.netloc.lower() == base_parsed.netloc.lower())
-
-    def extract_urls(self, text: str) -> List[str]:
-        """Extract URLs from text content."""
-        if not text:
-            return []
-        
-        matches = self._url_pattern.finditer(text)
-        return [match.group() for match in matches]
-
-    def extract_links(self, soup: BeautifulSoup, base_url: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Extract and process links from a BeautifulSoup object."""
-        if base_url:
-            old_base = self.config.base_url
-            self.config.base_url = base_url
 
         try:
-            links = []
-            for tag in soup.find_all(['a', 'link', 'script', 'img', 'iframe', 'source']):
-                url = None
-                if tag.name == 'a' and tag.get('href'):
-                    url = tag['href']
-                elif tag.name in ('link', 'script', 'img', 'iframe', 'source') and tag.get('src'):
-                    url = tag['src']
+            # First check for malicious URLs
+            if any(url.lower().startswith(prefix) for prefix in [
+                'javascript:', 'data:', 'vbscript:', 'file:', 'about:', 'blob:'
+            ]):
+                return {
+                    'url': url,
+                    'scheme': '',
+                    'netloc': '',
+                    'path': '',
+                    'query': '',
+                    'fragment': '',
+                    'is_valid': False,
+                    'is_relative': False,
+                    'is_internal': False,
+                    'normalized_url': ''
+                }
 
-                if url:
-                    link_info = self.process_link(url)
-                    link_info['element_type'] = tag.name
-                    link_info['attributes'] = dict(tag.attrs)
-                    links.append(link_info)
+            # Handle protocol-relative URLs
+            if url.startswith('//'):
+                url = 'https:' + url
 
-            return links
-        finally:
-            if base_url:
-                self.config.base_url = old_base
+            # Normalize and validate the URL
+            try:
+                normalized_url = self.normalize_url(url)
+            except Exception:
+                normalized_url = url
 
-    def process_links(self, urls: List[str]) -> List[Dict[str, Any]]:
-        """Process multiple URLs and return their processed information."""
-        return [self.process_link(url) for url in urls if url]
+            # Handle relative URLs
+            if self.config.base_url and not urlparse(url).netloc:
+                full_url = urljoin(self.config.base_url, url)
+            else:
+                full_url = url
+
+            parsed = urlparse(full_url)
+            scheme = parsed.scheme or 'https'
+            
+            result = {
+                'url': url,
+                'normalized_url': normalized_url,
+                'scheme': scheme,
+                'netloc': parsed.netloc,
+                'path': parsed.path or '/',
+                'query': parsed.query,
+                'fragment': parsed.fragment,
+                'is_valid': True,
+                'is_relative': not bool(urlparse(url).netloc),
+                'is_internal': self._is_internal_url(full_url)
+            }
+
+            # Validate scheme
+            if scheme not in self.config.allowed_schemes:
+                result['is_valid'] = False
+
+            # Validate domain if allowed_domains is specified
+            if self.config.allowed_domains and parsed.netloc:
+                if not any(parsed.netloc.endswith(domain) for domain in self.config.allowed_domains):
+                    result['is_valid'] = False
+
+            # Additional validation
+            if '..' in parsed.path or '%2e%2e' in parsed.path.lower():
+                result['is_valid'] = False
+
+            # Check for unsafe characters
+            if re.search(r'[<>\[\]{}|\^]', url):
+                result['is_valid'] = False
+
+            return result
+
+        except Exception as e:
+            # Return invalid result instead of raising
+            return {
+                'url': url,
+                'scheme': '',
+                'netloc': '',
+                'path': '',
+                'query': '',
+                'fragment': '',
+                'is_valid': False,
+                'is_relative': True,
+                'is_internal': False,
+                'normalized_url': '',
+                'error': str(e)
+            }
+
+    def process_links(self, urls: List[str]) -> List[Dict]:
+        """Process multiple URLs and return their information."""
+        return [self.process_link(url) for url in urls]
+
+    def normalize_url(self, url: str) -> str:
+        """Normalize URL by resolving paths and removing fragments."""
+        try:
+            if not url:
+                return url
+
+            # Handle protocol-relative URLs
+            if url.startswith('//'):
+                url = 'https:' + url
+
+            # Handle relative URLs
+            if self.config.base_url and not urlparse(url).netloc:
+                url = urljoin(self.config.base_url, url)
+
+            # Parse and normalize
+            parsed = urlparse(url)
+            netloc = parsed.netloc
+            path = re.sub(r'/+', '/', parsed.path)  # Normalize multiple slashes
+            
+            # Normalize path segments
+            segments = []
+            for segment in path.split('/'):
+                if segment in ('', '.'):
+                    continue
+                elif segment == '..':
+                    if segments:
+                        segments.pop()
+                else:
+                    segments.append(segment)
+            
+            # Rebuild path
+            normalized_path = '/' + '/'.join(segments)
+            
+            # Rebuild URL without fragment
+            return urlunparse((
+                parsed.scheme or 'https',
+                netloc,
+                normalized_path,
+                '',  # params
+                parsed.query,
+                ''  # fragment
+            ))
+
+        except Exception:
+            return url
+
+    def extract_links(self, soup: BeautifulSoup, base_url: Optional[str] = None) -> List[Dict]:
+        """Extract and process links from BeautifulSoup object."""
+        seen_urls: Set[str] = set()
+        results = []
+
+        for a in soup.find_all('a', href=True):
+            href = a.get('href', '').strip()
+            if not href:
+                continue
+
+            try:
+                # First normalize the URL
+                normalized_url = self.normalize_url(href)
+                
+                if normalized_url:
+                    # Skip if we've seen this normalized URL
+                    if normalized_url in seen_urls:
+                        continue
+                    
+                    # Process the link with provided base_url
+                    result = self.process_link(href)
+                    if base_url and not urlparse(href).netloc:
+                        full_url = urljoin(base_url, href)
+                        result['url'] = full_url
+                        result['normalized_url'] = self.normalize_url(full_url)
+                        result['is_relative'] = True
+                        result['is_internal'] = self._is_internal_url(full_url)
+                    
+                    # Add text content and other attributes
+                    result['text'] = a.get_text(strip=True)
+                    result['title'] = a.get('title', '')
+                    result['rel'] = a.get('rel', [])
+                    result['class'] = a.get('class', [])
+                    
+                    # Skip invalid links
+                    if not result['is_valid']:
+                        continue
+                        
+                    # Add to results and mark as seen
+                    seen_urls.add(normalized_url)
+                    results.append(result)
+                        
+            except ValueError:
+                continue
+
+        return results
+
+    def extract_urls(self, text: str) -> List[str]:
+        """Extract URLs from text content using regex."""
+        url_pattern = r'https?://[^\s<>"\']+|/[^\s<>"\']+(?=[\s<>"\']|$)'
+        return re.findall(url_pattern, text)
+
+    def _is_internal_url(self, url: str) -> bool:
+        """Check if URL is internal based on base_url configuration."""
+        if not self.config.base_url:
+            return False
+            
+        base_domain = urlparse(self.config.base_url).netloc
+        url_domain = urlparse(url).netloc
+        
+        return not url_domain or url_domain == base_domain

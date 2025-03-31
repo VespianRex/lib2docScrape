@@ -19,6 +19,7 @@ src/backends/http.py
 src/backends/http_backend.py
 src/backends/selector.py
 src/gui/app.py
+tests/Test_link_processesorQODO.py
 tests/test_base.py
 tests/test_content_processor.py
 tests/test_content_processor_advanced.py

@@ -27,3 +27,5 @@ protobuf>=4.25.2
 packaging>=24.1
 fsspec>=2024.10.0
 certifi>=2024.2.2
+markdownify>=0.14.1
+jinja2>=3.1.5

@@ -7,7 +7,7 @@ from src.utils.helpers import URLInfo
 
 @pytest.fixture
 def mock_backend():
-    backend = AsyncMock(spec=CrawlerBackend)
+    backend = AsyncMock(spec=CrawlerBackend, name="mock_test_backend")
     backend.crawl = AsyncMock(return_value=Mock(status=200))
     backend.process = AsyncMock(return_value={"html": "<html>Test content</html>"})
     return backend
@@ -37,7 +37,17 @@ def crawler(mock_backend, mock_content_processor, mock_quality_checker, mock_doc
         quality_checker=mock_quality_checker,
         document_organizer=mock_document_organizer
     )
-    crawler.backend_selector.register_backend(mock_backend, None)
+    from src.backends.selector import BackendCriteria
+    crawler.backend_selector.register_backend(
+        mock_backend,
+        BackendCriteria(
+            priority=100,
+            content_types=["text/html"],
+            url_patterns=["*"],
+            max_load=0.8,
+            min_success_rate=0.7
+        )
+    )
     return crawler
 
 @pytest.mark.asyncio

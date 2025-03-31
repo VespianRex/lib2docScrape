@@ -64,6 +64,13 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable warning capture"
     )
+
+    parser.add_argument(
+        "--maxfail",
+        type=int,
+        default=0,
+        help="Maximum number of failures before stopping"
+    )
     
     return parser.parse_args()
 
@@ -142,9 +149,19 @@ def run_tests(
     # Add warning control
     if args.no_warnings:
         pytest_args.append("-p no:warnings")
+
+    # Add maxfail option
+    if args.maxfail > 0:
+        pytest_args.extend(["--maxfail", str(args.maxfail)])
+    if args.maxfail > 0:
+        pytest_args.extend(["--maxfail", str(args.maxfail)])
     
-    # Run tests
-    exit_code = pytest.main(pytest_args)
+    # Run tests using uv
+    command = ["uv", "pytest"] + pytest_args
+    process = subprocess.run(command, capture_output=True, text=True)
+    print(process.stdout)
+    print(process.stderr)
+    exit_code = process.returncode
     
     return exit_code, cov_report_path
 
@@ -210,6 +227,7 @@ def check_dependencies() -> None:
 
 def main() -> None:
     """Main entry point."""
+    setup_logging(level="DEBUG") # Enable debug logging for tests
     # Parse arguments
     args = parse_args()
     

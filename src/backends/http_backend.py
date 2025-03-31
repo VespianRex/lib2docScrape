@@ -21,7 +21,7 @@ class HTTPBackend(CrawlerBackend):
     
     def __init__(self, config: HTTPBackendConfig):
         """Initialize the HTTP backend."""
-        super().__init__()
+        super().__init__(name="http_backend")
         self.config = config
         self.session = None
         

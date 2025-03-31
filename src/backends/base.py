@@ -32,9 +32,11 @@ class CrawlResult(BaseModel):
 class CrawlerBackend(ABC):
     """Abstract base class for crawler backends."""
     
-    def __init__(self) -> None:
+    def __init__(self, name: Optional[str] = None) -> None:
         """Initialize the crawler backend with metrics tracking."""
-        self.name: str = self.__class__.__name__
+        if not name:
+            raise ValueError("Backend must have a name")
+        self.name = name
         self.reset_metrics()
 
     @abstractmethod

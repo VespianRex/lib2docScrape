@@ -10,13 +10,15 @@ from src.backends.selector import BackendCriteria, BackendSelector
 from src.crawler import (CrawlerConfig, CrawlResult as OrchestratorResult,
                       CrawlStats, CrawlTarget, DocumentationCrawler)
 from src.processors.content_processor import ProcessedContent
+from src.models.project import ProjectType, ProjectIdentity, ProjectIdentifier
+from src.utils.search import DuckDuckGoSearch, DUCKDUCKGO_AVAILABLE
 
 
 class MockCrawlerBackend(CrawlerBackend):
     """Mock crawler backend for testing the orchestrator."""
     
     def __init__(self, urls: Set[str], delay: float = 0.1):
-        super().__init__()
+        super().__init__(name="mock_crawler")
         self.urls = urls
         self.delay = delay
         self.crawled_urls: Set[str] = set()
