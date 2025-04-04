@@ -118,65 +118,57 @@ class BackendSelector:
         """
         Check if URL matches any of the given patterns.
         """
-        breakpoint()  # Set breakpoint here
-        print(f"\nURL pattern check:")
-        print(f"URL: {url}")
-        print(f"Patterns: {patterns}")
-        
+        # print(f"DEBUG: _check_url_pattern: Checking URL '{url}' against patterns {patterns}") # Removed print
+
         if "*" in patterns:
-            print("Found wildcard pattern '*'")
+            # print("DEBUG: _check_url_pattern: Found wildcard pattern '*', returning True.") # Removed print
             return True
-            
+
         parsed_url = urlparse(url)
         domain = parsed_url.netloc
         path = parsed_url.path
         normalized_url = url.rstrip('/')  # Remove trailing slash for comparison
-        print(f"Normalized URL: {normalized_url}")
-        
+        # print(f"DEBUG: _check_url_pattern: Normalized URL: {normalized_url}, Domain: {domain}, Path: {path}") # Removed print
+
         for pattern in patterns:
+            # print(f"DEBUG: _check_url_pattern: Checking against pattern: '{pattern}'") # Removed print
             try:
                 # Check domain pattern
                 if pattern.startswith('domain:'):
                     domain_pattern = pattern.split(':', 1)[1]
                     match = domain_pattern in domain
-                    print(f"Domain pattern: {domain_pattern} vs {domain} = {match}")
-                    return match
+                    # print(f"DEBUG: _check_url_pattern: Domain pattern '{domain_pattern}' vs '{domain}' = {match}") # Removed print
+                    if match: return True
                 # Check path pattern
                 elif pattern.startswith('path:'):
                     path_pattern = pattern.split(':', 1)[1]
                     match = path_pattern in path
-                    print(f"Path pattern: {path_pattern} vs {path} = {match}")
-                    return match
+                    # print(f"DEBUG: _check_url_pattern: Path pattern '{path_pattern}' vs '{path}' = {match}") # Removed print
+                    if match: return True
                 # Check wildcard pattern
                 elif pattern.endswith('*'):
                     prefix = pattern[:-1]
                     match = url.startswith(prefix)
-                    print(f"Wildcard pattern: {prefix} vs {url} = {match}")
-                    return match
+                    # print(f"DEBUG: _check_url_pattern: Wildcard pattern '{prefix}*' vs '{url}' = {match}") # Removed print
+                    if match: return True
                 # Regular URL pattern matching
                 else:
-                    # Normalize both URLs by removing trailing slashes
                     pattern_norm = pattern.rstrip('/')
-                    url_norm = normalized_url.rstrip('/')
-                    
-                    print(f"Pattern (normalized): {pattern_norm}")
-                    print(f"URL (normalized): {url_norm}")
-                    
-                    # Exact match after normalization
-                    if pattern_norm == url_norm:
-                        print("Exact match found!")
-                        return True
-                        
-                    # Try as prefix match (without adding slash)
-                    if url_norm.startswith(pattern_norm):
-                        print(f"Prefix match found! {url_norm} startswith {pattern_norm}")
-                        return True
-                        
-                    print(f"No match: {url_norm} vs {pattern_norm}")
-                    return False
+                    url_norm = normalized_url # Already normalized
+                    match = (pattern_norm == url_norm)
+                    # print(f"DEBUG: _check_url_pattern: Exact match pattern '{pattern_norm}' vs '{url_norm}' = {match}") # Removed print
+                    if match: return True
+
+                    # Prefix match check (if needed in future)
+                    # prefix_match = url_norm.startswith(pattern_norm)
+                    # print(f"DEBUG: _check_url_pattern: Prefix match pattern '{pattern_norm}' vs '{url_norm}' = {prefix_match}") # Removed print
+                    # if prefix_match: return True
+
             except Exception as e:
-                print(f"Error in pattern matching: {str(e)}")
-                return False
+                self.logger.error(f"_check_url_pattern: Error matching pattern '{pattern}': {str(e)}") # Kept logger for errors
+                # Continue to next pattern on error
+
+        # print(f"DEBUG: _check_url_pattern: No patterns matched for URL '{url}'. Returning False.") # Removed print
         return False
 
     def _evaluate_backend(
@@ -208,11 +200,12 @@ class BackendSelector:
         # Identify backend type
         is_specialized = bool(criteria.domains or criteria.paths)
         is_type_specific = criteria.content_types != ["*"]
+        # Refined fallback definition
         is_fallback = (
             "*" in criteria.url_patterns and
             not criteria.domains and
             not criteria.paths and
-            not is_type_specific
+            criteria.content_types == ["*"] # Explicitly check for wildcard content types
         )
 
         # Adjust base score based on backend type
@@ -223,14 +216,32 @@ class BackendSelector:
 
         # Check content type compatibility
         if content_type:  # Only check content type if one is provided
-            if content_type in criteria.content_types:
-                score += 0.3  # Bonus for matching specific content type
-            elif is_type_specific:  # Only penalize if backend has specific content type requirements
-                score -= 0.3  # Penalty for content type mismatch
+            supports_requested_type = content_type in criteria.content_types
+            supports_wildcard = "*" in criteria.content_types
+            is_html_backend = "text/html" in criteria.content_types # Check if it's the 'fallback' type for this test
 
-        # Give small bonus to fallback backends that accept all content types
-        if not content_type and criteria.content_types == ["*"]:
-            score += 0.1
+            if supports_requested_type:
+                score += 0.5  # Large bonus for exact match
+            elif supports_wildcard:
+                 score += 0.1 # Small bonus for wildcard support
+            elif is_type_specific:
+                 # Apply penalty, but less harsh for the html 'fallback'
+                 penalty = 0.1 if is_html_backend else 0.5
+                 score -= penalty
+                 self.logger.debug(f"Backend '{backend_name}': Applied penalty {penalty} for content type mismatch (requested: {content_type}, supports: {criteria.content_types})")
+
+        # Handle scoring when no content_type is provided in the request
+        elif not content_type: # Handle scoring when no content_type is provided
+            # Prefer 'text/html' or wildcard '*' as default
+            supports_html = "text/html" in criteria.content_types
+            supports_wildcard = "*" in criteria.content_types
+
+            if supports_html:
+                score += 0.15 # Bonus for supporting default HTML
+            elif supports_wildcard:
+                score += 0.1 # Smaller bonus for wildcard
+            elif is_type_specific: # Penalize if specific types are required but none match default
+                score -= 0.2 # Penalty if backend expects specific types other than html/wildcard
 
         # Parse URL once
         parsed_url = urlparse(url)
@@ -276,7 +287,6 @@ class BackendSelector:
         """
         Select appropriate backend for URL.
         """
-        breakpoint() # Breakpoint at start of select_backend
         """
         Args:
             url: URL to process
@@ -293,7 +303,9 @@ class BackendSelector:
             
         processor = URLProcessor()
         url_info = processor.process_url(url)
+        print(f"DEBUG: select_backend: url_info for '{url}': {url_info}") # Added print back
         if not url_info.is_valid:
+            print(f"DEBUG: select_backend: url_info is invalid (error: {url_info.error_msg}), returning None.") # Added print back
             return None
             
         best_backend: Optional[CrawlerBackend] = None
@@ -302,15 +314,23 @@ class BackendSelector:
         for name, backend in self.backends.items():
             try:
                 criteria = self.criteria[name]
-                if await self._matches_criteria(url_info, criteria):
-                    if content_type and content_type not in criteria.content_types:
-                        continue
-                    
+                matches = await self._matches_criteria(url_info, criteria) # Store result
+                self.logger.debug(f"Backend '{name}': _matches_criteria result: {matches}") # Log result
+
+                if matches: # Use stored result
+                    # Original simpler check: Only skip if content_type is given and doesn't match specific backend types
+                    # Content type matching is handled by the scoring function (_evaluate_backend)
+                    # No need for explicit filtering here anymore.
+
                     score = self._evaluate_backend(name, content_type, url)
-                    logging.debug(f"Backend {name} score: {score}") # Debug log
+                    self.logger.debug(f"Backend '{name}': Calculated score: {score}") # Log score
+
                     if score > best_score:
+                        self.logger.debug(f"Backend '{name}': New best score ({score} > {best_score}). Selecting.")
                         best_score = score
                         best_backend = backend
+                    else:
+                        self.logger.debug(f"Backend '{name}': Score {score} not better than best score {best_score}.")
             except Exception as e:
                 logging.error(f"Error selecting backend {name}: {str(e)}")
                 continue
@@ -349,14 +369,16 @@ class BackendSelector:
     async def _matches_criteria(self, url_info: URLInfo, criteria: BackendCriteria) -> bool:
         """
         Check if URL matches backend criteria.
-        
+
         Args:
             url_info: Normalized URL info
             criteria: Backend selection criteria
-            
+
         Returns:
             True if URL matches criteria, False otherwise
         """
+        # print(f"DEBUG: _matches_criteria: Checking URL '{url_info.normalized}' against criteria: {criteria.dict()}") # Removed print
+
         # Always allow fallback backends (those with wildcards and no specific restrictions)
         is_fallback = (
             "*" in criteria.url_patterns and
@@ -364,44 +386,48 @@ class BackendSelector:
             not criteria.paths and
             not criteria.netloc_patterns and
             not criteria.path_patterns and
-            criteria.content_types == ["*"]
+            criteria.content_types == ["*"] # Assuming ["*"] means all types
         )
         if is_fallback:
+            # print("DEBUG: _matches_criteria: Backend is fallback, returning True.") # Removed print
             return True
 
         # Check scheme
-        if url_info.scheme not in criteria.schemes:
+        scheme_match = url_info.scheme in criteria.schemes
+        # print(f"DEBUG: _matches_criteria: Scheme check: '{url_info.scheme}' in {criteria.schemes} = {scheme_match}") # Removed print
+        if not scheme_match:
             return False
-            
+
         # Check URL patterns - if not wildcard
-        self.logger.debug(f"Checking URL patterns for {url_info.normalized}")
-        self.logger.debug(f"Against patterns: {criteria.url_patterns}")
-        
         if "*" not in criteria.url_patterns:
-            matches = False
-            for pattern in criteria.url_patterns:
-                match = self._check_url_pattern(url_info.normalized, [pattern])
-                self.logger.debug(f"Pattern '{pattern}' matches '{url_info.normalized}': {match}")
-                if match:
-                    matches = True
-                    break
-            if not matches:
-                self.logger.debug("URL pattern check failed")
+            pattern_match = self._check_url_pattern(url_info.normalized_url, criteria.url_patterns)
+            # print(f"DEBUG: _matches_criteria: URL pattern check result: {pattern_match}") # Removed print
+            if not pattern_match:
                 return False
-        
+        else:
+             # print("DEBUG: _matches_criteria: URL pattern is wildcard ('*'), skipping specific pattern check.") # Removed print
+             pass # Explicitly do nothing if wildcard
+
+
         # Check domain match
         if criteria.domains:
-            matches = url_info.netloc in criteria.domains
-            self.logger.debug(f"Domain check: {url_info.netloc} in {criteria.domains} = {matches}")
-            if not matches:
+            domain_match = url_info.netloc in criteria.domains
+            # print(f"DEBUG: _matches_criteria: Domain check: '{url_info.netloc}' in {criteria.domains} = {domain_match}") # Removed print
+            if not domain_match:
                 return False
-            
+        else:
+            # print("DEBUG: _matches_criteria: No specific domains in criteria, skipping domain check.") # Removed print
+            pass # Explicitly do nothing if no domains
+
         # Check path match
         if criteria.paths:
-            matches = any(url_info.path.startswith(p) for p in criteria.paths)
-            self.logger.debug(f"Path check: {url_info.path} starts with any of {criteria.paths} = {matches}")
-            if not matches:
+            path_match = any(url_info.path.startswith(p) for p in criteria.paths)
+            # print(f"DEBUG: _matches_criteria: Path check: '{url_info.path}' starts with any of {criteria.paths} = {path_match}") # Removed print
+            if not path_match:
                 return False
-            
-        self.logger.debug("All criteria matched!")
+        else:
+            # print("DEBUG: _matches_criteria: No specific paths in criteria, skipping path check.") # Removed print
+            pass # Explicitly do nothing if no paths
+
+        # print(f"DEBUG: _matches_criteria: All checks passed for URL '{url_info.normalized}'. Returning True.") # Removed print
         return True

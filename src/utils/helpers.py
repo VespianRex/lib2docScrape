@@ -8,123 +8,15 @@ import requests
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urlparse, urljoin, urlunparse, parse_qs, parse_qsl, urlencode
-from enum import Enum
-from dataclasses import dataclass
+from enum import Enum, auto # Added auto
+from dataclasses import dataclass, field # Added field
 from pydantic import BaseModel, Field, validator
 import ipaddress
+from .url_info import URLInfo, URLType # Import the new class and Enum
 
 
-class URLType(Enum):
-    INTERNAL = "internal"
-    EXTERNAL = "external"
-    ASSET = "asset"
-    UNKNOWN = "unknown"
-
-
-class URLInfo(BaseModel):
-    """Model for URL information."""
-    raw_url: str = Field(description="Original raw URL")
-    normalized_url: str = Field(description="Normalized URL")
-    scheme: str = Field(description="URL scheme (http/https)")
-    netloc: str = Field(description="Network location")
-    path: str = Field(description="URL path")
-    is_valid: bool = Field(description="URL validity flag")
-    error_msg: Optional[str] = Field(default=None, description="Error message if invalid")
-    url_type: URLType = Field(default=URLType.UNKNOWN, description="URL type")
-
-    @property
-    def normalized(self) -> str:
-        """Get normalized URL."""
-        return self.normalized_url
-
-    @property
-    def original(self) -> str:
-        """Get original URL."""
-        return self.raw_url
-
-    @property
-    def domain(self) -> str:
-        """Get domain name."""
-        return self.netloc.split(':')[0]
-
-    def __hash__(self):
-        return hash(self.normalized_url)
-
-    def __eq__(self, other):
-        if not isinstance(other, URLInfo):
-            return False
-        return self.normalized_url == other.normalized_url
-
-    @classmethod
-    def from_string(cls, url: str, base_url: Optional[str] = None) -> 'URLInfo':
-        """Create URLInfo from string."""
-        try:
-            # Handle None or empty URL
-            if not url:
-                return cls(
-                    raw_url=url or "",
-                    normalized_url="",
-                    scheme="",
-                    netloc="",
-                    path="",
-                    is_valid=False,
-                    error_msg="Empty URL"
-                )
-
-            # Handle protocol-relative URLs
-            if url.startswith('//'):
-                url = 'http:' + url
-
-            # Use URLProcessor for proper normalization including IDN handling
-            try:
-                normalized = URLProcessor.normalize_url(url, base_url)
-                parsed = urlparse(normalized)
-                scheme = parsed.scheme
-                netloc = parsed.netloc
-                path = parsed.path or '/'
-            except ValueError:
-                # URL normalization failed, create invalid URL info
-                return cls(
-                    raw_url=url,
-                    normalized_url="",
-                    scheme="",
-                    netloc="",
-                    path="",
-                    is_valid=False,
-                    error_msg="URL normalization failed"
-                )
-
-            # Only allow http and https schemes
-            if scheme not in ('http', 'https'):
-                return cls(
-                    raw_url=url,
-                    normalized_url="",
-                    scheme="",
-                    netloc="",
-                    path="",
-                    is_valid=False,
-                    error_msg="Invalid URL scheme"
-                )
-
-            return cls(
-                raw_url=url,
-                normalized_url=normalized,
-                scheme=scheme,
-                netloc=netloc,
-                path=path,
-                is_valid=True
-            )
-
-        except Exception as e:
-            return cls(
-                raw_url=url or "",
-                normalized_url="",
-                scheme="",
-                netloc="",
-                path="",
-                is_valid=False,
-                error_msg=f"URL normalization failed: {str(e)}"
-            )
+# Note: The URLInfo BaseModel and URLType Enum are now defined in url_info.py
+# The URLInfo.from_string classmethod is also removed as instantiation handles it.
 
 
 class URLProcessor:
@@ -183,90 +75,12 @@ class URLProcessor:
 
     @classmethod
     def process_url(cls, url: str, base_url: Optional[str] = None) -> URLInfo:
-        """Process URL and return comprehensive URL information."""
-        breakpoint() # Breakpoint at start of process_url
-        try:
-            if not isinstance(url, str):
-                raise ValueError("URL must be a string")
-
-            if not url:
-                raise ValueError("URL cannot be empty")
-
-            # First normalize the URL
-            normalized = cls.normalize_url(url, base_url)
-            parsed = urlparse(normalized)
-
-            # Basic validation
-            if not parsed.scheme or parsed.scheme not in cls.ALLOWED_SCHEMES:
-                raise ValueError(f"Invalid or unsupported URL scheme: {parsed.scheme}")
-
-            # Check for invalid characters
-            if cls.INVALID_CHARS.search(parsed.path):
-                raise ValueError("URL contains invalid characters")
-
-            # Check for path traversal
-            if cls.INVALID_PATH_TRAVERSAL.search(parsed.path):
-                raise ValueError("URL contains path traversal")
-
-            # Check path length
-            if len(parsed.path) > cls.MAX_PATH_LENGTH:
-                raise ValueError("URL path too long")
-
-            # Check query length
-            if len(parsed.query) > cls.MAX_QUERY_LENGTH:
-                raise ValueError("URL query too long")
-
-            # Check for authentication
-            if '@' in parsed.netloc:
-                raise ValueError("Authentication in URL not allowed")
-
-            # Check for private IPs
-            if parsed.netloc:
-                ip = parsed.netloc.split(':')[0]
-                try:
-                    ip_obj = ipaddress.ip_address(ip)
-                    if (ip_obj.is_private or ip_obj.is_loopback or
-                        ip_obj.is_unspecified or ip_obj.is_link_local):
-                        raise ValueError("Private/localhost IP not allowed")
-                except ValueError:
-                    # Not an IP address, continue with domain validation
-                    pass
-
-            # Check domain
-            if parsed.netloc:
-                parts = parsed.netloc.split('.')
-                if len(parts) < 2:
-                    raise ValueError("Invalid domain: missing TLD")
-                if any(not part for part in parts):
-                    raise ValueError("Invalid domain: empty label")
-                if any(len(part) > 63 for part in parts):
-                    raise ValueError("Invalid domain: label too long")
-
-            # Determine URL type
-            url_type = cls._determine_url_type(normalized, base_url)
-
-            return URLInfo(
-                raw_url=url,
-                normalized_url=normalized,
-                scheme=parsed.scheme,
-                netloc=parsed.netloc,
-                path=parsed.path,
-                is_valid=True,
-                error_msg=None,
-                url_type=url_type
-            )
-
-        except Exception as e:
-            return URLInfo(
-                raw_url=url,
-                normalized_url=url if isinstance(url, str) else "",
-                scheme='unknown',
-                netloc='',
-                path='',
-                is_valid=False,
-                error_msg=str(e),
-                url_type=URLType.UNKNOWN
-            )
+        """
+        Processes a URL string, returning a URLInfo object containing
+        validation status, normalized form, and other details.
+        """
+        # All logic is now encapsulated within the URLInfo class constructor
+        return URLInfo(url, base_url)
 
 
 class RateLimiter:

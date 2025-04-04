@@ -96,8 +96,9 @@ class ContentProcessor:
     def process(self, html_content: str, base_url: str = None) -> ProcessedContent:
         """Process HTML content and return structured result."""
         self.result = ProcessedContent()
-        if not html_content:
-            return self.result
+        # Check for empty or whitespace-only content
+        if not html_content or not html_content.strip():
+            raise ContentProcessingError("Cannot process empty or whitespace-only content")
 
         try:
             soup = BeautifulSoup(html_content, 'html.parser')

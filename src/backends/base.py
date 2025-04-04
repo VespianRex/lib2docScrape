@@ -2,10 +2,10 @@
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Union
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, Field # Added Field
 from datetime import datetime
 
-from ..utils.helpers import URLInfo
+from ..utils.url_info import URLInfo # Updated import path
 
 
 class CrawlResult(BaseModel):
@@ -15,7 +15,11 @@ class CrawlResult(BaseModel):
     metadata: Dict[str, Any]
     status: int
     error: Optional[str] = None
-    timestamp: datetime = datetime.utcnow()
+    timestamp: datetime = Field(default_factory=datetime.utcnow) # Use default_factory
+
+    model_config = {
+        "arbitrary_types_allowed": True
+    }
 
     @field_validator('url')
     def validate_url(cls, v: Union[str, URLInfo]) -> str:

@@ -32,13 +32,13 @@ def test_malformed_html():
     content = "<div><p>Test content<div>"
     result = processor.process(content, "https://example.com")
     assert isinstance(result, ProcessedContent)
-    assert "Test content" in result.processed_content['main']
+    assert "Test content" in result.content['formatted_content'] # Check 'formatted_content' key
     
     # Test mismatched tags
     content = "<div><p>Test content</div></p>"
     result = processor.process(content, "https://example.com")
     assert isinstance(result, ProcessedContent)
-    assert "Test content" in result.processed_content['main']
+    assert "Test content" in result.content['formatted_content'] # Check 'formatted_content' key
     
     # Test invalid attributes
     content = '<div class="test" <<invalid>>Test content</div>'
