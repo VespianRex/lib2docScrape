@@ -183,10 +183,15 @@ class LinkProcessor:
         except Exception:
             return url
 
-    def extract_links(self, soup: BeautifulSoup, base_url: Optional[str] = None) -> List[Dict]:
-        """Extract and process links from BeautifulSoup object."""
+    def extract_links(self, soup: BeautifulSoup, base_url: Optional[str] = None) -> List[str]:
+        """Extract, process, and return a list of unique, valid URL strings from links."""
         seen_urls: Set[str] = set()
-        results = []
+        extracted_urls = []
+
+        # Update internal config base_url if provided
+        original_config_base_url = self.config.base_url
+        if base_url:
+             self.config.base_url = base_url
 
         for a in soup.find_all('a', href=True):
             href = a.get('href', '').strip()
@@ -194,41 +199,30 @@ class LinkProcessor:
                 continue
 
             try:
-                # First normalize the URL
-                normalized_url = self.normalize_url(href)
-                
-                if normalized_url:
+                # Process the link to get normalized URL and validity
+                # Use the potentially updated base_url from config
+                link_info = self.process_link(href)
+
+                # Use the normalized URL for checks and storage
+                normalized_url = link_info.get('normalized_url')
+
+                if link_info.get('is_valid') and normalized_url:
                     # Skip if we've seen this normalized URL
                     if normalized_url in seen_urls:
                         continue
-                    
-                    # Process the link with provided base_url
-                    result = self.process_link(href)
-                    if base_url and not urlparse(href).netloc:
-                        full_url = urljoin(base_url, href)
-                        result['url'] = full_url
-                        result['normalized_url'] = self.normalize_url(full_url)
-                        result['is_relative'] = True
-                        result['is_internal'] = self._is_internal_url(full_url)
-                    
-                    # Add text content and other attributes
-                    result['text'] = a.get_text(strip=True)
-                    result['title'] = a.get('title', '')
-                    result['rel'] = a.get('rel', [])
-                    result['class'] = a.get('class', [])
-                    
-                    # Skip invalid links
-                    if not result['is_valid']:
-                        continue
-                        
-                    # Add to results and mark as seen
-                    seen_urls.add(normalized_url)
-                    results.append(result)
-                        
-            except ValueError:
-                continue
 
-        return results
+                    # Add the valid, normalized URL to the list
+                    seen_urls.add(normalized_url)
+                    extracted_urls.append(normalized_url)
+
+            except Exception as e: # Catch potential errors during processing
+                 print(f"Error processing link '{href}': {e}") # Basic error logging
+                 continue
+        
+        # Restore original config base_url if it was temporarily changed
+        self.config.base_url = original_config_base_url
+
+        return extracted_urls
 
     def extract_urls(self, text: str) -> List[str]:
         """Extract URLs from text content using regex."""

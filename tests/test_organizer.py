@@ -12,18 +12,27 @@ from src.processors.content_processor import ProcessedContent
 
 
 def create_test_content(
-    url: str,
     title: str,
     content: Dict = None,
-    metadata: Dict = None
+    metadata: Dict = None,
+    url: str = "http://example.com/default" # Add url as optional metadata source
 ) -> ProcessedContent:
     """Helper function to create test content."""
+    # Ensure metadata is initialized
+    final_metadata = metadata or {}
+    # Add url to metadata if provided
+    if url:
+        final_metadata['source_url'] = url
+
     return ProcessedContent(
-        url=url,
         title=title,
         content=content or {},
-        metadata=metadata or {},
-        assets={}
+        metadata=final_metadata,
+        assets={},
+        # Add default empty lists for other fields if needed by tests
+        headings=[],
+        structure=[],
+        errors=[]
     )
 
 

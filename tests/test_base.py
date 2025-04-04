@@ -175,28 +175,8 @@ async def test_backend_selector_selection():
     assert selected3 is None
 
 
-def test_url_normalization():
-    """Test URL normalization."""
-    test_cases = [
-        ("http://example.com", "http://example.com/"),
-        ("http://example.com/path", "http://example.com/path"),
-        ("http://example.com/path/", "http://example.com/path/"),
-        ("http://example.com/path?q=1", "http://example.com/path?q=1"),
-        ("http://example.com/path/?q=1", "http://example.com/path/?q=1"),
-        ("http://example.com/path/#fragment", "http://example.com/path"),
-        ("http://example.com/path?q=1#fragment", "http://example.com/path?q=1"),
-        # ("", ""), # Empty URL - Removed as normalize_url raises ValueError for empty input
-        ("http://example.com//path", "http://example.com//path"), # Double slash in path
-        ("http://ExamPle.Com/path", "http://example.com/path"), # Mixed case domain
-        ("https://user:password@example.com", "https://example.com/"), # Remove username and password, expect trailing slash for root
-    ]
-
-    for input_url, expected_url in test_cases:
-        if input_url == "": # Special handling for empty URL case
-             with pytest.raises(ValueError, match="URL cannot be empty"):
-                 URLProcessor.normalize_url(input_url)
-        else:
-             assert URLProcessor.normalize_url(input_url) == expected_url
+# test_url_normalization removed as the tested function normalize_url in base.py was removed.
+# URL normalization is now handled by URLInfo in src/utils/url_info.py and tested in test_url_handling.py
 
 
 @pytest.mark.asyncio

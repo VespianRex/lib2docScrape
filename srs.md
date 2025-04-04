@@ -13,10 +13,10 @@ The system will automatically discover, crawl, process, and organize technical d
 ## 2. System Architecture
 
 ### 2.1 Multi-Backend Support
-- **Primary Backend**: Crawl4AI
+- **Primary Backend**: Scrapy
 - **Secondary Backends**:
-  - Selenium (for JavaScript-heavy sites)
-  - Scrapy (for high-performance needs)
+  - Crawl4Ai (for JavaScript-heavy sites)
+  -  (for high-performance needs)
   - Custom adapters for specialized cases
 - **Backend Selection Criteria**:
   - Content type compatibility
@@ -207,13 +207,9 @@ return content
 - AI-powered content summarization
 - Automatic documentation updates
 - Multi-language support
-- Custom plugin system
-- Advanced analytics
 - API generation
 
 ### 8.2 Scalability Plans
-- Global distribution
-- Multi-region support
 - Enhanced caching
 - Improved parallelization
 - Resource optimization

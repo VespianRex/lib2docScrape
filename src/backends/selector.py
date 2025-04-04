@@ -10,7 +10,7 @@ from pydantic import BaseModel, field_validator
 
 from .base import CrawlerBackend
 from .crawl4ai import Crawl4AIBackend, Crawl4AIConfig
-from ..utils.helpers import URLProcessor, URLInfo
+from ..utils.url_info import URLInfo
 
 
 class BackendCriteria(BaseModel):
@@ -190,12 +190,12 @@ class BackendSelector:
         """
         backend = self.backends[backend_name]
         criteria = self.criteria[backend_name]
+        self.logger.debug(f"Evaluating backend '{backend_name}' with criteria: {criteria.dict()}") # Log the criteria being used
         
         # Start with base score from priority
         score = float(criteria.priority) / 100  # Priority has more influence
         
-        # Calculate initial score based on priority
-        score = float(criteria.priority) / 100
+        # Redundant calculation removed - score is already initialized based on priority above
 
         # Identify backend type
         is_specialized = bool(criteria.domains or criteria.paths)
@@ -280,8 +280,9 @@ class BackendSelector:
             if load_factor > criteria.max_load:
                 score -= 0.2
         
-        logging.debug(f"Backend {backend_name} score: {score}") # Debug log
-        return min(max(score, 0), 1)  # Ensure score is between 0 and 1
+        self.logger.debug(f"Backend '{backend_name}' calculated score: {score}") # Use self.logger
+        # return min(max(score, 0), 1)  # Remove clamping to allow priority > 100 to take effect
+        return max(score, 0) # Ensure score is not negative
 
     async def select_backend(self, url: str, content_type: Optional[str] = None) -> Optional[CrawlerBackend]:
         """
@@ -301,17 +302,18 @@ class BackendSelector:
         if not self.backends:
             raise ValueError("No backends registered")
             
-        processor = URLProcessor()
-        url_info = processor.process_url(url)
+        url_info = URLInfo(url)
         print(f"DEBUG: select_backend: url_info for '{url}': {url_info}") # Added print back
         if not url_info.is_valid:
-            print(f"DEBUG: select_backend: url_info is invalid (error: {url_info.error_msg}), returning None.") # Added print back
+            print(f"DEBUG: select_backend: url_info is invalid (error: {url_info.error_message}), returning None.") # Changed error_msg to error_message
             return None
             
         best_backend: Optional[CrawlerBackend] = None
         best_score: float = -1.0
 
         for name, backend in self.backends.items():
+            # Correct indentation for lines within the for loop
+            self.logger.debug(f"Looking up criteria for backend name: '{name}'") # Log name before criteria lookup
             try:
                 criteria = self.criteria[name]
                 matches = await self._matches_criteria(url_info, criteria) # Store result

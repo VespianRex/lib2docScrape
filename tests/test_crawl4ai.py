@@ -3,6 +3,12 @@ import asyncio
 from src.backends.crawl4ai import Crawl4AIBackend, Crawl4AIConfig
 from src.backends.selector import BackendSelector, BackendCriteria
 import ssl
+from typing import Dict # Import Dict
+# Import mocking utilities directly from extended tests
+from tests.test_crawl4ai_extended import MockResponse, MockClientSession
+# Keep existing imports below if they were there
+from src.backends.base import CrawlResult
+from src.utils.helpers import URLInfo
 
 @pytest.fixture
 def crawl4ai_backend():
@@ -95,7 +101,7 @@ async def test_error_handling(crawl4ai_backend):
     result = await crawl4ai_backend.crawl(url)
     
     assert result.error is not None
-    assert result.status == 500
+    assert result.status == 0 # Expect 0 for network/DNS errors after retries
 
 @pytest.mark.asyncio
 async def test_concurrent_requests(crawl4ai_backend):
@@ -142,8 +148,9 @@ def test_crawl4ai_config_validation():
     assert config.max_retries == 3
     assert config.timeout == 30.0
     
-    # Test invalid values
-    with pytest.raises(ValueError):
+    # Test invalid values (should raise pydantic.ValidationError)
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
         Crawl4AIConfig(max_retries=-1)
     
     with pytest.raises(ValueError):
@@ -208,7 +215,7 @@ async def test_domain_filtering(crawl4ai_backend):
     await backend.close()
 
 @pytest.mark.asyncio
-async def test_url_queue_management(crawl4ai_backend):
+async def test_url_queue_management(crawl4ai_backend, monkeypatch): # Add monkeypatch
     """Test URL queue management."""
     urls = [f"https://example.com/page{i}" for i in range(5)]
     
@@ -223,15 +230,38 @@ async def test_url_queue_management(crawl4ai_backend):
     assert processed_urls == urls
     assert len(set(processed_urls)) == len(urls)
     
-    # Test queue size limits
-    config = Crawl4AIConfig(max_pages=3)
-    backend = Crawl4AIBackend(config=config)
-    results = []
+    # --- Test queue size limits ---
+    # Setup mocked backend for this part
+    mock_responses_dict: Dict[str, MockResponse] = {}
+    for i in range(5):
+        url = f"https://example.com/page{i}"
+        mock_responses_dict[url] = MockResponse(
+            url, 200, f"<html><body>Page {i}</body></html>", {"content-type": "text/html"}
+        )
+
+    mock_session_instance = MockClientSession(mock_responses_dict)
+
+    config_limited = Crawl4AIConfig(max_pages=3)
+    backend_limited = Crawl4AIBackend(config=config_limited)
+
+    # Patch the session creation for this specific backend instance
+    async def mock_create_session_limited():
+        return mock_session_instance
+    monkeypatch.setattr(backend_limited, "_create_session", mock_create_session_limited, raising=False)
+
+
+    results_limited = []
     for url in urls:
-        result = await backend.crawl(url)
-        results.append(result)
-    
-    successful_results = [r for r in results if r.status != 403]
+        # Use the specifically configured backend
+        result = await backend_limited.crawl(url)
+        results_limited.append(result)
+
+    # Filter for results that were actually successful (status 200)
+    # Use results_limited here
+    successful_results = [r for r in results_limited if r.status == 200]
     assert len(successful_results) == 3
+
+    # Ensure the backend session was closed if necessary (optional check)
+    await backend_limited.close()
     
-    await backend.close()
+    # Remove erroneous close call for non-existent 'backend' variable

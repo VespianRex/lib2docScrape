@@ -30,6 +30,8 @@ class ProcessorConfig:
     extract_metadata: bool = True
     extract_assets: bool = True
     extract_code_blocks: bool = True
+    # blocked_attributes field removed as bleach handles allowed attributes directly
+
 
     def __post_init__(self):
         # Ensure max_heading_level is between 1 and 6

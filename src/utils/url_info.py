@@ -5,6 +5,7 @@ import re
 import ipaddress
 from enum import Enum, auto
 from typing import Optional, Tuple, Dict, Any
+import urllib.parse # Import the whole module for quote_via
 from urllib.parse import urlparse, urljoin, urlunparse, parse_qsl, urlencode, ParseResult
 
 # Define URLType Enum (assuming it was previously in helpers or models)
@@ -43,6 +44,7 @@ class URLInfo:
         """
         Initializes URLInfo, performing parsing, validation, and normalization.
         """
+        self._initialized = False # Flag to control setattr
         self.raw_url: str = url
         self.base_url: Optional[str] = base_url
         self._parsed: Optional[ParseResult] = None # Stores the result of urlparse
@@ -53,9 +55,11 @@ class URLInfo:
 
         try:
             self._parse_and_resolve()
+            # Original order: Validate first
             self.is_valid, self.error_message = self._validate()
 
             if self.is_valid and self._parsed:
+                # Normalize *after* validation passes
                 self._normalize()
                 # Determine type based on normalized URL and base URL
                 self.url_type = self._determine_url_type(self.normalized_url, self.base_url)
@@ -70,6 +74,8 @@ class URLInfo:
             self.error_message = f"Unexpected error during URL processing: {str(e)}"
             self.normalized_url = self.raw_url # Keep raw on unexpected error
             self.url_type = URLType.UNKNOWN
+        # Mark initialization as complete
+        self._initialized = True
 
     def _parse_and_resolve(self):
         """Parses the raw URL and resolves it against the base URL if relative."""
@@ -78,8 +84,19 @@ class URLInfo:
         if not self.raw_url:
             raise ValueError("URL cannot be empty")
 
+        temp_raw_url = self.raw_url
+        base_for_join = self.base_url
+
+        # Handle protocol-relative URLs by adopting the base URL's scheme, or defaulting to http
+        if temp_raw_url.startswith('//'):
+            base_scheme = urlparse(base_for_join).scheme if base_for_join else 'http'
+            temp_raw_url = f"{base_scheme}:{temp_raw_url}"
+        # Add default http scheme if missing entirely and not protocol-relative
+        elif not urlparse(temp_raw_url).scheme:
+             temp_raw_url = "http://" + temp_raw_url
+
         # Use urljoin to handle relative URLs correctly
-        resolved_url = urljoin(self.base_url, self.raw_url) if self.base_url else self.raw_url
+        resolved_url = urljoin(base_for_join, temp_raw_url) if base_for_join else temp_raw_url
         self._parsed = urlparse(resolved_url)
 
     def _validate(self) -> Tuple[bool, Optional[str]]:
@@ -88,11 +105,11 @@ class URLInfo:
              return False, "URL could not be parsed" # Should not happen if _parse runs first
 
         checks = [
-            self._validate_security,
+            self._validate_security, # Run security check before normalization
             self._validate_scheme,
             self._validate_port,
             self._validate_netloc,
-            self._validate_path,
+            self._validate_path, # Validates the *parsed* path
             self._validate_query,
         ]
         for check_func in checks:
@@ -103,9 +120,14 @@ class URLInfo:
 
     # --- Validation Helper Methods ---
     def _validate_security(self) -> Tuple[bool, Optional[str]]:
-        """Check for common security risks like XSS."""
-        if self.XSS_PATTERNS.search(self.raw_url): # Check raw url for patterns
-             return False, "Potential XSS attempt detected in URL"
+        """Check for common security risks like XSS in the resolved URL."""
+        # Check the URL *after* potential resolution via urljoin
+        resolved_url = urlunparse(self._parsed) if self._parsed else self.raw_url
+        if self.XSS_PATTERNS.search(resolved_url):
+             return False, "Potential XSS attempt detected in resolved URL"
+        # Also check specifically for javascript:/data: schemes which bypass other checks
+        if self._parsed and self._parsed.scheme.lower() in ['javascript', 'data']:
+             return False, f"Disallowed scheme: {self._parsed.scheme}"
         return True, None
 
     def _validate_scheme(self) -> Tuple[bool, Optional[str]]:
@@ -176,11 +198,13 @@ class URLInfo:
 
     def _validate_path(self) -> Tuple[bool, Optional[str]]:
         """Validate the URL path."""
+        # Note: This validates the path *as parsed*, before path normalization removes '..' or '//'
         path = self._parsed.path
         if self.INVALID_CHARS.search(path):
             return False, "URL path contains invalid characters"
-        if self.INVALID_PATH_TRAVERSAL.search(path):
-            return False, "URL path contains path traversal attempt"
+        # Path traversal check should happen *after* path normalization
+        # if self.INVALID_PATH_TRAVERSAL.search(path):
+        #     return False, "URL path contains path traversal attempt"
         if len(path) > self.MAX_PATH_LENGTH:
             return False, "URL path too long"
         return True, None
@@ -196,23 +220,76 @@ class URLInfo:
         """Orchestrates normalization steps on the internal _parsed object."""
         if not self._parsed: return # Should already be validated
 
+        # Normalize components in order
         self._normalize_scheme_host()
         self._normalize_port()
-        self._normalize_path()
+        self._normalize_path() # Call path normalization here
         self._normalize_query()
 
-        # Remove fragment and unparse
+        # Post-normalization validation (only path traversal now)
+        if self.INVALID_PATH_TRAVERSAL.search(self._parsed.path):
+             self.is_valid = False
+             # Prioritize path traversal error message if validation hadn't failed already
+             if self.error_message is None:
+                  self.error_message = "URL path contains path traversal attempt after normalization"
+             self.normalized_url = self.raw_url # Revert normalized_url
+             self.url_type = URLType.UNKNOWN
+             return # Stop further processing
+
+        # Final unparse and cleanup
+        self._finalize_normalization()
+
+    def _finalize_normalization(self):
+        """Final step to unparse the normalized components and set the attribute."""
+        if not self._parsed or not self.is_valid: return # Check validity again
+        # Remove fragment before final unparsing
         self._parsed = self._parsed._replace(fragment='')
-        self.normalized_url = urlunparse(self._parsed).rstrip('?') # Final cleanup
+        # Unparse and perform final cleanup: remove trailing '?' and trailing '/' from root
+        temp_url = urlunparse(self._parsed).rstrip('?') # Remove trailing '?' if query was empty
+
+        # Handle trailing slash based on path more carefully
+        parsed_temp = urlparse(temp_url)
+        if parsed_temp.path == '/' and temp_url.endswith('/'):
+            # Keep trailing slash for root path like http://example.com/
+            self.normalized_url = temp_url
+        elif parsed_temp.path == '' and temp_url.endswith('/'):
+             # Path is empty BUT urlunparse added a slash (e.g. http://example.com:80 -> http://example.com/)
+             # Remove the slash in this specific case
+             self.normalized_url = temp_url.rstrip('/')
+        elif parsed_temp.path == '' and not temp_url.endswith('/'):
+             # Path is empty and no slash (e.g. http://example.com after port removal), keep as is
+             self.normalized_url = temp_url
+        # For non-empty paths, urlunparse should preserve the slash correctly based on _normalize_path
+        else:
+             self.normalized_url = temp_url
 
     def _normalize_scheme_host(self):
-        """Lowercase scheme and hostname."""
-        self._parsed = self._parsed._replace(scheme=self._parsed.scheme.lower())
-        # Lowercase netloc, handling potential port
-        netloc_parts = self._parsed.netloc.split(':', 1)
+        """Lowercase scheme, remove auth, lowercase and IDNA-encode hostname."""
+        if not self._parsed: return
+        # Lowercase scheme
+        scheme = self._parsed.scheme.lower()
+
+        # Remove auth and lowercase host
+        netloc = self._parsed.netloc
+        if '@' in netloc:
+            netloc = netloc.split('@', 1)[1] # Discard auth part
+
+        netloc_parts = netloc.split(':', 1)
         domain = netloc_parts[0].lower()
-        port = f":{netloc_parts[1]}" if len(netloc_parts) > 1 else ""
-        self._parsed = self._parsed._replace(netloc=f"{domain}{port}")
+        port_part = f":{netloc_parts[1]}" if len(netloc_parts) > 1 else ""
+
+        # IDNA encode domain if it contains non-ASCII characters
+        try:
+            # Check if domain needs encoding (basic check for non-ASCII)
+            if not all(ord(c) < 128 for c in domain):
+                 domain = domain.encode('idna').decode('ascii')
+        except Exception as e:
+             # If IDNA encoding fails, consider the URL invalid
+             self.is_valid = False
+             self.error_message = f"IDNA encoding failed for domain '{domain}': {e}"
+             return # Stop normalization here if domain is invalid
+
+        self._parsed = self._parsed._replace(scheme=scheme, netloc=f"{domain}{port_part}")
 
     def _normalize_port(self):
         """Remove default ports (80/443) or empty ports."""
@@ -228,41 +305,51 @@ class URLInfo:
             # Keep valid non-default ports (already validated)
 
     def _normalize_path(self):
-        """Clean path segments and handle trailing slash."""
+        """Clean path segments (remove //, ., ..) and handle trailing slash."""
+        if not self._parsed: return
+
         # Use original URL to determine original slash presence accurately
         original_parsed_for_slash = urlparse(self.raw_url)
         original_path_for_slash = original_parsed_for_slash.path
         had_trailing_slash_orig = original_path_for_slash.endswith('/')
 
-        # Clean segments: remove empty, '.', handle '..'
-        path_segments = [s for s in self._parsed.path.split('/') if s]
+        # Clean segments: remove empty (handles //), '.', handle '..'
+        # Use self._parsed.path which reflects the state after _parse_and_resolve
+        path_segments = self._parsed.path.split('/')
         clean_segments = []
         for segment in path_segments:
-            if segment == '.':
+            if segment == '.' or segment == '': # Remove . and empty segments from //
                 continue
-            elif segment == '..' and clean_segments:
-                clean_segments.pop()
-            elif segment != '..':
-                clean_segments.append(segment)
+            elif segment == '..':
+                if clean_segments: # Only pop if there's something to pop
+                    clean_segments.pop()
+                # If clean_segments is empty, effectively ignore '..' at root level
+            else: # It's a normal segment
+                # Percent-encode the segment before appending
+                clean_segments.append(urllib.parse.quote(segment, safe='/:'))
 
         # Reconstruct path
         if not clean_segments: # Handle root path
-             # Path should be '/' if original was '/' or ended with '/', otherwise empty
-            _path = '/' if original_path_for_slash == '/' or had_trailing_slash_orig else ''
+             # Path should always be '/' for root after normalization
+             _path = '/'
         else: # Handle non-root path
             _path = '/' + '/'.join(clean_segments)
-            # Add trailing slash if original had one
-            if had_trailing_slash_orig:
+            # Add trailing slash if original had one AND it's not just the root
+            if had_trailing_slash_orig and _path != '/':
                 _path += '/'
+
+        # Update the internal parsed object directly
         self._parsed = self._parsed._replace(path=_path)
+        # No longer sets self.normalized_url here, _finalize_normalization does
 
     def _normalize_query(self):
         """Sort query parameters."""
         if self._parsed.query:
             params = parse_qsl(self._parsed.query, keep_blank_values=True)
             # Add filtering logic here if needed based on config
-            sorted_params = sorted(params)
-            query_string = urlencode(sorted_params)
+            sorted_params = sorted(params, key=lambda param: param[0]) # Sort by key only
+            # Use quote_via=urllib.parse.quote to ensure spaces are %20, not +
+            query_string = urlencode(sorted_params, doseq=True, quote_via=urllib.parse.quote)
             self._parsed = self._parsed._replace(query=query_string)
         else:
              self._parsed = self._parsed._replace(query='') # Ensure empty string
@@ -291,18 +378,70 @@ class URLInfo:
     # Define properties to access parts of the *normalized* URL if valid
     @property
     def scheme(self) -> Optional[str]:
-        return self._parsed.scheme if self.is_valid and self._parsed else None
+        return self._parsed.scheme if self.is_valid and self._parsed else "" # Return "" if invalid
 
     @property
     def netloc(self) -> Optional[str]:
-        return self._parsed.netloc if self.is_valid and self._parsed else None
+        # Return "" for invalid URLs, consistent with scheme property
+        return self._parsed.netloc if self.is_valid and self._parsed else ""
 
     @property
     def path(self) -> Optional[str]:
-        return self._parsed.path if self.is_valid and self._parsed else None
+        # Return the path from the *final* normalized state if valid
+        if self.is_valid and self.normalized_url:
+             try:
+                  return urlparse(self.normalized_url).path
+             except Exception:
+                  return None # Should not happen if valid
+        elif self._parsed: # If invalid but parsed, return parsed path
+             return self._parsed.path
+        return None
 
     @property
     def query(self) -> Optional[str]:
-         return self._parsed.query if self.is_valid and self._parsed else None
+         # Return the query from the *final* normalized state if valid
+         if self.is_valid and self.normalized_url:
+              try:
+                   return urlparse(self.normalized_url).query
+              except Exception:
+                   return None # Should not happen if valid
+         elif self._parsed: # If invalid but parsed, return parsed query
+              return self._parsed.query
+         return None
 
     # Add other properties as needed (e.g., params, fragment if kept)
+
+
+    def __eq__(self, other: object) -> bool:
+        """Check equality based on the normalized URL."""
+        if not isinstance(other, URLInfo):
+            return NotImplemented
+        # Consider valid URLs equal if their normalized forms match
+        # Consider invalid URLs equal if their raw forms match (as normalized might be None or raw)
+        if self.is_valid and other.is_valid:
+            return self.normalized_url == other.normalized_url
+        elif not self.is_valid and not other.is_valid:
+            return self.raw_url == other.raw_url
+        else:
+            return False # One is valid, one is not
+
+    def __hash__(self) -> int:
+        """Generate hash based on the normalized URL if valid, otherwise raw URL."""
+        if self.is_valid and self.normalized_url is not None:
+            return hash(self.normalized_url)
+        else:
+            # Use raw_url for hashing invalid URLs to maintain consistency with __eq__
+            return hash(self.raw_url)
+
+    def __setattr__(self, name: str, value: Any):
+        """Prevent setting attributes after initialization."""
+        # Allow setting attributes during __init__ before _initialized is True
+        if not getattr(self, '_initialized', False):
+            super().__setattr__(name, value)
+        # Allow setting internal attributes like _parsed even after init
+        elif name.startswith('_'):
+             super().__setattr__(name, value)
+        else:
+            raise AttributeError(f"Cannot set attribute '{name}' on immutable URLInfo object")
+            return hash(self.raw_url)
+

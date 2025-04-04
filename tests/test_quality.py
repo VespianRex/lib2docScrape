@@ -16,19 +16,28 @@ from src.processors.quality_checker import (
 )
 
 def create_processed_content(
-    url: str = "https://example.com",
     title: str = "Test Document",
     content: Dict = None,
     metadata: Dict = None,
-    assets: Dict = None
+    assets: Dict = None,
+    url: str = "https://example.com" # Add url as optional metadata source
 ) -> ProcessedContent:
     """Helper function to create ProcessedContent instances."""
+    # Ensure metadata is initialized
+    final_metadata = metadata or {}
+    # Add url to metadata if provided
+    if url:
+        final_metadata['source_url'] = url
+
     return ProcessedContent(
-        url=url,
         title=title,
         content=content or {},
-        metadata=metadata or {},
-        assets=assets or {}
+        metadata=final_metadata,
+        assets=assets or {},
+        # Add default empty lists for other fields if needed by tests
+        headings=[],
+        structure=[],
+        errors=[]
     )
 
 

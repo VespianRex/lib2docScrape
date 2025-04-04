@@ -1,6 +1,7 @@
 """Handle document structure elements like headings, lists, tables, etc."""
 import logging
 from typing import Dict, List, Any
+from bs4 import BeautifulSoup, Tag, NavigableString # Added NavigableString
 from bs4 import BeautifulSoup, Tag
 
 # Configure logging
@@ -9,8 +10,9 @@ logger = logging.getLogger(__name__)
 class StructureHandler:
     """Handle document structure elements and convert them to markdown."""
 
-    def __init__(self, max_heading_level: int = 3):
+    def __init__(self, code_handler: 'CodeHandler', max_heading_level: int = 3): # Add code_handler
         self.max_heading_level = max_heading_level
+        self.code_handler = code_handler # Store code_handler
 
     def extract_headings(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
         """Extract headings with proper level filtering."""
@@ -27,98 +29,111 @@ class StructureHandler:
         return headings
 
     def extract_structure(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
-        """Extract document structure including headings, sections, paragraphs, code blocks, lists, tables, and links."""
+        """Extract document structure sequentially, preserving order and handling nesting."""
         structure: List[Dict[str, Any]] = []
+        # Find the main content area, default to body if not found
+        content_area = soup.find('main') or soup.body or soup
 
-        # Process headings
-        for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']):
-            level = int(tag.name[1])
-            if level <= self.max_heading_level:
-                heading = {
-                    'type': 'heading',
-                    'level': level,
-                    'title': tag.get_text().strip(),
-                    'id': tag.get('id', ''),
-                    'classes': tag.get('class', [])
-                }
-                structure.append(heading)
+        if not content_area:
+            logger.warning("Could not find main content area (main/body) for structure extraction.")
+            return []
 
-        # Process paragraphs
-        for paragraph in soup.find_all('p'):
-            text_content = paragraph.get_text().strip()
-            if text_content:
-                paragraph_data = {
-                    'type': 'text',
-                    'content': text_content
-                }
-                structure.append(paragraph_data)
+        # Define tags to recurse into vs tags to process directly
+        container_tags = {'div', 'section', 'article', 'aside', 'nav', 'header', 'footer', 'figure'}
+        # Add blockquote?
 
-        # Process lists (ul, ol)
-        for tag_list in soup.find_all(['ul', 'ol']):
-            list_items_data = []
-            for li in tag_list.find_all('li', recursive=False):
-                item_text = li.get_text(strip=True)
-                if item_text:
-                    list_items_data.append(item_text)
-            if list_items_data:
-                list_data = {
-                    'type': 'list',
-                    'tag': tag_list.name,  # 'ul' or 'ol'
-                    'content': list_items_data
-                }
-                structure.append(list_data)
+        def process_element(element: Tag, current_structure: List[Dict[str, Any]]):
+            """Recursive helper to process elements."""
+            if not isinstance(element, Tag):
+                return # Skip NavigableString, Comment, etc.
 
-        # Process code blocks
-        for pre in soup.find_all('pre'):
-            code_tag = pre.find('code')
-            if code_tag:
-                # Ensure classes is a list even if it's a string.
-                classes = code_tag.get('class') or []
-                if isinstance(classes, str):
-                    classes = classes.split()
-                raw_code = code_tag.get_text().strip()
-                language = next((cls[len("language-"):] for cls in classes if cls.startswith("language-")), None)
-                if language is None and classes:
-                    language = classes[0]
-            else:
-                raw_code = pre.get_text().strip()
-                language = ''
-            formatted_code = f"```{language or ''}\n{raw_code}\n```"
-            code_data = {
-                'type': 'code',
-                'language': language,
-                'content': formatted_code
-            }
-            structure.append(code_data)
+            element_data = None
+            tag_name = element.name
 
-        # Process tables
-        print("DEBUG: Looking for tables...")  # Debug output
-        for table in soup.find_all('table'):
-            print(f"DEBUG: Found table: {table}")  # Debug output
-            table_content = self._extract_table_content(table)
-            print(f"DEBUG: Extracted table content: {table_content}")  # Debug output
-            table_data = {
-                'type': 'table',
-                'content': table_content
-            }
-            structure.append(table_data)
-            print(f"DEBUG: Added table to structure: {table_data}")  # Debug output
+            # --- Process Direct Content Tags ---
+            # Headings
+            if tag_name in ['h1', 'h2', 'h3', 'h4', 'h5', 'h6']:
+                level = int(tag_name[1])
+                if level <= self.max_heading_level:
+                    text = element.get_text().strip()
+                    if text:
+                        element_data = {
+                            'type': 'heading', 'level': level, 'title': text,
+                            'id': element.get('id', ''), 'classes': element.get('class', [])
+                        }
+            # Paragraphs - process inline elements within
+            elif tag_name == 'p':
+                paragraph_parts = []
+                for child in element.children:
+                    if isinstance(child, NavigableString):
+                        text = child.strip()
+                        if text:
+                            paragraph_parts.append({'type': 'text_inline', 'content': text})
+                    elif isinstance(child, Tag) and child.name == 'a':
+                        href = child.get('href', '').strip() or "#"
+                        text = child.get_text(strip=True)
+                        if text: # Add link even if href is invalid initially
+                             paragraph_parts.append({'type': 'link_inline', 'text': text, 'href': href})
+                    elif isinstance(child, Tag) and child.name == 'code':
+                         inline_code_content = child.get_text().strip()
+                         if inline_code_content:
+                              paragraph_parts.append({'type': 'inline_code', 'content': inline_code_content})
+                    # Add other inline tags like strong, em if needed
+                if paragraph_parts:
+                     # Represent paragraph as a list of its inline parts
+                     element_data = {'type': 'text', 'content': paragraph_parts} # Use 'text' type, content is list of inline parts
+            # Lists
+            elif tag_name in ['ul', 'ol']:
+                list_items_data = [li.get_text(strip=True) for li in element.find_all('li', recursive=False) if li.get_text(strip=True)]
+                if list_items_data:
+                    element_data = {'type': 'list', 'tag': tag_name, 'content': list_items_data}
+            # Code Blocks (pre)
+            elif tag_name == 'pre':
+                code_tag = element.find('code')
+                if code_tag:
+                    classes = code_tag.get('class') or []
+                    if isinstance(classes, str): classes = classes.split()
+                    raw_code = code_tag.get_text()
+                    language = next((cls[len("language-"):] for cls in classes if cls.startswith("language-")), None) or (classes[0] if classes else None)
+                else:
+                    raw_code = element.get_text()
+                    language = None
+                if raw_code.strip():
+                    if language is None or self.code_handler.is_language_supported(language):
+                        element_data = {'type': 'code', 'language': language, 'content': raw_code}
+            # Tables
+            elif tag_name == 'table':
+                table_content = self._extract_table_content(element)
+                if table_content.get('headers') or table_content.get('rows'):
+                    element_data = {'type': 'table', 'content': table_content}
+            # Links (handle standalone links)
+            elif tag_name == 'a':
+                href = element.get('href', '').strip() or "#" # Default to # if empty
+                text = element.get_text(strip=True) # Keep getting text for potential use
+                # Add link regardless of text content, formatting handles empty text
+                # if text: # Removed condition
+                element_data = {'type': 'link', 'text': text, 'href': href} # Correct indentation
+            # Inline code tags (Standalone)
+            elif tag_name == 'code' and element.parent.name != 'pre':
+                inline_code_content = element.get_text().strip()
+                if inline_code_content:
+                    element_data = {'type': 'inline_code', 'content': inline_code_content}
 
-        # Process links
-        for link in soup.find_all('a'):
-            href = link.get('href')
-            if href is None or not href.strip():
-                href = "#"
-            else:
-                href = href.strip()
-            link_data = {
-                'type': 'link',
-                'text': link.get_text(strip=True),
-                'href': href
-            }
-            structure.append(link_data)
+            # --- Append or Recurse ---
+            if element_data:
+                current_structure.append(element_data)
+            elif tag_name in container_tags:
+                # Recurse into container tags
+                for child in element.find_all(recursive=False):
+                    process_element(child, current_structure)
+            # else: ignore other tags or handle them specifically
+
+        # Start processing from the direct children of the content area
+        for child in content_area.find_all(recursive=False):
+             process_element(child, structure) # Process each child
 
         return structure
+
 
     def process_lists(self, soup: BeautifulSoup) -> None:
         """Process lists (ul, ol) to markdown format."""

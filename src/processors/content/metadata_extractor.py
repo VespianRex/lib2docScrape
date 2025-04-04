@@ -101,21 +101,28 @@ def extract_metadata(soup: BeautifulSoup) -> Dict[str, Any]:
             if key:  # Use content as key if non-empty
                 metadata[key.lower()] = ''
 
-    # Extract title, prioritizing <head> section
-    head_title = soup.head
-    if head_title:
-        title_tag = head_title.find('title')
-    else:
-        title_tag = soup.find('title')
+    # Extract title: Try <title> tag first (preferring inside <head>)
+    title_tag = soup.head.find('title') if soup.head else soup.find('title')
 
-    if not title_tag:
-        title_tag = soup.find('h1')
 
-    if title_tag and title_tag.string:
-        title = title_tag.string.strip()
-        metadata['title'] = title
-    else:
-        metadata['title'] = "Untitled Document"
+    title = title_tag.get_text(strip=True) if title_tag else ""
+
+
+
+    # If <title> is missing or empty, try the first <h1>
+
+    if not title:
+        h1_tag = soup.find('h1')
+
+        if h1_tag:
+
+            title = h1_tag.get_text(strip=True)
+
+
+
+    # Assign the found title or the default
+    metadata['title'] = title if title else "Untitled Document"
+
 
     # Process microdata
     for element in soup.find_all(True, itemtype=True):

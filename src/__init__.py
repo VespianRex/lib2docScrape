@@ -5,14 +5,12 @@ This package provides tools for crawling, processing, and organizing library doc
 from various sources.
 """
 
-from .base import URLInfo, normalize_url, is_valid_url
+# Removed import of deprecated URLInfo, normalize_url, is_valid_url from .base
 
 __version__ = "0.1.0"
 __author__ = "Your Name"
 __license__ = "MIT"
 
 __all__ = [
-    "URLInfo",
-    "normalize_url",
-    "is_valid_url",
+    # Removed deprecated names
 ]

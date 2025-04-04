@@ -3,13 +3,14 @@ import logging
 from typing import Dict, List
 from bs4 import BeautifulSoup
 from .url_handler import sanitize_and_join_url
+from urllib.parse import urljoin # Keep top-level import
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 class AssetHandler:
     """Handle extraction and processing of various asset types."""
-    
+
     def __init__(self):
         self.assets: Dict[str, List[str]] = {
             'images': [],
@@ -32,33 +33,42 @@ class AssetHandler:
         # Extract images
         for img in soup.find_all('img'):
             src = img.get('src')
-            if src:  # Process any non-None src
+            if src:
                 src = src.strip()
-                if src:  # Process non-empty src after stripping
+                if src:
                     if src.startswith('data:'):
-                        self._add_asset('images', src)
-                    elif not src.lower().startswith(('javascript:', 'vbscript:', 'data:', 'about:', 'blob:')):
-                        # Accept relative URLs and non-dangerous absolute URLs
+                        self._add_asset('images', src) # Add data URLs directly
+                    else:
+                        # print(f"DEBUG AssetHandler: Calling sanitize_and_join_url for src='{src}', base_url='{base_url}'") # Debug Removed
                         url = sanitize_and_join_url(src, base_url)
+                        # print(f"DEBUG AssetHandler: sanitize_and_join_url returned: '{url}'") # Debug Removed
                         if url:
                             self._add_asset('images', url)
+                        # else:
+                            # print(f"DEBUG AssetHandler: Not adding empty URL returned for src='{src}'") # Debug Removed
+
 
         # Extract scripts
         for script in soup.find_all('script', src=True):
             src = script.get('src')
-            if src and not src.lower().startswith(('javascript:', 'data:', 'vbscript:')):
-                url = sanitize_and_join_url(src, base_url)
-                if url:
-                    self._add_asset('scripts', url)
+            if src:
+                 url = sanitize_and_join_url(src, base_url)
+                 if url:
+                     self._add_asset('scripts', url)
+
 
         # Extract media
         for media in soup.find_all(['audio', 'video', 'source']):
             src = media.get('src')
-            if src and src.strip():  # Ensure src is not empty
-                if not src.lower().startswith(('javascript:', 'data:', 'vbscript:')):
-                    url = sanitize_and_join_url(src, base_url)
-                    if url:
-                        self._add_asset('media', url)
+            if src and src.strip():
+                 # print(f"DEBUG AssetHandler: Calling sanitize_and_join_url for media src='{src}', base_url='{base_url}'") # Debug Removed
+                 url = sanitize_and_join_url(src, base_url)
+                 # print(f"DEBUG AssetHandler: sanitize_and_join_url returned for media: '{url}'") # Debug Removed
+                 if url:
+                     self._add_asset('media', url)
+                 # else:
+                     # print(f"DEBUG AssetHandler: Not adding empty media URL returned for src='{src}'") # Debug Removed
+
 
         return self.assets
 
@@ -68,45 +78,31 @@ class AssetHandler:
             self.assets[asset_type].append(url)
 
     def process_images(self, soup: BeautifulSoup, base_url: str = None) -> None:
-        """Process images to markdown format while tracking them as assets."""
+        """DEPRECATED/SIMPLIFIED: Only ensures image URLs are added to assets. Does not modify soup."""
+        # This method originally modified the soup to insert markdown.
+        # However, asset collection now happens in extract_assets based on the cleaned soup,
+        # and markdown generation happens later based on the extracted structure.
+        # We keep this method for now to ensure URLs are added, but it shouldn't modify the soup.
         for img in soup.find_all('img'):
             src = img.get('src', '')
-            alt = img.get('alt', '')
-            title = img.get('title', '')
-
             if not src:
-                if alt:
-                    new_tag = soup.new_tag('span')
-                    new_tag.string = alt
-                    img.replace_with(new_tag)
-                return
+                continue # Skip images without src
 
             # Handle data URLs
             if src.startswith('data:'):
-                if src not in self.assets['images']:
-                    self.assets['images'].append(src)
-                new_tag = soup.new_tag('span')
-                new_tag.string = f"![{alt}]({src})"
-                if title:
-                    new_tag.string += f" \"{title}\""
-                img.replace_with(new_tag)
-                return
+                # Ensure data URLs for images are added
+                if src.startswith('data:image/'):
+                     self._add_asset('images', src)
+                # Do not modify the soup here
+                continue # Skip to next img tag
 
-            # Sanitize and process URL
-            src = sanitize_and_join_url(src, base_url)
-            if src:
-                # Add to assets if not already present
-                self._add_asset('images', src)
-                
-                # Create markdown image
-                new_tag = soup.new_tag('span')
-                new_tag.string = f"![{alt}]({src})"
-                if title:
-                    new_tag.string += f" \"{title}\""
-                img.replace_with(new_tag)
-            else:
-                # Remove img if URL is invalid
-                img.decompose()
+            # Sanitize and process regular URLs
+            processed_src = sanitize_and_join_url(src, base_url)
+
+            if processed_src:
+                # Add to assets (duplicates handled by _add_asset)
+                self._add_asset('images', processed_src)
+            # Do not modify the soup here (no replace_with or decompose)
 
     def clear(self) -> None:
         """Clear all stored assets."""

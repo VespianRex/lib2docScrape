@@ -30,7 +30,7 @@
 To be analyzed from requirements.txt
 
 ## Recent Significant Changes
-None yet - starting with test fixes
+- Refactored `BackendSelector` to use the correct `URLInfo` class from `src/utils/url_info.py` for URL processing, replacing the deprecated `URLProcessor`.
 
 ## User Feedback Integration
 Will be updated based on test results and fixes

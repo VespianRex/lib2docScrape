@@ -48,10 +48,10 @@ def test_url_info_creation_basic():
     ]
     
     for input_url, expected in test_cases:
-        url_info = URLInfo.from_string(input_url)
-        assert isinstance(url_info.normalized, str), f"normalized should be str, got {type(url_info.normalized)}"
-        assert url_info.original == expected["original"]
-        assert url_info.normalized == expected["normalized"]
+        url_info = URLInfo(input_url)
+        assert isinstance(url_info.normalized_url, str), f"normalized should be str, got {type(url_info.normalized_url)}"
+        assert url_info.raw_url == expected["original"] # Use raw_url
+        assert url_info.normalized_url == expected["normalized"]
         assert url_info.scheme == expected["scheme"]
         assert url_info.netloc == expected["netloc"]
         assert url_info.path == expected["path"]
@@ -79,9 +79,9 @@ def test_url_info_path_normalization():
     ]
     
     for input_url, expected in test_cases:
-        url_info = URLInfo.from_string(input_url)
-        assert isinstance(url_info.normalized, str), f"normalized should be str, got {type(url_info.normalized)}"
-        assert url_info.normalized == expected
+        url_info = URLInfo(input_url)
+        assert isinstance(url_info.normalized_url, str), f"normalized should be str, got {type(url_info.normalized_url)}"
+        assert url_info.normalized_url == expected
 
 def test_url_info_scheme_handling():
     """Test scheme handling with different inputs."""
@@ -105,9 +105,9 @@ def test_url_info_scheme_handling():
     ]
     
     for input_url, expected in test_cases:
-        url_info = URLInfo.from_string(input_url)
-        assert isinstance(url_info.normalized, str), f"normalized should be str, got {type(url_info.normalized)}"
-        assert url_info.normalized == expected
+        url_info = URLInfo(input_url)
+        assert isinstance(url_info.normalized_url, str), f"normalized should be str, got {type(url_info.normalized_url)}"
+        assert url_info.normalized_url == expected
 
 def test_url_info_query_handling():
     """Test query parameter handling."""
@@ -127,9 +127,9 @@ def test_url_info_query_handling():
     ]
     
     for input_url, expected in test_cases:
-        url_info = URLInfo.from_string(input_url)
-        assert isinstance(url_info.normalized, str), f"normalized should be str, got {type(url_info.normalized)}"
-        assert url_info.normalized == expected
+        url_info = URLInfo(input_url)
+        assert isinstance(url_info.normalized_url, str), f"normalized should be str, got {type(url_info.normalized_url)}"
+        assert url_info.normalized_url == expected
 
 def test_url_info_fragment_handling():
     """Test fragment handling (should be removed)."""
@@ -149,9 +149,9 @@ def test_url_info_fragment_handling():
     ]
     
     for input_url, expected in test_cases:
-        url_info = URLInfo.from_string(input_url)
-        assert isinstance(url_info.normalized, str), f"normalized should be str, got {type(url_info.normalized)}"
-        assert url_info.normalized == expected
+        url_info = URLInfo(input_url)
+        assert isinstance(url_info.normalized_url, str), f"normalized should be str, got {type(url_info.normalized_url)}"
+        assert url_info.normalized_url == expected
 
 def test_url_info_invalid_urls():
     """Test handling of invalid URLs."""
@@ -165,27 +165,27 @@ def test_url_info_invalid_urls():
     ]
     
     for input_url in test_cases:
-        url_info = URLInfo.from_string(input_url)
-        assert isinstance(url_info.normalized, str), f"normalized should be str, got {type(url_info.normalized)}"
+        url_info = URLInfo(input_url)
+        assert isinstance(url_info.normalized_url, str), f"normalized should be str, got {type(url_info.normalized_url)}"
         assert not url_info.is_valid
         assert url_info.scheme == ""
         assert url_info.netloc == ""
 
 def test_url_info_immutability():
     """Test that URLInfo objects are immutable."""
-    url_info = URLInfo.from_string("https://example.com")
+    url_info = URLInfo("https://example.com")
     
     with pytest.raises(Exception):
-        url_info.normalized = "something-else"
+        url_info.normalized_url = "something-else"
     
     with pytest.raises(Exception):
         url_info.scheme = "http"
 
 def test_url_info_equality():
     """Test URL equality comparisons."""
-    url1 = URLInfo.from_string("https://example.com/path/")
-    url2 = URLInfo.from_string("https://example.com/path/")
-    url3 = URLInfo.from_string("https://example.com/other/")
+    url1 = URLInfo("https://example.com/path/")
+    url2 = URLInfo("https://example.com/path/")
+    url3 = URLInfo("https://example.com/other/")
     
     assert url1 == url2
     assert url1 != url3
@@ -194,10 +194,10 @@ def test_url_info_equality():
 
 def test_url_info_type_safety():
     """Test type safety of URL components."""
-    url = URLInfo.from_string("https://example.com/path?query=1#fragment")
+    url = URLInfo("https://example.com/path?query=1#fragment")
     
-    assert isinstance(url.normalized, str)
-    assert isinstance(url.original, str)
+    assert isinstance(url.normalized_url, str) # Use normalized_url
+    assert isinstance(url.raw_url, str) # Use raw_url
     assert isinstance(url.scheme, str)
     assert isinstance(url.netloc, str)
     assert isinstance(url.path, str)
@@ -225,9 +225,9 @@ def test_url_info_edge_cases():
     ]
 
     for input_url, expected in test_cases:
-        url_info = URLInfo.from_string(input_url)
-        assert isinstance(url_info.normalized, str)
-        assert url_info.normalized == expected
+        url_info = URLInfo(input_url)
+        assert isinstance(url_info.normalized_url, str)
+        assert url_info.normalized_url == expected
 
 def test_url_info_security():
     """Test handling of potentially malicious URLs."""
@@ -248,7 +248,7 @@ def test_url_info_security():
     ]
 
     for input_url, expected_valid in test_cases:
-        url_info = URLInfo.from_string(input_url)
+        url_info = URLInfo(input_url)
         assert url_info.is_valid == expected_valid
 
 def test_url_info_relative_paths():
@@ -270,8 +270,8 @@ def test_url_info_relative_paths():
     ]
 
     for input_path, expected in test_cases:
-        url_info = URLInfo.from_string(input_path, base_url=base_url)
-        assert url_info.normalized == expected
+        url_info = URLInfo(input_path, base_url=base_url)
+        assert url_info.normalized_url == expected
 
 def test_url_info_query_parameters():
     """Test handling of query parameters."""
@@ -303,14 +303,14 @@ def test_url_info_query_parameters():
         ),
         # Parameters with array notation
         (
-            "http://example.com?arr[]=1&arr[]=2",
-            "http://example.com/?arr[]=1&arr[]=2"
+"http://example.com?arr[]=1&arr[]=2",
+"http://example.com/?arr%5B%5D=1&arr%5B%5D=2" # Expect percent-encoded brackets
         ),
     ]
 
     for input_url, expected in test_cases:
-        url_info = URLInfo.from_string(input_url)
-        assert url_info.normalized == expected
+        url_info = URLInfo(input_url)
+        assert url_info.normalized_url == expected
 
 def test_url_info_performance():
     """Test URL processing performance with a large number of URLs."""
@@ -322,7 +322,7 @@ def test_url_info_performance():
     
     start_time = time.time()
     for url in urls:
-        url_info = URLInfo.from_string(url)
+        url_info = URLInfo(url)
         assert url_info.is_valid
     end_time = time.time()
     

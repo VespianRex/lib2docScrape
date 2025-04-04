@@ -1,4 +1,4 @@
-Metadata-Version: 2.2
+Metadata-Version: 2.4
 Name: lib2docscrape
 Version: 0.1.0
 Summary: A web scraping tool for library documentation
@@ -9,6 +9,7 @@ Requires-Dist: aiohttp>=3.9.1
 Requires-Dist: asyncio>=3.4.3
 Requires-Dist: pydantic>=2.5.2
 Requires-Dist: markdownify>=0.11.6
+Requires-Dist: bleach>=6.0.0
 Provides-Extra: test
 Requires-Dist: pytest>=7.0.0; extra == "test"
 Requires-Dist: pytest-cov>=4.1.0; extra == "test"

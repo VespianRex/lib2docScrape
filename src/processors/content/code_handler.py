@@ -1,5 +1,6 @@
 """Handle code blocks and syntax highlighting."""
 import logging
+import textwrap
 from typing import Optional
 from bs4 import BeautifulSoup, Tag
 
@@ -20,9 +21,15 @@ class CodeHandler:
             if code:
                 # First try to get language directly from the class
                 language = self._detect_language(code)
-                # Process code content with careful whitespace handling
-                markdown_block = self._format_code_block(code, language)
-                pre.string = markdown_block  # Use string to prevent HTML parsing
+                # Process code content only if language is supported
+                if language and self.is_language_supported(language):
+                    markdown_block = self._format_code_block(code, language)
+                    pre.string = markdown_block  # Use string to prevent HTML parsing
+                elif language: # Language detected but not supported, remove the pre block
+                    pre.decompose()
+                else: # No language detected, format as plain code block
+                    markdown_block = self._format_code_block(code, None) # Pass None for language
+                    pre.string = markdown_block
 
         # Then handle inline code (standalone code tags)
         for code in soup.find_all('code', recursive=True):
@@ -50,32 +57,16 @@ class CodeHandler:
     def _format_code_block(self, code: Tag, language: Optional[str] = None) -> str:
         """Format code blocks with language and indentation handling."""
         # Get the raw content to preserve HTML entities and tags
-        code_text = ''.join(str(content) for content in code.contents)
-        if code_text:
-            # Split into lines while preserving empty lines
-            lines = code_text.splitlines()
-
-            # Calculate minimum indentation only from non-empty lines
-            non_empty_lines = [line for line in lines if line.strip()]
-            if non_empty_lines:
-                min_indent = min(len(line) - len(line.lstrip())
-                              for line in non_empty_lines)
-
-                # Process all lines maintaining relative indentation
-                processed_lines = []
-                for line in lines:
-                    if line.strip():
-                        # Remove only the common indentation
-                        processed_lines.append(line[min_indent:])
-                    else:
-                        # Preserve empty lines
-                        processed_lines.append('')
-
-                code_text = '\n'.join(processed_lines)
+        raw_code_text = ''.join(str(content) for content in code.contents)
+        if raw_code_text:
+            # Dedent first to handle common indentation
+            dedented_code = textwrap.dedent(raw_code_text)
+            # Then strip leading/trailing whitespace/newlines
+            code_text = dedented_code.strip()
 
             # Prepend language to code text if available
             lang_marker = language if language else ''
-            markdown_block = f"```{lang_marker}\n{code_text.strip()}\n```"
+            markdown_block = f"```{lang_marker}\n{code_text}\n```" # code_text is already stripped
             return markdown_block
         return ''
 

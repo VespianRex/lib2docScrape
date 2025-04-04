@@ -1,9 +1,12 @@
 import re
 import time
+import asyncio # Add asyncio import
 import idna
 import hashlib
 import logging
 import threading
+import asyncio # Ensure asyncio is imported
+import asyncio # Ensure asyncio is imported
 import requests
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
@@ -39,9 +42,11 @@ class URLProcessor:
     @staticmethod
     def normalize_url(url: str, base_url: Optional[str] = None) -> str:
         """Normalize URL to canonical form."""
-        # Import here to avoid circular dependencies
-        from .url_utils import URLNormalizer
-        return URLNormalizer.normalize_url(url, base_url)
+        # Import removed as URLNormalizer is deprecated
+        # This method itself is likely unused now and relies on removed code.
+        # Returning original URL for now to avoid breaking calls, but should be removed later.
+        logging.warning("URLProcessor.normalize_url is deprecated and likely unused.")
+        return url
 
     @classmethod
     def _determine_url_type(cls, url: str, base_url: Optional[str] = None) -> URLType:
@@ -87,24 +92,28 @@ class RateLimiter:
     """Rate limiter using token bucket algorithm."""
     def __init__(self, requests_per_second: float):
         self.rate = requests_per_second
-        self.last_check = time.time()
+        self.last_check = asyncio.get_event_loop().time() # Use event loop time
         self.tokens = requests_per_second
         self.max_tokens = requests_per_second
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock() # Use asyncio.Lock
 
-    def acquire(self) -> float:
+    async def acquire(self) -> float: # Make method async
         """Acquire a token, returning the time to wait if necessary."""
-        with self._lock:
-            now = time.time()
+        async with self._lock: # Use async with
+            now = asyncio.get_event_loop().time() # Use event loop time
             time_passed = now - self.last_check
+            logging.debug(f"RateLimiter: now={now}, last_check={self.last_check}, time_passed={time_passed}")
             self.tokens = min(self.max_tokens, self.tokens + time_passed * self.rate)
+            logging.debug(f"RateLimiter: tokens replenished to {self.tokens}")
             self.last_check = now
 
             if self.tokens < 1:
                 wait_time = (1 - self.tokens) / self.rate
+                logging.debug(f"RateLimiter: tokens < 1 ({self.tokens}), need to wait {wait_time}s")
                 return wait_time
 
             self.tokens -= 1
+            logging.debug(f"RateLimiter: acquired token, tokens remaining {self.tokens}")
             return 0.0
 
 
@@ -134,8 +143,11 @@ class RetryStrategy:
 
 def calculate_similarity(text1: str, text2: str) -> float:
     """Calculate similarity between two texts using Levenshtein distance."""
+    # Handle cases with empty strings
+    if not text1 and not text2:
+        return 1.0 # Both empty, perfect match
     if not text1 or not text2:
-        return 0.0
+        return 0.0 # One empty, no similarity
     
     # Convert to lowercase for comparison
     text1 = text1.lower()
@@ -214,8 +226,30 @@ class Timer:
 
     def __exit__(self, *args):
         end_time = time.time()
-        self._duration = end_time - self.start_time
-        logging.info(f"{self.operation_name} took {self._duration:.2f} seconds")
+        if self.start_time is not None:
+            self._duration = end_time - self.start_time
+            logging.info(f"{self.operation_name} took {self._duration:.2f} seconds")
+        else:
+            logging.warning(f"{self.operation_name} timer exited without being entered.")
+
+    async def __aenter__(self) -> 'Timer':
+        """Asynchronous entry point."""
+        self.start_time = time.time() # time.time() is synchronous, okay here
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Asynchronous exit point."""
+        end_time = time.time() # time.time() is synchronous, okay here
+        if self.start_time is not None:
+            self._duration = end_time - self.start_time
+            logging.info(f"{self.operation_name} took {self._duration:.2f} seconds (async)")
+        else:
+            logging.warning(f"{self.operation_name} timer exited without being entered (async).")
+        # Propagate exceptions if any occurred
+        if exc_type:
+            logging.error(f"Exception occurred within {self.operation_name} timer: {exc_val}")
+        # Return False to indicate exception (if any) should be propagated
+        return False
 
     @property
     def duration(self) -> Optional[float]:

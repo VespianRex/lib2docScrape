@@ -2,7 +2,9 @@ import pytest
 import os
 import sys
 import asyncio
+import pytest_asyncio # Import pytest_asyncio
 from typing import Dict, Any, List
+import logging # Added import
 import platform
 
 if platform.system() != 'Windows':
@@ -10,7 +12,6 @@ if platform.system() != 'Windows':
     uvloop.install()
 
 from bs4 import BeautifulSoup
-
 # Add the project root directory to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
@@ -32,7 +33,11 @@ class MockSuccessBackend(CrawlerBackend):
         self.process_called = False
     
     async def crawl(self, url: str, params: Dict = None) -> CrawlResult:
+        """Simulate a successful crawl with a delay."""
         self.crawl_called = True
+        # Simulate network delay for rate limiting tests
+        await asyncio.sleep(0.15) # Increased delay
+
         return CrawlResult(
             url=url,
             content={
@@ -201,28 +206,36 @@ def sample_urls() -> List[str]:
         "https://example.com/api"
     ]
 
-@pytest.fixture
-def mock_success_backend() -> MockSuccessBackend:
+@pytest_asyncio.fixture # Use pytest_asyncio fixture
+async def mock_success_backend() -> MockSuccessBackend:
     """Mock backend that succeeds."""
+    # No async setup needed for this simple mock, just return
     return MockSuccessBackend()
 
-@pytest.fixture
-def mock_failure_backend() -> MockFailureBackend:
+@pytest_asyncio.fixture # Use pytest_asyncio fixture
+async def mock_failure_backend() -> MockFailureBackend:
     """Mock backend that fails."""
+    # No async setup needed for this simple mock, just return
     return MockFailureBackend()
 
-@pytest.fixture
+@pytest.fixture(scope="function") # Explicitly set function scope
 def backend_selector(mock_success_backend: MockSuccessBackend) -> BackendSelector:
     """Configured backend selector."""
-    selector = BackendSelector()
+    selector = BackendSelector() # Initializes with default 'crawl4ai'
+    selector.clear_backends() # Clear any existing backends (including the default)
+
+    # Register ONLY the mock backend with high priority and correct criteria
     selector.register_backend(
-        mock_success_backend,
+        mock_success_backend, # This object has name="mock_success_backend"
         BackendCriteria(
+            priority=200, # High priority
             domains=["example.com"],
-            paths=["/docs", "/api"],
+            url_patterns=["https://example.com/doc*"],
             content_types=["text/html"]
         )
     )
+    # Log the state JUST before returning
+    logging.debug(f"Backend_selector fixture returning selector id={id(selector)}, backends={list(selector.backends.keys())}")
     return selector
 
 @pytest.fixture
@@ -239,29 +252,75 @@ def document_organizer() -> DocumentOrganizer:
 
 @pytest.fixture
 def crawler(
-    backend_selector: BackendSelector,
+    # REMOVE backend_selector dependency
+    mock_success_backend: MockSuccessBackend, # Inject mock directly
     content_processor: ContentProcessor,
     quality_checker: QualityChecker,
     document_organizer: DocumentOrganizer
 ) -> DocumentationCrawler:
-    """Configured documentation crawler."""
-    return DocumentationCrawler(
+    """Configured documentation crawler with a dedicated selector for the mock backend."""
+
+    # Create and configure the selector *inside* this fixture
+    selector_for_test = BackendSelector()
+    selector_for_test.clear_backends() # Start clean
+    selector_for_test.register_backend(
+        mock_success_backend,
+        BackendCriteria(
+            priority=200, # High priority
+            domains=["example.com"],
+            url_patterns=["https://example.com/doc*"],
+            content_types=["text/html"]
+        )
+    )
+    logging.debug(f"Crawler fixture created selector id={id(selector_for_test)}, backends={list(selector_for_test.backends.keys())}")
+
+    crawler_instance = DocumentationCrawler(
         config=CrawlerConfig(
-            max_depth=3,
-            max_pages=100,
-            delay=0.1,
-            timeout=30,
+            requests_per_second=1, # Set rate limit to 1 req/sec for testing delays
+            max_retries=1,
+            request_timeout=10,
             concurrent_requests=5
         ),
-        backend_selector=backend_selector,
+        backend_selector=selector_for_test, # Use the locally created selector
         content_processor=content_processor,
         quality_checker=quality_checker,
         document_organizer=document_organizer
     )
+    # The crawler's __init__ will still add the http_backend to this specific selector
+    logging.debug(f"Crawler instance using selector id={id(crawler_instance.backend_selector)}, backends={list(crawler_instance.backend_selector.backends.keys())}")
+    return crawler_instance
 
-@pytest.fixture
-def event_loop():
-    """Create an instance of the default event loop for each test case."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
+# @pytest.fixture # Comment out custom event loop - let pytest-asyncio handle it
+# def event_loop():
+#     """Create an instance of the default event loop for each test case."""
+#     loop = asyncio.new_event_loop()
+#     yield loop
+#     loop.close()
+
+# Fixture specifically for Crawl4AIBackend tests
+@pytest_asyncio.fixture
+async def crawl4ai_backend(monkeypatch):
+    """Provides a Crawl4AIBackend instance for testing."""
+    config = Crawl4AIConfig(
+        max_retries=2,
+        timeout=10.0,
+        headers={"User-Agent": "Test/1.0"},
+        rate_limit=0.1,  # Fast rate limit for testing
+        max_depth=3,
+        concurrent_requests=2
+    )
+    backend = Crawl4AIBackend(config=config)
+
+    # Use the mock_session fixture passed as an argument
+    async def mock_create_session():
+        # This now returns the fixture-provided mock_session
+        # which has predefined responses for /page1, /page2 etc.
+        return mock_session
+
+    # Re-enable monkeypatch to use the mock_session via mock_create_session
+    # monkeypatch.setattr(backend, "_create_session", mock_create_session) # Allow real session for retry test patch
+
+    yield backend # Provide the backend to the test
+
+    # Cleanup
+    await backend.close()

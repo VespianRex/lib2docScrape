@@ -25,7 +25,7 @@ class CrawlResult(BaseModel):
     def validate_url(cls, v: Union[str, URLInfo]) -> str:
         """Convert URLInfo to string if needed."""
         if isinstance(v, URLInfo):
-            return v.normalized
+            return v.normalized_url # Use the correct attribute name
         return v
 
     def is_success(self) -> bool:
