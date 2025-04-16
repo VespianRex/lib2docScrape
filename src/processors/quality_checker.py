@@ -53,7 +53,7 @@ class QualityChecker:
         metrics = {}
 
         # Check content length
-        text = content.content.get("text", "")
+        text = content.content.get("formatted_content", "") # Use formatted_content for length check
         content_length = len(text)
         metrics["content_length"] = content_length
 

@@ -40,3 +40,4 @@ htmlcov/
 .vscode/
 *.swp
 *.swo
+.qodo

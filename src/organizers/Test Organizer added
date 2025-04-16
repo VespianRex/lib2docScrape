@@ -1,0 +1,57 @@
+import pytest
+from lib2docScrape.doc_organizer import DocumentOrganizer
+
+def create_test_content(url, title, content):
+    """Helper to create test document content."""
+    return {
+        "url": url,
+        "title": title,
+        "content": content
+    }
+
+def test_document_similarity():
+    """Test document similarity detection."""
+    organizer = DocumentOrganizer()
+    
+    # Create similar documents
+    doc1 = create_test_content(
+        url="https://example.com/doc1",
+        title="Python Guide",
+        content={"text": "Guide to Python programming basics and fundamentals"}
+    )
+    
+    doc2 = create_test_content(
+        url="https://example.com/doc2",
+        title="Python Tutorial",
+        content={"text": "Tutorial about Python programming basics"}
+    )
+    
+    id1 = organizer.add_document(doc1)
+    id2 = organizer.add_document(doc2)
+    
+    # Find related documents
+    related = organizer.get_related_documents(id1)
+    assert len(related) > 0
+    
+def test_search_index_generation():
+    """Test search index generation and updates."""
+    organizer = DocumentOrganizer()
+    
+    # Add document with searchable content
+    content = create_test_content(
+        url="https://example.com/doc",
+        title="Python Programming Guide",
+        content={
+            "text": "Comprehensive guide to Python programming",
+            "headings": [
+                {"level": 1, "text": "Python Basics"},
+                {"level": 2, "text": "Variables and Types"}
+            ]
+        }
+    )
+    
+    organizer.add_document(content)
+    
+    # Check search indices
+    assert len(organizer.search_indices) > 0
+    assert any("python" in idx.lower() for idx in organizer.search_indices.keys())

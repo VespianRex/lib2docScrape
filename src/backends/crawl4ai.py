@@ -57,12 +57,18 @@ class Crawl4AIConfig(BaseModel):
 class Crawl4AIBackend(CrawlerBackend):
     """Primary crawler backend using advanced crawling techniques."""
 
-    def __init__(self, config: Optional[Crawl4AIConfig] = None) -> None:
-        """Initialize the Crawl4AI backend."""
+    def __init__(self, config: Optional[Crawl4AIConfig] = None, rate_limiter=None) -> None:
+        """Initialize the Crawl4AI backend.
+        
+        Args:
+            config: Optional configuration for the backend
+            rate_limiter: Optional external rate limiter to use instead of internal one
+        """
         super().__init__(name="crawl4ai")
         self.config = config or Crawl4AIConfig()
         self._session: Optional[aiohttp.ClientSession] = None
         self._processing_semaphore = asyncio.Semaphore(self.config.concurrent_requests)
+        self._external_rate_limiter = rate_limiter
         self._rate_limiter = asyncio.Lock()
         self._last_request = 0.0
         self._crawled_urls: Set[str] = set()
@@ -80,6 +86,8 @@ class Crawl4AIBackend(CrawlerBackend):
         })
         self.content_processor = ContentProcessor() # Initialize ContentProcessor
         logger.info(f"Initialized Crawl4AI backend with config: {self.config}")
+        if self._external_rate_limiter:
+            logger.info(f"Using external rate limiter with rate: {self._external_rate_limiter.rate} req/s")
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -333,7 +341,8 @@ class Crawl4AIBackend(CrawlerBackend):
             error=f"Failed after {retries} retries: {last_error}"
         )
 
-    async def crawl(self, url: Union[str, URLInfo], params: Optional[Dict[str, Any]] = None) -> CrawlResult:
+    # Reverted signature to accept Union[str, URLInfo] and config from crawler
+    async def crawl(self, url: Union[str, URLInfo], config: Optional[Any] = None, params: Optional[Dict[str, Any]] = None) -> CrawlResult:
         """Crawl the specified URL and return all crawled pages."""
         # --- Metrics Start ---
         start_crawl_time = datetime.now()
@@ -341,12 +350,30 @@ class Crawl4AIBackend(CrawlerBackend):
              self.metrics["start_time"] = start_crawl_time
 
         # --- URL Initialization and Validation ---
-        if isinstance(url, str):
-            url_info = URLInfo(url=url)
-        elif isinstance(url, URLInfo):
-            url_info = url
-        else:
-            raise TypeError("Input URL must be a string or URLInfo object")
+        # Handle both str and URLInfo input
+        try:
+            if isinstance(url, str):
+                url_info = URLInfo(url=url)
+            elif isinstance(url, URLInfo):
+                url_info = url # Use the provided URLInfo object
+            else:
+                # This case should ideally not happen based on Union typing, but good practice
+                raise TypeError(f"Expected url to be str or URLInfo, got {type(url)}")
+
+            # This check is now redundant as URLInfo constructor handles it, but keep for clarity
+            # if not url_info.is_valid:
+            #      # Use raw_url for reporting the original input if available
+            #      original_input_url = url if isinstance(url, str) else url.raw_url
+            #      raise ValueError(f"Invalid URL provided: {original_input_url} - Reason: {url_info.error_message}")
+        except Exception as e:
+             original_input_url_str = str(url) # Fallback to string representation
+             logger.error(f"Error processing URL input {original_input_url_str}: {e}")
+             # Return error result immediately if URL processing fails
+             result = CrawlResult(url=original_input_url_str, content={}, metadata={}, status=0, error=f"Invalid URL: {e}")
+             self.metrics["failed_requests"] += 1
+             self.metrics["end_time"] = datetime.now()
+             self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
+             return result
 
         if not url_info.is_valid:
             logger.error(f"Invalid URL provided: {url_info.raw_url} - Reason: {url_info.error_message}")

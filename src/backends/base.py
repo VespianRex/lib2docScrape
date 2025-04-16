@@ -1,11 +1,15 @@
 """Base components for the documentation crawler backends."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union, TYPE_CHECKING # Added TYPE_CHECKING
 from pydantic import BaseModel, field_validator, Field # Added Field
 from datetime import datetime
 
 from ..utils.url_info import URLInfo # Updated import path
+
+# Forward reference for type hinting
+if TYPE_CHECKING:
+    from ..crawler import CrawlerConfig
 
 
 class CrawlResult(BaseModel):
@@ -25,7 +29,8 @@ class CrawlResult(BaseModel):
     def validate_url(cls, v: Union[str, URLInfo]) -> str:
         """Convert URLInfo to string if needed."""
         if isinstance(v, URLInfo):
-            return v.normalized_url # Use the correct attribute name
+            # Return normalized_url if valid, otherwise raw_url
+            return v.normalized_url if v.is_valid and v.normalized_url else v.raw_url
         return v
 
     def is_success(self) -> bool:
@@ -35,7 +40,7 @@ class CrawlResult(BaseModel):
 
 class CrawlerBackend(ABC):
     """Abstract base class for crawler backends."""
-    
+
     def __init__(self, name: Optional[str] = None) -> None:
         """Initialize the crawler backend with metrics tracking."""
         if not name:
@@ -44,17 +49,18 @@ class CrawlerBackend(ABC):
         self.reset_metrics()
 
     @abstractmethod
-    async def crawl(self, url: str, params: Optional[Dict[str, Any]] = None) -> CrawlResult:
+    # Updated signature to match actual usage by the crawler
+    async def crawl(self, url_info: URLInfo, config: 'CrawlerConfig') -> CrawlResult:
         """
         Crawl the specified URL and return the content.
-        
+
         Args:
-            url: The URL to crawl
-            params: Optional parameters for the crawl operation
-            
+            url_info: URLInfo object representing the URL to crawl.
+            config: The crawler's configuration object.
+
         Returns:
             CrawlResult containing the crawled content and metadata
-        
+
         Raises:
             ValueError: If the URL is invalid
             RuntimeError: If the crawl operation fails
@@ -65,13 +71,13 @@ class CrawlerBackend(ABC):
     async def validate(self, content: CrawlResult) -> bool:
         """
         Validate the crawled content.
-        
+
         Args:
             content: The crawled content to validate
-            
+
         Returns:
             bool indicating if the content is valid
-            
+
         Raises:
             ValueError: If the content is invalid
         """
@@ -81,13 +87,13 @@ class CrawlerBackend(ABC):
     async def process(self, content: CrawlResult) -> Dict[str, Any]:
         """
         Process the crawled content.
-        
+
         Args:
             content: The crawled content to process
-            
+
         Returns:
             Processed content as a dictionary
-            
+
         Raises:
             ValueError: If the content cannot be processed
         """
@@ -96,24 +102,24 @@ class CrawlerBackend(ABC):
     async def update_metrics(self, crawl_time: float, success: bool) -> None:
         """
         Update the crawler metrics.
-        
+
         Args:
             crawl_time: Time taken for the crawl operation in seconds
             success: Whether the crawl was successful
         """
         self.metrics["pages_crawled"] += 1
         self.metrics["total_crawl_time"] += crawl_time
-        
+
         # Update success rate
         total = self.metrics["pages_crawled"]
         current_success = self.metrics["success_rate"] * (total - 1)
         self.metrics["success_rate"] = (current_success + (1 if success else 0)) / total
-        
+
         # Update average response time
         self.metrics["average_response_time"] = (
             self.metrics["total_crawl_time"] / total
         )
-        
+
         # Update min/max response times
         if crawl_time < self.metrics["min_response_time"] or total == 1:
             self.metrics["min_response_time"] = crawl_time
@@ -123,7 +129,7 @@ class CrawlerBackend(ABC):
     def get_metrics(self) -> Dict[str, Any]:
         """
         Get the current metrics for this crawler.
-        
+
         Returns:
             Dictionary containing the crawler metrics
         """
@@ -139,3 +145,7 @@ class CrawlerBackend(ABC):
             "min_response_time": float('inf'),
             "max_response_time": 0.0,
         }
+
+    async def close(self) -> None:
+        """Optional cleanup method for backend resources (e.g., sessions)."""
+        pass # Default implementation does nothing

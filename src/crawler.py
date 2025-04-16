@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urljoin, urlparse
 import collections # Import collections for deque
 
@@ -24,7 +24,6 @@ from .processors.content.url_handler import sanitize_and_join_url
 
 from enum import Enum
 from dataclasses import dataclass
-from typing import Optional, List, Dict, Set, Union
 import re
 import itertools
 
@@ -335,6 +334,13 @@ class CrawlResult(BaseModel):
     metrics: Dict[str, Any]  # Removed QualityMetrics dependency
     structure: Optional[List[Dict[str, Any]]] = None # Added to hold structure for link discovery
     processed_url: Optional[str] = None # Added to store the final URL processed (after redirects, normalization)
+    failed_urls: List[str] = Field(default_factory=list)  # List of URLs that failed to crawl
+    errors: Dict[str, Exception] = Field(default_factory=dict)  # Map of URLs to their exceptions
+    crawled_pages: Dict[str, Any] = Field(default_factory=dict)  # Dictionary of crawled pages
+    
+    model_config = {
+        "arbitrary_types_allowed": True  # Allow arbitrary types like Exception
+    }
 
 
 class CrawlerConfig(BaseModel):
@@ -407,19 +413,37 @@ class DocumentationCrawler:
         backend_selector: Optional[BackendSelector] = None,
         content_processor: Optional[ContentProcessor] = None,
         quality_checker: Optional[QualityChecker] = None,
-        document_organizer: Optional[DocumentOrganizer] = None
+        document_organizer: Optional[DocumentOrganizer] = None,
+        backend: Optional[CrawlerBackend] = None
     ) -> None:
-        """Initialize the documentation crawler."""
+        """Initialize the documentation crawler.
+        
+        Args:
+            config: Optional crawler configuration
+            backend_selector: Optional backend selector for choosing appropriate backends
+            content_processor: Optional content processor for processing crawled content
+            quality_checker: Optional quality checker for checking content quality
+            document_organizer: Optional document organizer for organizing crawled content
+            backend: Optional specific backend to use instead of using the selector
+        """
         self.config = config or CrawlerConfig()
         logging.debug(f"Crawler __init__ received backend_selector: id={id(backend_selector)}")
         if backend_selector:
              logging.debug(f"Received selector initial backends: {list(backend_selector.backends.keys())}")
         self.backend_selector = backend_selector or BackendSelector()
         self.content_processor = content_processor or ContentProcessor()
-        logging.debug(f"Crawler assigned self.backend_selector: id={id(self.backend_selector)}")
-        logging.debug(f"Assigned selector backends BEFORE http registration: {list(self.backend_selector.backends.keys())}")
         self.quality_checker = quality_checker or QualityChecker()
         self.document_organizer = document_organizer or DocumentOrganizer()
+        
+        # If a specific backend is provided, use it directly
+        self.direct_backend = backend
+        # Also set self.backend for direct access in tests
+        self.backend = backend
+        logging.debug(f"Direct backend provided: {backend is not None}")
+        
+        logging.debug(f"Crawler assigned self.backend_selector: id={id(self.backend_selector)}")
+        logging.debug(f"Assigned selector backends BEFORE http registration: {list(self.backend_selector.backends.keys())}")
+
 
         # Set up HTTP backend
         http_backend = HTTPBackend(
@@ -447,7 +471,7 @@ class DocumentationCrawler:
         self.rate_limiter = RateLimiter(self.config.requests_per_second)
         self.retry_strategy = RetryStrategy(
             max_retries=self.config.max_retries
-        )
+        ) # Corrected closing parenthesis
 
         self._crawled_urls: Set[str] = set() # Store normalized URLs
         self._processing_semaphore = asyncio.Semaphore(
@@ -460,87 +484,87 @@ class DocumentationCrawler:
         # self.current_tasks = set() # Removed, managed by asyncio.gather
         self.project_identifier = ProjectIdentifier()
 
+    def _find_links_recursive(self, structure_element) -> List[str]:
+        """Recursively find all 'href' values from link elements in the structure."""
+        links = []
+        if isinstance(structure_element, dict):
+            # Check if the current element itself is a link
+            if structure_element.get('type') in ['link', 'link_inline'] and structure_element.get('href'):
+                links.append(structure_element['href'])
+            # Recursively check values that are lists or dicts
+            for value in structure_element.values():
+                if isinstance(value, (dict, list)):
+                    links.extend(self._find_links_recursive(value))
+        elif isinstance(structure_element, list):
+            # Recursively check items in the list
+            for item in structure_element:
+                links.extend(self._find_links_recursive(item))
+        return links
+
     def _should_crawl_url(self, url_info: URLInfo, target: CrawlTarget) -> bool:
-        """
-        Determine if a URL should be crawled based on target configuration and URLInfo.
-        Uses the new URLInfo object for checks.
-        """
-        if not url_info or not url_info.is_valid:
-            logging.debug(f"Skipping invalid or non-HTTP(S) URL: {url_info.original_url if url_info else 'N/A'}")
+        """Check if a URL should be crawled based on target rules."""
+        if not url_info.is_valid:
+            logging.debug(f"Skipping invalid URL: {url_info.raw_url} ({url_info.error_message})")
             return False
 
-        # Use normalized URL for checks
         normalized_url = url_info.normalized_url
-        parsed_url = urlparse(normalized_url) # Parse the normalized URL
 
-        # 1. Check against crawled URLs
+        # Check if already crawled
         if normalized_url in self._crawled_urls:
             logging.debug(f"Skipping already crawled URL: {normalized_url}")
             return False
 
-        # 2. Domain Check (if not following external links)
-        if not target.follow_external:
-            try:
-                target_info = URLInfo(target.url) # Process target URL once
-                if not target_info.is_valid:
-                     logging.error(f"Target URL '{target.url}' is invalid. Cannot perform domain check.")
-                     return False # Cannot crawl if target is invalid
+        # Check scheme
+        if url_info.scheme not in ['http', 'https', 'file']:
+            logging.debug(f"Skipping non-HTTP/S/file URL: {normalized_url}")
+            return False
 
-                # Compare base domains (e.g., example.com)
-                target_domain = '.'.join(target_info.netloc.split('.')[-2:])
-                url_domain = '.'.join(parsed_url.netloc.split('.')[-2:])
-                if target_domain != url_domain:
-                    logging.debug(f"Skipping external domain: {parsed_url.netloc} (target: {target_info.netloc})")
-                    return False
-            except Exception as e:
-                 logging.error(f"Error during domain check for {normalized_url} against {target.url}: {e}")
+        # Check external domains
+        if not target.follow_external:
+            # Use URLInfo's netloc attribute
+            if url_info.netloc != urlparse(target.url).netloc.lower():
+                 logging.debug(f"Skipping external domain: {url_info.netloc} (target: {urlparse(target.url).netloc.lower()})")
                  return False
 
-
-        # 3. Exclude Patterns
-        if target.exclude_patterns and any(re.search(pattern, normalized_url) for pattern in target.exclude_patterns):
-            logging.debug(f"Skipping URL matching exclude pattern: {normalized_url}")
+        # Check exclude patterns
+        if any(re.search(pattern, normalized_url) for pattern in target.exclude_patterns):
+            logging.debug(f"Skipping URL due to exclude pattern: {normalized_url}")
             return False
 
-        # 4. Required Patterns (if any)
-        logging.debug(f"Checking required patterns for {url_info.normalized_url}. Target patterns: {target.required_patterns}") # ADDED DEBUG
+        # Check required patterns (if any)
         if target.required_patterns and not any(re.search(pattern, normalized_url) for pattern in target.required_patterns):
-            logging.debug(f"Skipping URL not matching required pattern: {normalized_url}")
+            logging.debug(f"Skipping URL due to missing required pattern: {normalized_url}")
             return False
 
-        # 5. Allowed Paths (if any)
-        if target.allowed_paths and not any(parsed_url.path.startswith(path) for path in target.allowed_paths):
-            logging.debug(f"Skipping path not in allowed paths: {parsed_url.path}")
-            return False
+        # Check allowed paths (if any)
+        if target.allowed_paths:
+            path = url_info.path
+            if not any(path.startswith(allowed) for allowed in target.allowed_paths):
+                logging.debug(f"Skipping URL due to not being in allowed paths: {normalized_url}")
+                return False
 
-        # 6. Excluded Paths (if any)
-        if target.excluded_paths and any(parsed_url.path.startswith(path) for path in target.excluded_paths):
-            logging.debug(f"Skipping excluded path: {parsed_url.path}")
-            return False
+        # Check excluded paths (if any)
+        if target.excluded_paths:
+            path = url_info.path
+            if any(path.startswith(excluded) for excluded in target.excluded_paths):
+                logging.debug(f"Skipping URL due to being in excluded paths: {normalized_url}")
+                return False
 
-        # 7. File Type Check (basic check on extension)
-        path_lower = parsed_url.path.lower()
-        excluded_extensions = ['.pdf', '.zip', '.tar.gz', '.png', '.jpg', '.jpeg', '.gif', '.css', '.js'] # Add css/js
-        if any(path_lower.endswith(ext) for ext in excluded_extensions):
-            logging.debug(f"Skipping non-HTML file type based on extension: {path_lower}")
-            return False
-
-        logging.debug(f"URL approved for crawling: {normalized_url}")
         return True
-
-    # _normalize_url removed, using URLInfo directly
 
     async def _process_url(
         self,
         url: str,
-        current_depth: int, # Added depth tracking
+        current_depth: int,
         target: CrawlTarget,
         stats: CrawlStats,
-        visited_urls: Set[str] # Pass visited set
-    ) -> Tuple[Optional[CrawlResult], List[Tuple[str, int]], Dict[str, Any]]: # Return result, new URLs, and metrics
+        visited_urls: Set[str]
+    ) -> Tuple[Optional[CrawlResult], List[Tuple[str, int]], Dict[str, Any]]:
         """Process a single URL, returning its result and discovered links."""
         new_links_to_crawl = []
         crawl_result_data = None
+        quality_metrics = {} # Initialize quality metrics
+        normalized_url = url # Default if URLInfo fails
 
         try:
             # Normalize URL early and check if visited
@@ -548,21 +572,29 @@ class DocumentationCrawler:
             normalized_url = url_info.normalized_url
             if not url_info.is_valid or normalized_url in visited_urls:
                 logging.debug(f"Skipping invalid/visited URL: {url} (Normalized: {normalized_url})")
-                return None, [] # Return None result, no new links
+                return None, [], {} # Return None result, no new links, empty metrics
 
             logging.info(f"Processing URL: {normalized_url} (Depth: {current_depth})")
             visited_urls.add(normalized_url) # Add normalized URL to visited set
 
             # Get backend for this URL
-            backend = await self.backend_selector.select_backend(normalized_url)
+            # Prioritize direct backend if provided (e.g., for testing)
+            if self.direct_backend:
+                backend = self.direct_backend
+                logging.debug(f"Using direct backend: {backend.name}")
+            else:
+                backend = await self.backend_selector.select_backend(normalized_url)
+                if backend:
+                     logging.debug(f"Selected backend via selector: {backend.name}")
+
             if not backend:
                 logging.error(f"No suitable backend found for URL: {normalized_url}")
                 stats.failed_crawls += 1
                 # Create a minimal CrawlResult for failure reporting
                 crawl_result_data = CrawlResult(
-                    target=target, stats=stats, documents=[], issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"No backend for {normalized_url}")], metrics={}, processed_url=normalized_url # Use GENERAL type
+                    target=target, stats=stats, documents=[], issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"No backend for {normalized_url}")], metrics={}, processed_url=normalized_url, failed_urls=[normalized_url], errors={normalized_url: Exception("No suitable backend")} # Use GENERAL type
                 )
-                return crawl_result_data, []
+                return crawl_result_data, [], {}
 
             # Process with retry strategy
             processed_content: Optional[ProcessedContent] = None
@@ -572,14 +604,28 @@ class DocumentationCrawler:
             for attempt in range(self.config.max_retries):
                 try:
                     logging.debug(f"Attempt {attempt + 1}/{self.config.max_retries} for {normalized_url}")
-                    # Apply rate limiting
-                    wait_time = await self.rate_limiter.acquire() # Add await
-                    if wait_time > 0:
-                        logging.debug(f"Rate limit hit for {normalized_url}, sleeping for {wait_time:.4f}s")
+                    # Apply rate limiting - prioritize backend's external limiter if it exists and is not None
+                    limiter_to_use = None
+                    if hasattr(backend, '_external_rate_limiter'):
+                        backend_limiter = getattr(backend, '_external_rate_limiter', None)
+                        if backend_limiter is not None:
+                            limiter_to_use = backend_limiter
+                            
+                    if limiter_to_use is None:
+                        limiter_to_use = self.rate_limiter # Fallback to crawler's limiter
+
+                    wait_time = await limiter_to_use.acquire()
+                    # Ensure wait_time is a float before comparison
+                    if isinstance(wait_time, (int, float)) and wait_time > 0:
+                        logging.debug(f"Rate limit hit for {normalized_url}, sleeping for {wait_time:.4f}s (using {'backend' if limiter_to_use is not self.rate_limiter else 'crawler'} limiter)")
                         await asyncio.sleep(wait_time)
+                    elif not isinstance(wait_time, (int, float)):
+                         logging.warning(f"Rate limiter acquire() returned non-numeric value: {type(wait_time)}. Skipping sleep.")
+
 
                     async with self._processing_semaphore:
-                        backend_result = await backend.crawl(normalized_url) # Use normalized URL
+                        # Pass the crawler's config to the backend crawl method
+                        backend_result = await backend.crawl(url=normalized_url) # Pass url only
 
                         if not backend_result or backend_result.status != 200:
                             logging.warning(f"Attempt {attempt + 1} failed for {normalized_url}: Status {backend_result.status if backend_result else 'N/A'}, Error: {backend_result.error if backend_result else 'Unknown'}")
@@ -598,7 +644,7 @@ class DocumentationCrawler:
                         # Re-check if the final URL was already visited (due to redirects)
                         if normalized_final_url in visited_urls and normalized_final_url != normalized_url:
                              logging.debug(f"Skipping redirected URL already visited: {final_url_processed} (Normalized: {normalized_final_url})")
-                             return None, [] # Already visited via redirect
+                             return None, [], {} # Already visited via redirect
 
                         # Add final URL to visited if different from initial normalized
                         if normalized_final_url != normalized_url:
@@ -615,12 +661,13 @@ class DocumentationCrawler:
                         content_type = content_type_val.lower()
                         if not any(ct in content_type for ct in target.content_types):
                              logging.debug(f"Skipping URL {final_url_processed} due to non-allowed content type: {content_type}")
-                             return None, [] # Skip non-HTML content
+                             return None, [], {} # Skip non-HTML content
 
                         # Process content using ContentProcessor
                         processed_content = await self.content_processor.process(backend_result.content.get('html', ''), base_url=final_url_processed) # Add await back, process is now async
 
                         stats.successful_crawls += 1
+                        stats.pages_crawled += 1 # Increment pages crawled on success
                         stats.bytes_processed += len(backend_result.content.get('html', '')) # Use content['html']
                         last_error = None # Reset last error on success
                         break # Successful processing, exit retry loop
@@ -637,46 +684,31 @@ class DocumentationCrawler:
             if last_error:
                 stats.failed_crawls += 1
                 logging.error(f"Processing failed for {normalized_url} after {self.config.max_retries} attempts: {str(last_error)}")
+                # Include exception type name in the message
+                error_type_name = type(last_error).__name__
+                error_str = str(last_error)
+                # Corrected message format
+                issue_message = f"Failed after retries: {error_type_name}({error_str})"
+
                 crawl_result_data = CrawlResult(
-                    target=target, stats=stats, documents=[], issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"Failed after retries: {str(last_error)}")], metrics={}, processed_url=normalized_url # Use GENERAL type
+                    target=target, 
+                    stats=stats, 
+                    documents=[], 
+                    issues=[QualityIssue(url=normalized_url, type=IssueType.GENERAL, level=IssueLevel.ERROR, message=issue_message)], # Use GENERAL for all processing errors
+                    metrics={}, 
+                    processed_url=normalized_url,
+                    failed_urls=[normalized_url],
+                    errors={normalized_url: last_error}
                 )
-                return crawl_result_data, [], {} # Return empty metrics dict as well
+                return crawl_result_data, [], {} # Return failure result
 
-            # If successful processing occurred
+            # If loop completed successfully (processed_content is not None)
             if processed_content:
-                stats.pages_crawled += 1 # Increment only on successful processing
-                # Extract links if depth allows further crawling
-                if current_depth < target.depth:
-                    # Use the structure from the processed content
-                    page_structure = processed_content.structure # Use the top-level structure attribute
-                    base_for_links = processed_content.metadata.get('base_url') or final_url_processed # Use base from metadata or final URL
-
-                    for item in page_structure:
-                        links_to_process = []
-                        if item.get('type') == 'link': # Standalone link
-                            links_to_process.append(item)
-                        elif item.get('type') == 'text': # Paragraph containing inline elements
-                            for part in item.get('content', []):
-                                if part.get('type') == 'link_inline':
-                                    links_to_process.append(part) # Add inline link for processing
-
-                        # Process found links (either standalone or inline)
-                        for link_item in links_to_process:
-                            href = link_item.get('href')
-                            if href:
-                                absolute_link = sanitize_and_join_url(href, base_for_links)
-                                if absolute_link:
-                                    link_info = URLInfo(absolute_link, base_url=target.url)
-                                    if self._should_crawl_url(link_info, target):
-                                        new_links_to_crawl.append((link_info.normalized_url, current_depth + 1))
-
-                # Prepare successful result data
-                # Perform quality check *before* creating CrawlResult
+                # Perform quality check *after* successful processing
                 if self.quality_checker:
-                    # Only unpack issues, ignore metrics for now
-                    quality_issues, quality_metrics = await self.quality_checker.check_quality(processed_content) # Assign metrics too
+                    quality_issues, quality_metrics = await self.quality_checker.check_quality(processed_content)
                 else:
-                    quality_issues, quality_metrics = [], {} # Assign default empty list/dict
+                    quality_issues, quality_metrics = [], {}
 
                 # Prepare successful result data
                 crawl_result_data = CrawlResult(
@@ -696,280 +728,345 @@ class DocumentationCrawler:
                 )
                 stats.quality_issues += len(crawl_result_data.issues)
 
-            # Perform quality check *before* creating CrawlResult
-            if self.quality_checker:
-                quality_issues, quality_metrics = await self.quality_checker.check_quality(processed_content)
+                # Extract new links if depth allows
+                logging.debug(f"Checking links for depth {current_depth} (target depth: {target.depth})")
+                if current_depth < target.depth:
+                    # Use the recursive helper to find all hrefs
+                    found_hrefs = self._find_links_recursive(processed_content.structure)
+                    logging.debug(f"Found {len(found_hrefs)} potential links: {found_hrefs}")
+                    for href in found_hrefs:
+                        if href:
+                            # Explicitly resolve the URL first
+                            absolute_href = urljoin(normalized_final_url, href)
+                            # Create URLInfo from the absolute URL
+                            resolved_link_info = URLInfo(absolute_href)
+                            if self._should_crawl_url(resolved_link_info, target):
+                                new_links_to_crawl.append((resolved_link_info.normalized_url, current_depth + 1))
+
+
+                # Return metrics along with result and links
+                return crawl_result_data, new_links_to_crawl, quality_metrics
             else:
-                quality_issues, quality_metrics = [], {}
-
-            # Prepare successful result data
-            crawl_result_data = CrawlResult(
-                target=target,
-                stats=stats,
-                documents=[{
-                    'url': normalized_final_url, # Use the final normalized URL
-                    'content': processed_content.content,
-                    'metadata': processed_content.metadata,
-                    'assets': processed_content.assets,
-                    'title': processed_content.title
-                }],
-                issues=quality_issues, # Assign the unpacked issues list
-                metrics=quality_metrics, # Assign the unpacked metrics dict
-                structure=processed_content.content.get('structure'),
-                processed_url=normalized_final_url
-            )
-            stats.quality_issues += len(crawl_result_data.issues)
-
-            # Return metrics along with result and links
-            return crawl_result_data, new_links_to_crawl, quality_metrics
+                 # Should not be reached if last_error logic is correct, but handle defensively
+                 logging.error(f"Processing loop for {normalized_url} finished without success or error.")
+                 stats.failed_crawls += 1 # Count as failed if no content processed
+                 crawl_result_data = CrawlResult(
+                     target=target, stats=stats, documents=[], issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message="Processing finished unexpectedly")], metrics={}, processed_url=normalized_url, failed_urls=[normalized_url], errors={normalized_url: Exception("Unknown processing error")}
+                 )
+                 return crawl_result_data, [], {}
 
         except Exception as e:
             logging.error(f"Unhandled error in _process_url for {url}: {str(e)}", exc_info=True)
             stats.failed_crawls += 1
             # Ensure crawl_result_data is defined even in case of early exception
+            # Include exception type name in the message
+            error_type_name = type(e).__name__
+            error_str = str(e)
+            # Corrected message format
+            issue_message = f"Unhandled exception: {error_type_name}({error_str})"
+
             crawl_result_data = CrawlResult(
-                target=target, stats=stats, documents=[], issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"Unhandled exception: {str(e)}")], metrics={}, processed_url=url # Use GENERAL type
+                target=target, 
+                stats=stats, 
+                documents=[], 
+                issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=issue_message)], 
+                metrics={}, 
+                processed_url=url, # Use GENERAL type
+                failed_urls=[url],  # Add the failed URL to the list
+                errors={url: e}  # Map the URL to its exception
             )
             return crawl_result_data, [], {} # Return the result containing the unhandled exception issue
-            return crawl_result_data, [], {} # Return failure result, no new links, empty metrics
 
-    # _process_batch removed as crawl logic is now queue-based
 
     async def crawl(self, target: CrawlTarget, websocket=None) -> CrawlResult:
-        """Crawl documentation starting from the target URL recursively."""
+        """Start the crawl process for a given target."""
         master_stats = CrawlStats()
         all_documents = []
         all_issues = []
-        aggregated_metrics: Dict[str, Any] = {} # Initialize metrics dict
-        self._crawled_urls.clear() # Clear visited set for new crawl
+        all_metrics: Dict[str, Dict[str, Any]] = {} # Store metrics per URL
+        all_failed_urls: List[str] = [] # Initialize list for failed URLs
+        all_errors: Dict[str, Exception] = {} # Initialize dict for errors
+        visited_urls: Set[str] = set() # Track visited normalized URLs
+        crawled_pages: Dict[str, Any] = {} # Track crawled pages
 
-        # Use deque for efficient queue operations
-        queue = collections.deque([(target.url, 0)]) # Queue stores (url, depth)
+        # Use a deque for BFS queue
+        initial_url = target.url
+        queue = collections.deque() # Initialize empty queue
+        start_url_for_id = initial_url # Default to original target
 
-        # Check if target.url is a package name
-        if not target.url.startswith(('http://', 'https://')):
-            # (Package name discovery logic remains the same)
-            if target.url in self.project_identifier.package_doc_urls:
-                doc_url = self.project_identifier.package_doc_urls[target.url]
+        # Attempt to identify project and discover URL if target looks like a package name
+        is_potential_package = "://" not in initial_url
+        discovered_doc_url = None
+        if is_potential_package:
+            logging.info(f"Target '{initial_url}' looks like a package name. Attempting discovery...")
+            discovered_doc_url = await self.project_identifier.discover_doc_url(initial_url)
+            if discovered_doc_url:
+                logging.info(f"Discovered documentation URL for '{initial_url}': {discovered_doc_url}")
+                queue.append((discovered_doc_url, 0)) # Start with discovered URL
+                start_url_for_id = discovered_doc_url # Use discovered URL for identification
             else:
-                doc_url = await self.project_identifier.discover_doc_url(target.url)
-                if doc_url:
-                    self.project_identifier.add_doc_url(target.url, doc_url)
-                elif target.url in self.project_identifier.fallback_urls:
-                    doc_url = self.project_identifier.fallback_urls[target.url]
-                else:
-                    logging.error(f"Could not find documentation URL for package: {target.url}")
-                    master_stats.end_time = datetime.utcnow()
-                    return CrawlResult(target=target, stats=master_stats, documents=[], issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"No URL for package: {target.url}")], metrics={}) # Use GENERAL type
-            target.url = doc_url # Update target URL
-            queue = collections.deque([(target.url, 0)]) # Re-initialize queue with resolved URL
+                # If discovery fails after assuming it's a package name, raise error
+                logging.error(f"Could not resolve target '{initial_url}' as a URL or discover a documentation URL for it as a package.")
+                raise ValueError(f"Invalid target: '{initial_url}' is not a valid URL and documentation URL discovery failed.")
+        else:
+             # If it looks like a URL, add it directly
+             queue.append((initial_url, 0))
 
-        # Initialize aiohttp session (managed by HTTPBackend now, but keep reference for potential direct use?)
-        # self.client_session = aiohttp.ClientSession(...) # Consider if needed directly
+        # Initial project identification based on the *actual* starting URL
+        try:
+            # Only identify if it looks like a valid URL structure
+            if "://" in start_url_for_id:
+                 project_identity = await self.project_identifier.identify_from_url(start_url_for_id)
+                 logging.info(f"Initial project identity based on '{start_url_for_id}': {project_identity}")
+            else:
+                 # Handle case where initial target was package name and discovery failed
+                 project_identity = ProjectIdentity(name=start_url_for_id, type=ProjectType.UNKNOWN)
+                 logging.info(f"Initial project identity based on package name '{start_url_for_id}': {project_identity}")
+
+            # Use DuckDuckGo to find potential documentation URLs if enabled and identity found
+            if self.duckduckgo and project_identity.name != "unknown":
+                search_queries = self._generate_search_queries(start_url_for_id, project_identity)
+                ddg_discovered_urls = set()
+                for query in search_queries:
+                    urls = await self.duckduckgo.search(query)
+                    for url in urls:
+                        # Basic validation before adding to queue
+                        if urlparse(url).scheme in ['http', 'https']:
+                            ddg_discovered_urls.add(url)
+                logging.info(f"Discovered {len(ddg_discovered_urls)} potential URLs via DuckDuckGo.")
+                # Add discovered URLs to the queue (depth 0)
+                for url in ddg_discovered_urls:
+                     if url not in [item[0] for item in queue]: # Avoid adding duplicates already in queue
+                          queue.append((url, 0))
+        except Exception as e:
+             logging.error(f"Error during initial URL identification or DuckDuckGo search: {e}")
+             # If the queue is empty after failed identification/search, and the original was a URL, add it back.
+             if not queue and not is_potential_package:
+                  logging.warning(f"Adding original target URL '{initial_url}' back to queue after error.")
+                  queue.append((initial_url, 0))
+
 
         processed_pages = 0
-        tasks = set()
+        while queue and (target.max_pages is None or processed_pages < target.max_pages):
+            url_string, current_depth = queue.popleft()
 
-        try:
-            with Timer("Crawl") as crawl_timer:
-                while queue:
-                    # Check max pages limit
-                    if target.max_pages is not None and processed_pages >= target.max_pages:
-                        logging.info(f"Reached max page limit ({target.max_pages}). Stopping crawl.")
-                        break
+            # Check if already visited *before* processing
+            # Need to normalize here briefly for the check, URLInfo handles full normalization later
+            try:
+                 # Use start_url_for_id as base if url_string is relative (shouldn't happen often here)
+                 base_for_check = start_url_for_id if "://" in start_url_for_id else None
+                 temp_info = URLInfo(url_string, base_url=base_for_check)
+                 normalized_check_url = temp_info.normalized_url
+                 if not temp_info.is_valid or normalized_check_url in visited_urls:
+                      continue # Skip if invalid or already visited
+            except Exception as e:
+                 logging.warning(f"Skipping URL due to normalization error before processing: {url_string} ({e})")
+                 continue
 
-                    # Manage concurrent tasks
-                    while len(tasks) >= self.config.concurrent_requests and queue:
-                        # Wait for some tasks to complete before adding more
-                        done, tasks = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-                        # Process results from completed tasks
-                        for future in done:
-                            result_tuple = await future
-                            # Check if result_tuple is valid before unpacking
-                            if result_tuple and len(result_tuple) == 3:
-                                page_result, new_links, page_metrics = result_tuple
-                                # Always extend issues, regardless of success/failure
-                                if page_result and page_result.issues:
-                                     all_issues.extend(page_result.issues)
+            # Process the URL
+            try:
+                async with Timer(f"Process URL {url_string}"): # Time the processing
+                    result_data, new_links, metrics = await self._process_url(
+                        url_string, current_depth, target, master_stats, visited_urls
+                    )
 
-                                # Process successful results
-                                if page_result and page_result.stats.successful_crawls > 0:
-                                    processed_pages += 1
-                                    all_documents.extend(page_result.documents)
-                                    # Stats are accumulated directly in the stats object passed to _process_url
+                if result_data:
+                    processed_pages += 1 # Increment only if result_data is not None
+                    all_documents.extend(result_data.documents)
+                    all_issues.extend(result_data.issues)
+                    # Aggregate failed URLs and errors
+                    all_failed_urls.extend(result_data.failed_urls)
+                    all_errors.update(result_data.errors)
+                    # Store metrics per URL if successful or partially successful
+                    processed_url_key = result_data.processed_url or url_string
+                    if metrics: # Only add metrics if they exist
+                         all_metrics[processed_url_key] = metrics
+                    
+                    # Store processed content in crawled_pages
+                    if result_data.documents:
+                        crawled_pages[processed_url_key] = ProcessedContent(
+                            url=processed_url_key,
+                            title=result_data.documents[0].get('title', ''),
+                            content=result_data.documents[0].get('content', {}),
+                            metadata=result_data.documents[0].get('metadata', {}),
+                            assets=result_data.documents[0].get('assets', []),
+                            structure=result_data.structure
+                        )
 
-                                # Add newly discovered valid links to the queue
-                                for link_url, next_depth in new_links:
-                                    if next_depth <= target.depth:
-                                         # Check visited again before adding to prevent race conditions
-                                         link_info_check = URLInfo(link_url)
-                                         if link_info_check.normalized_url not in self._crawled_urls:
-                                             queue.append((link_info_check.normalized_url, next_depth))
-                                             self._crawled_urls.add(link_info_check.normalized_url) # Add here too
-                                         else:
-                                             logging.debug(f"Skipping link already visited/queued: {link_info_check.normalized_url}")
+                    # --- Add document to organizer ---
+                    if self.document_organizer and result_data.documents:
+                        try:
+                            doc_dict = result_data.documents[0]
+                            # Reconstruct ProcessedContent object for the organizer
+                            # Note: Ensure all necessary fields are present in doc_dict or result_data
+                            processed_content_obj = ProcessedContent(
+                                url=doc_dict.get('url', result_data.processed_url or url_string), # Use best available URL
+                                title=doc_dict.get('title', ''),
+                                content=doc_dict.get('content', {}),
+                                metadata=doc_dict.get('metadata', {}),
+                                assets=doc_dict.get('assets', {}),
+                                structure=result_data.structure # Get structure from the main result
+                                # Add other fields if ProcessedContent requires them
+                            )
+                            doc_org_id = self.document_organizer.add_document(processed_content_obj)
+                            logging.debug(f"Added document {processed_content_obj.url} to organizer with id {doc_org_id}")
+                        except Exception as org_exc:
+                            logging.error(f"Error adding document {result_data.processed_url or url_string} to organizer: {org_exc}", exc_info=True)
+                            # Optionally add an issue to all_issues
+                    # --- End organizer call ---
+
+                    # Add new valid links to the queue
+                    # The check `current_depth < target.depth` is done within _process_url before returning new_links
+                    for link_url, link_depth in new_links:
+                        # Double-check visited here as well, although _should_crawl_url handles it
+                        if link_url not in visited_urls:
+                                queue.append((link_url, link_depth))
+
+                    # Send progress update via WebSocket if available
+                    if websocket:
+                        progress = {
+                            "type": "progress",
+                            "url": result_data.processed_url or url_string,
+                            "status": "success" if not result_data.issues or all(i.level != IssueLevel.ERROR for i in result_data.issues) else "error",
+                            "depth": current_depth,
+                            "pages_processed": processed_pages,
+                            "queue_size": len(queue),
+                            "issues_found": len(result_data.issues),
+                            "documents_found": len(result_data.documents)
+                        }
+                        await websocket.send_json(progress)
+
+                elif result_data is None: # Indicates skipped URL (invalid, visited, wrong type etc.)
+                     pass # Already logged in _process_url or _should_crawl_url
+                else: # Should have result_data if an error occurred during processing
+                     # Log unexpected case if needed
+                     pass
 
 
-                    # Dequeue next URL if queue is not empty
-                    if not queue:
-                         break # Exit outer loop if queue is empty
-
-                    current_url, current_depth = queue.popleft()
-
-                    # Create and add new task
-                    # Pass a copy of stats to avoid race conditions if needed, though current _process_url modifies it directly
-                    # For simplicity, we pass the master_stats, assuming _process_url handles its updates correctly for now.
-                    # A safer approach might involve returning stat deltas from _process_url.
-                    task = asyncio.create_task(self._process_url(current_url, current_depth, target, master_stats, self._crawled_urls))
-                    tasks.add(task)
-
-                # Wait for any remaining tasks to complete
-                if tasks:
-                    done, _ = await asyncio.wait(tasks)
-                    # Process results from final tasks
-                    for future in done:
-                        result_tuple = await future
-                        # Check if result_tuple is valid before unpacking
-                        if result_tuple and len(result_tuple) == 3:
-                            page_result, new_links, page_metrics = result_tuple
-                            # Always extend issues, regardless of success/failure
-                            if page_result and page_result.issues:
-                                 all_issues.extend(page_result.issues)
-
-                            # Process successful results
-                            if page_result and page_result.stats.successful_crawls > 0:
-                                processed_pages += 1
-                                all_documents.extend(page_result.documents)
-                                # Stats are accumulated directly in the stats object passed to _process_url
-                                # Store metrics from the processed page
-                                if page_metrics:
-                                     aggregated_metrics = page_metrics # Overwrite OK here? Or aggregate? Assuming overwrite for now.
-                            # Failed crawls are also accumulated directly in the stats object
+            except Exception as e:
+                logging.error(f"Critical error during crawl loop for {url_string}: {e}", exc_info=True)
+                master_stats.failed_crawls += 1
+                all_issues.append(QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"Crawler loop error: {str(e)}"))
+                # Send progress update for critical failure
+                if websocket:
+                    progress = {
+                        "type": "progress",
+                        "url": url_string,
+                        "status": "error",
+                        "depth": current_depth,
+                        "pages_processed": processed_pages,
+                        "queue_size": len(queue),
+                        "issues_found": 1, # Report this critical issue
+                        "documents_found": 0
+                    }
+                    await websocket.send_json(progress)
 
 
-            # Finalize stats
-            master_stats.end_time = datetime.utcnow()
-            master_stats.total_time = crawl_timer.duration # Use the duration property
-            master_stats.pages_crawled = processed_pages # Use counter instead of successful_crawls
-            if master_stats.pages_crawled > 0:
-                master_stats.average_time_per_page = master_stats.total_time / master_stats.pages_crawled
+        master_stats.end_time = datetime.utcnow()
+        master_stats.total_time = (master_stats.end_time - master_stats.start_time).total_seconds()
+        master_stats.pages_crawled = len(visited_urls) # Count unique visited URLs
+        if master_stats.pages_crawled > 0: # Use pages_crawled for average calculation
+            master_stats.average_time_per_page = master_stats.total_time / master_stats.pages_crawled
 
-            # Organize documents
-            # organized_docs = self.document_organizer.organize(all_documents) # Removed call to non-existent method
+        # Track failed URLs and errors during crawl
+        # Note: all_failed_urls and all_errors are already being collected during the crawl loop
+        # when processing each URL in the _process_url method. We don't need to reinitialize them here.
+        # Instead, we should preserve the values that were collected during the crawl.
+        
+        # Final result compilation
+        final_result = CrawlResult(
+            target=target,
+            stats=master_stats,
+            documents=all_documents,
+            issues=all_issues,
+            metrics=all_metrics, # Use the aggregated metrics
+            crawled_pages=crawled_pages, # Include crawled pages dict
+            failed_urls=list(set(all_failed_urls)), # Add aggregated failed URLs (remove duplicates)
+            errors=all_errors # Add aggregated errors
+            # structure=self.crawl_tree # Removed crawl_tree
+        )
 
-            return CrawlResult(
-                target=target,
-                stats=master_stats,
-                documents=all_documents, # Return the list of document dicts collected
-                issues=all_issues,
-                metrics=aggregated_metrics # Pass aggregated metrics
-            )
+        # Organize documents if an organizer is provided
+        # Removed call to non-existent finalize_organization
+        # if self.document_organizer:
+        #     await self.document_organizer.finalize_organization()
 
-        except Exception as e:
-            logging.error(f"Unhandled error during crawl: {str(e)}", exc_info=True)
-            master_stats.end_time = datetime.utcnow()
-            # Ensure stats reflect failure if error occurs outside _process_url
-            # master_stats.failed_crawls = max(master_stats.failed_crawls, 1) # Ensure at least one failure
-            return CrawlResult(target=target, stats=master_stats, documents=all_documents, issues=all_issues + [QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"Unhandled crawl error: {str(e)}")], metrics=aggregated_metrics) # Include potentially gathered metrics
-        finally:
-            await self.cleanup() # Ensure cleanup runs
-
-    async def close(self) -> None:
-        """Cleanup resources with comprehensive error handling."""
-        await self.cleanup() # Call the cleanup method
+        logging.info(f"Crawl finished. Stats: {master_stats}")
+        return final_result
 
     def _setup_backends(self) -> None:
-        """Setup default backends if none are registered."""
-        # This logic seems redundant with the __init__ setup, consider removing or merging
-        if not self.backend_selector.backends:
-            # Add default HTTP backend
-            http_backend = HTTPBackend(
-                config=HTTPBackendConfig(
-                    timeout=self.config.request_timeout,
-                    headers=self.config.headers,
-                    verify_ssl=self.config.verify_ssl
-                )
-            )
-            self.backend_selector.register_backend(
-                http_backend,
-                BackendCriteria(
-                    priority=100,
-                    content_types=["text/html"],
-                    url_patterns=["*"],
-                    max_load=0.8,
-                    min_success_rate=0.7
-                )
-            )
+        """Initialize and register crawler backends."""
+        # Example: Register HTTP backend
+        http_config = HTTPBackendConfig(
+            timeout=self.config.request_timeout,
+            verify_ssl=self.config.verify_ssl,
+            follow_redirects=self.config.follow_redirects,
+            headers=self.config.headers
+        )
+        http_backend = HTTPBackend(http_config)
+        http_criteria = BackendCriteria(
+            priority=1,
+            content_types=["text/html"],
+            url_patterns=["http://", "https://"]
+        )
+        self.backend_selector.register_backend(http_backend, http_criteria)
+
+        # Example: Register File backend (if needed)
+        # from .backends.file_backend import FileBackend
+        # file_backend = FileBackend()
+        # file_criteria = BackendCriteria(priority=2, schemes=["file"])
+        # self.backend_selector.register_backend(file_backend, file_criteria)
+
+        # Example: Register Crawl4AI backend (if needed)
+        # from .backends.crawl4ai import Crawl4AIBackend, Crawl4AIConfig
+        # crawl4ai_config = Crawl4AIConfig() # Use default or load from config
+        # crawl4ai_backend = Crawl4AIBackend(crawl4ai_config)
+        # crawl4ai_criteria = BackendCriteria(priority=0) # Default backend
+        # self.backend_selector.register_backend(crawl4ai_backend, crawl4ai_criteria)
+
 
     async def cleanup(self):
-        """Clean up resources."""
-        try:
-            # Client session is managed by HTTPBackend, no need to close here if using that pattern
-            # if self.client_session and not self.client_session.closed:
-            #     await self.client_session.close()
-            # self.client_session = None
+        """Clean up resources, like closing the aiohttp session."""
+        if self.client_session and not self.client_session.closed:
+            await self.client_session.close()
+            self.client_session = None
+            logging.info("Crawler client session closed.")
+        # Close DuckDuckGo session if it exists and has a close method
+        if hasattr(self.duckduckgo, 'close') and asyncio.iscoroutinefunction(self.duckduckgo.close):
+             await self.duckduckgo.close()
+             logging.info("DuckDuckGo session closed.")
 
-            if hasattr(self.quality_checker, 'close'):
-                await self.quality_checker.close()
-
-            for backend in self.backend_selector.get_all_backends().values():
-                if hasattr(backend, 'close'):
-                    await backend.close()
-
-            if hasattr(self.document_organizer, 'close'):
-                # Assuming close is async, if not, remove await
-                if asyncio.iscoroutinefunction(self.document_organizer.close):
-                     await self.document_organizer.close()
-                else:
-                     self.document_organizer.close() # Call synchronously if not async
-
-        except Exception as e:
-            logging.error(f"Error during cleanup: {str(e)}")
-            # Don't raise here, allow cleanup to finish as much as possible
 
     def _generate_search_queries(self, url: str, identity: ProjectIdentity) -> List[str]:
         """Generate search queries based on project identity."""
         queries = []
-
+        
         # Base query with project name
-        base_query = identity.name
         if identity.name != "unknown":
-            queries.append(f"{base_query} documentation")
+            queries.append(f"{identity.name} documentation")
+            
+            # Add language/framework specific queries
+            if identity.language:
+                queries.append(f"{identity.name} {identity.language} documentation")
+            if identity.framework:
+                queries.append(f"{identity.name} {identity.framework} documentation")
+                
+            # Add type specific queries
+            if identity.type != ProjectType.UNKNOWN:
+                queries.append(f"{identity.name} {identity.type.value} documentation")
+                
+            # Add queries based on related keywords
+            for keyword in identity.related_keywords[:3]: # Limit keywords
+                queries.append(f"{identity.name} {keyword} documentation")
 
-        # Add type-specific queries
-        if identity.type == ProjectType.FRAMEWORK:
-            queries.extend([
-                f"{base_query} framework tutorial",
-                f"{base_query} framework guide",
-                f"{base_query} getting started",
-                f"{base_query} API reference"
-            ])
-        elif identity.type == ProjectType.PROGRAM:
-            queries.extend([
-                f"{base_query} user manual",
-                f"{base_query} usage guide",
-                f"{base_query} command reference",
-                f"{base_query} examples"
-            ])
-        elif identity.type == ProjectType.LIBRARY:
-            queries.extend([
-                f"{base_query} library reference",
-                f"{base_query} API documentation",
-                f"{base_query} usage examples",
-                f"{base_query} code samples"
-            ])
-        elif identity.type == ProjectType.CLI_TOOL:
-            queries.extend([
-                f"{base_query} CLI documentation",
-                f"{base_query} command reference",
-                f"{base_query} usage options",
-                f"{base_query} examples"
-            ])
+        # Fallback query based on URL domain if name is unknown
+        if not queries:
+            try:
+                domain = urlparse(url).netloc
+                if domain:
+                    queries.append(f"{domain} documentation")
+            except Exception:
+                pass # Ignore URL parsing errors for fallback
 
-        # Add language/framework specific queries
-        if identity.language:
-            queries.append(f"{base_query} {identity.language} documentation")
-        if identity.framework:
-            queries.append(f"{base_query} {identity.framework} documentation")
-
-        return queries
+        # Limit number of queries
+        return queries[:5]

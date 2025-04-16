@@ -7,14 +7,17 @@ import json
 import asyncio
 from typing import List, Dict, Any
 from datetime import datetime
+import logging # Import logging
 
 from src.backends.crawl4ai import Crawl4AIBackend, Crawl4AIConfig
+from src.backends.base import CrawlResult # Import CrawlResult for type checking
 
 app = FastAPI()
-templates = Jinja2Templates(directory="src/gui/templates")
+# Corrected path relative to project root
+templates = Jinja2Templates(directory="templates")
 
-# Serve static files
-app.mount("/static", StaticFiles(directory="src/gui/static"), name="static")
+# Serve static files (assuming static is also at project root)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 class ConnectionManager:
     def __init__(self):
@@ -43,7 +46,7 @@ class ConnectionManager:
         """Broadcast current metrics to all connected clients."""
         if not self.active_connections:
             return
-            
+
         for connection in self.active_connections:
             try:
                 await connection.send_json({
@@ -96,10 +99,11 @@ async def home(request: Request):
 
 @app.post("/crawl")
 async def crawl(request: CrawlRequest):
+    backend = None # Initialize backend to None
     try:
         # Reset metrics for new crawl
         manager.reset_metrics()
-        
+
         # Initialize backend with progress callback
         config = Crawl4AIConfig(
             max_retries=2,
@@ -110,16 +114,23 @@ async def crawl(request: CrawlRequest):
         )
         backend = Crawl4AIBackend(config=config)
         backend.set_progress_callback(progress_callback)
-        
+
         # Start crawling
-        results = await backend.crawl(request.url)
-        processed_results = [{
-            "url": r.url,
-            "content": r.content.get("text", ""),
-            "title": r.content.get("title", ""),
-            "status": r.status
-        } for r in results if r.status < 400]
-        
+        # Assuming backend.crawl returns a list of CrawlResult objects
+        results: List[CrawlResult] = await backend.crawl(request.url)
+
+        # Process the list of CrawlResult objects
+        processed_results = []
+        for r in results:
+             # Ensure 'r' is a CrawlResult object before accessing attributes
+             if isinstance(r, CrawlResult) and r.status < 400:
+                 processed_results.append({
+                     "url": r.url,
+                     "content": r.content.get("text", ""), # Assuming text is in content dict
+                     "title": r.content.get("title", ""), # Assuming title is in content dict
+                     "status": r.status
+                 })
+
         return {
             "status": "success",
             "results": processed_results,
@@ -127,9 +138,14 @@ async def crawl(request: CrawlRequest):
             "metrics": manager.crawl_metrics
         }
     except Exception as e:
+        logging.error(f"Error during crawl endpoint: {e}", exc_info=True) # Log the exception
         return {"status": "error", "message": str(e)}
+    finally:
+        # Ensure backend is closed even if an error occurs
+        if backend:
+            await backend.close()
 
 def run():
     """Run the FastAPI application using uvicorn."""
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=8000) 
+    uvicorn.run(app, host="127.0.0.1", port=8000)

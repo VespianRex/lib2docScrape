@@ -79,21 +79,22 @@ class ContentProcessor:
         self.asset_handler = AssetHandler()
         self.structure_handler = StructureHandler(code_handler=self.code_handler, max_heading_level=self.config.max_heading_level) # Pass code_handler
 
-    # --- Re-added _format_structure_to_markdown ---
-    def _format_structure_to_markdown(self, structure: List[Dict[str, Any]], base_url: str = None) -> str:
-        """Format document structure to markdown."""
+    # --- Updated _format_structure_to_markdown ---
+    def _format_structure_to_markdown(self, structure: List[Dict[str, Any]], base_url: str = None, list_level: int = 0) -> str:
+        """Format document structure to markdown. Added list_level for indentation."""
         if not structure:
             return ""
 
         result = []
+        indent = "  " * list_level # Indentation for nested lists
+
         for section in structure:
-            section_markdown = ""
+            section_markdown = None # Initialize to None to detect if handled
             section_type = section.get('type')
 
             if section_type == 'heading':
                 header = '#' * section.get('level', 1)
                 section_markdown = f"{header} {section.get('title', '')}"
-            # Handle 'text' type which now contains list of inline parts
             elif section_type == 'text':
                 parts = []
                 for part in section.get('content', []): # Iterate through inline parts
@@ -103,32 +104,49 @@ class ContentProcessor:
                     elif part_type == 'link_inline':
                         link_text = part.get('text', '')
                         link_href = part.get('href', '#')
-                        safe_href = sanitize_and_join_url(link_href, base_url) # Use imported function
+                        safe_href = sanitize_and_join_url(link_href, base_url)
                         parts.append(f"[{link_text}]({safe_href})")
                     elif part_type == 'inline_code':
                         inline_code_content = part.get('content', '')
                         parts.append(f"`{inline_code_content}`")
-                    # Add formatting for other inline types (strong, em) if extracted
-                # Join parts - use empty string join as spaces are part of text_inline
+                    # Handle other inline types recursively if needed
+                    elif part.get('content') and isinstance(part.get('content'), list):
+                         inner_md = self._format_structure_to_markdown(part['content'], base_url, list_level) # Pass current level
+                         if part_type == 'strong' or part_type == 'b':
+                              parts.append(f"**{inner_md}**")
+                         elif part_type == 'em' or part_type == 'i':
+                              parts.append(f"*{inner_md}*")
+                         else: parts.append(inner_md)
+                    elif part_type == 'linebreak':
+                         parts.append("  \n")
                 section_markdown = ''.join(parts)
-            elif section_type == 'list':  # Handle lists
-                list_content = section.get('content', [])
-                if list_content:
-                    tag_type = section.get('tag')
-                    if tag_type == 'ul':
-                        list_prefix = "* "
-                        section_markdown = '\n'.join([f"{list_prefix}{item}" for item in list_content])
-                    elif tag_type == 'ol':
-                        section_markdown_lines = []
-                        for index, item in enumerate(list_content):
-                            list_prefix = f"{index + 1}. "
-                            section_markdown_lines.append(f"{list_prefix}{item}")
-                        section_markdown = '\n'.join(section_markdown_lines)
+            # Corrected list handling: Check for type 'list'
+            elif section_type == 'list':
+                list_items_structure = section.get('content', []) # Content is now a list of lists (sub-structures)
+                if list_items_structure:
+                    tag_type = section.get('tag') # Get 'ul' or 'ol' from the tag field
+                    markdown_items = []
+                    for index, item_structure in enumerate(list_items_structure): # item_structure is the content of one li
+                        item_content_md = self._format_structure_to_markdown(item_structure, base_url, list_level + 1)
+                        item_content_md = item_content_md.strip() # Strip result of recursive call
+                        if item_content_md:
+                            if tag_type == 'ul': list_prefix = "* "
+                            elif tag_type == 'ol': list_prefix = f"{index + 1}. "
+                            else: list_prefix = "- " # Fallback
+                            lines = item_content_md.split('\n')
+                            formatted_item = f"{indent}{list_prefix}{lines[0]}"
+                            if len(lines) > 1:
+                                formatted_item += '\n' + '\n'.join(f"{indent}  {line}" for line in lines[1:])
+                            markdown_items.append(formatted_item)
+                    section_markdown = '\n'.join(markdown_items)
+
             elif section_type == 'code':  # Handle code blocks
                 language = section.get('language')
+                # Check if language is supported before formatting
                 if language is None or self.code_handler.is_language_supported(language):
-                     raw_code = section.get('content', '').strip()
-                     section_markdown = f"```{language or ''}\n{raw_code}\n```"
+                    raw_code = section.get('content', '').strip()
+                    section_markdown = f"```{language or ''}\n{raw_code}\n```"
+                # else: implicitly section_markdown remains None, skipping the block
             elif section_type == 'table':  # Handle tables
                 table_content = section.get('content', {})
                 headers = table_content.get('headers', [])
@@ -140,25 +158,44 @@ class ContentProcessor:
                     ]
                     table_lines.extend('| ' + ' | '.join(row) + ' |' for row in rows)
                     section_markdown = '\n'.join(table_lines)
-            # Handle standalone links extracted by extract_structure
-            elif section_type == 'link':
+            # --- Added direct handling for inline types at this level ---
+            elif section_type == 'text_inline':
+                section_markdown = section.get('content', '')
+            elif section_type == 'link_inline':
                 link_text = section.get('text', '')
                 link_href = section.get('href', '#')
-                # Sanitize and resolve URL here before formatting (using top-level import)
-                safe_href = sanitize_and_join_url(link_href, base_url)
+                # Sanitize the URL, default to '#' if invalid/unsafe
+                safe_href = sanitize_and_join_url(link_href, base_url) or "#"
+                # Always generate the markdown link, using '#' for invalid URLs
                 section_markdown = f"[{link_text}]({safe_href})"
-            # Handle standalone inline_code extracted by extract_structure
             elif section_type == 'inline_code':
                 inline_code_content = section.get('content', '')
                 section_markdown = f"`{inline_code_content}`"
-            # They are handled within the 'paragraph' type now.
+            elif section_type in ['strong', 'em', 'b', 'i'] and isinstance(section.get('content'), list):
+                 inner_md = self._format_structure_to_markdown(section['content'], base_url, list_level)
+                 if section_type == 'strong' or section_type == 'b': section_markdown = f"**{inner_md}**"
+                 elif section_type == 'em' or section_type == 'i': section_markdown = f"*{inner_md}*"
+                 else: section_markdown = inner_md # Fallback
+            elif section_type == 'linebreak':
+                 section_markdown = "  \n" # Represent <br> as markdown line break
+
+            # Only append if markdown was generated (avoids extra newlines for ignored elements)
+            if section_markdown is not None: # Check for None, not just truthiness
+                 # Append without adding extra indentation here; indentation is handled within list logic
+                 # Strip only if it's not just whitespace intended for line breaks
+                 append_content = section_markdown if section_markdown == "  \n" else section_markdown.strip()
+                 # Append even if empty if it was text_inline (to preserve structure)
+                 if append_content or section_type == 'text_inline':
+                      result.append(append_content)
 
 
-            if section_markdown.strip():
-                result.append(section_markdown.strip())
+        # Join with double newlines only for top-level elements
+        # Join with single newline for elements within a list item
+        joiner = '\n\n' if list_level == 0 else '' # Use empty joiner for inline/list items
+        # Simpler join, rely on content being correctly formatted including potential empty strings
+        return joiner.join(result)
 
-        return '\n\n'.join(result)
-    # --- End Re-added _format_structure_to_markdown ---
+    # --- End Updated _format_structure_to_markdown ---
 
     # _sanitize_soup method removed, replaced by bleach.clean() in process method
     async def process(self, html_content: str, base_url: str = None) -> ProcessedContent: # Make method async
@@ -166,24 +203,35 @@ class ContentProcessor:
         self.result = ProcessedContent()
         if not html_content or not html_content.strip():
             raise ContentProcessingError("Cannot process empty or whitespace-only content")
-        headings_structure = [] # Initialize before try block
+        # headings_structure = [] # Removed redundant initialization
 
-        # headings_structure = [] # Redundant initialization removed
         try:
-            # --- Sanitize First ---
-            # 1. Sanitize the raw HTML string first
-            #    Note: bleach handles unescaping internally.
+            # --- Pre-process to remove unwanted tags ---
+            # 1. Parse raw HTML
+            temp_soup = BeautifulSoup(html_content, 'html.parser')
+
+            # 2. Remove script, style, noscript tags entirely
+            # 2. Remove script, style, noscript, and iframe tags entirely
+            for tag_name in ['script', 'style', 'noscript', 'iframe']:
+                for tag in temp_soup.find_all(tag_name):
+                    tag.decompose()
+
+            # 3. Get the HTML string after removal
+            pre_cleaned_html = str(temp_soup)
+
+            # --- Sanitize Remaining HTML ---
+            # 4. Sanitize the pre-cleaned HTML string
             cleaned_html = bleach.clean(
-                html_content,
+                pre_cleaned_html,
                 tags=self.ALLOWED_TAGS,
                 attributes=self.ALLOWED_ATTRIBUTES,
-                protocols=bleach.sanitizer.ALLOWED_PROTOCOLS | {'data', 'ftp'}, # Allow data URIs and ftp
-                # styles=self.ALLOWED_STYLES, # Removed unsupported 'styles' argument
-                strip=True,
+                protocols=bleach.sanitizer.ALLOWED_PROTOCOLS | {'data', 'ftp'},
+                strip=True, # Strip tags not in ALLOWED_TAGS
                 strip_comments=not self.config.extract_comments
             )
+            # logger.debug(f"Cleaned HTML after bleach:\n{cleaned_html}") # Optional debug
 
-            # 2. Check content length (of the cleaned content) *before* parsing
+            # 5. Check content length (of the final cleaned content) *before* full parsing
             content_length = len(cleaned_html)
             if content_length > self.config.max_content_length:
                 raise ContentProcessingError(f"Cleaned content too long: {content_length} characters (limit: {self.config.max_content_length})")
@@ -191,11 +239,11 @@ class ContentProcessor:
                 raise ContentProcessingError(f"Cleaned content too short: {content_length} characters (limit: {self.config.min_content_length})")
 
             # --- Parse Cleaned HTML ---
-            # 3. Parse the cleaned HTML *once*
+            # 6. Parse the cleaned HTML *once*
             soup = BeautifulSoup(cleaned_html, 'html.parser')
 
             # --- Process Cleaned Soup ---
-            # 4. Determine the effective base URL
+            # 7. Determine the effective base URL
             # Start with the base_url passed into the function
             effective_base_url = base_url
             # Try to find a <base> tag in the cleaned soup if allowed
@@ -219,33 +267,36 @@ class ContentProcessor:
                  logger.warning("No effective base URL determined (none provided and none found/allowed in HTML).")
 
 
-            # 5. Extract metadata from the cleaned soup
+            # 8. Extract metadata from the cleaned soup
             metadata = extract_metadata(soup) if self.config.extract_metadata else {}
             self.result.metadata = metadata
             self.result.title = metadata.get('title', 'Untitled Document')
 
-            # 6. Extract assets from the cleaned soup, using the determined effective_base_url
+            # 9. Extract assets from the cleaned soup, using the determined effective_base_url
             if self.config.extract_assets:
                 self.result.assets = self.asset_handler.extract_assets(soup, effective_base_url)
                 # process_images simplified to just add assets, no longer modifies soup significantly
                 self.asset_handler.process_images(soup, effective_base_url)
 
-            # 7. Extract structure and headings *before* modifying soup further
+            # 10. Extract structure and headings *before* modifying soup further
             full_structure = self.structure_handler.extract_structure(soup) # This contains links, text, etc.
             headings = self.structure_handler.extract_headings(soup)
             # headings_structure is no longer needed for the main structure field
-            # headings_structure = [{'type': 'heading', 'level': h['level'], 'text': h['text']} for h in headings]
 
-            # 8. Process code blocks in the cleaned soup (modifies soup)
-            if self.config.extract_code_blocks:
-                self.code_handler.process_code_blocks(soup) # Re-enabled
+            # 11. Process code blocks in the cleaned soup (modifies soup)
+            # This step is likely redundant now as structure is extracted first
+            # if self.config.extract_code_blocks:
+            #     self.code_handler.process_code_blocks(soup) # Re-enabled
 
-            # 9. Generate markdown from the *original* extracted structure (before code block modification)
+            # 12. Generate markdown from the *original* extracted structure
             # Pass full_structure to markdown formatter
             formatted_content = self._format_structure_to_markdown(full_structure, effective_base_url)
 
-            # 10. Store results
-            # Reverted structure storage
+            # 13. Add calculated metadata flags
+            self.result.metadata['has_code_blocks'] = any(item.get('type') == 'code' for item in full_structure)
+            self.result.metadata['has_tables'] = any(item.get('type') == 'table' for item in full_structure)
+
+            # 14. Store results
             # Assign the full structure to the dedicated attribute
             self.result.structure = full_structure
             # Assign headings separately

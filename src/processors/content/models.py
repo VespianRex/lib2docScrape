@@ -44,6 +44,8 @@ class ProcessorConfig:
 @dataclass
 class ProcessedContent:
     """Result of content processing."""
+    url: str = ""
+
     content: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
     assets: Dict[str, List[str]] = field(default_factory=lambda: {

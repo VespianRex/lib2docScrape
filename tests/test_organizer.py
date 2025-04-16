@@ -5,35 +5,13 @@ from typing import Dict, List
 
 import pytest
 
-from src.organizers.doc_organizer import (DocumentCollection, DocumentMetadata,
+from lib2docScrape.doc_organizer import (DocumentCollection, DocumentMetadata,
                                        DocumentOrganizer, DocumentVersion,
                                        OrganizationConfig, SearchIndex)
-from src.processors.content_processor import ProcessedContent
+from lib2docScrape.processors.content_processor import ProcessedContent
+from tests.test_helpers import create_test_content
 
 
-def create_test_content(
-    title: str,
-    content: Dict = None,
-    metadata: Dict = None,
-    url: str = "http://example.com/default" # Add url as optional metadata source
-) -> ProcessedContent:
-    """Helper function to create test content."""
-    # Ensure metadata is initialized
-    final_metadata = metadata or {}
-    # Add url to metadata if provided
-    if url:
-        final_metadata['source_url'] = url
-
-    return ProcessedContent(
-        title=title,
-        content=content or {},
-        metadata=final_metadata,
-        assets={},
-        # Add default empty lists for other fields if needed by tests
-        headings=[],
-        structure=[],
-        errors=[]
-    )
 
 
 def test_document_organizer_initialization():
@@ -222,6 +200,7 @@ def test_collection_management():
     assert organizer.collections[collection_id].name == "Test Collection"
 
 
+
 def test_document_similarity():
     """Test document similarity detection."""
     organizer = DocumentOrganizer()
@@ -232,6 +211,7 @@ def test_document_similarity():
         title="Python Guide",
         content={"text": "Guide to Python programming basics and fundamentals"}
     )
+    
     doc2 = create_test_content(
         url="https://example.com/doc2",
         title="Python Tutorial",
@@ -291,6 +271,7 @@ def test_search_index_generation():
             ]
         }
     )
+    
     organizer.add_document(content)
     
     # Check search indices

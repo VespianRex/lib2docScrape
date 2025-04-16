@@ -2,7 +2,7 @@
 import logging
 from typing import Dict, List, Any
 from bs4 import BeautifulSoup, Tag, NavigableString # Added NavigableString
-from bs4 import BeautifulSoup, Tag
+# Removed duplicate import: from bs4 import BeautifulSoup, Tag
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -39,13 +39,21 @@ class StructureHandler:
             return []
 
         # Define tags to recurse into vs tags to process directly
+        # Removed ul, ol, li - they are handled specifically now
         container_tags = {'div', 'section', 'article', 'aside', 'nav', 'header', 'footer', 'figure'}
         # Add blockquote?
 
-        def process_element(element: Tag, current_structure: List[Dict[str, Any]]):
-            """Recursive helper to process elements."""
+        def process_element(element: Any, current_structure: List[Dict[str, Any]]):
+            """Recursive helper to process elements (Tags and NavigableStrings)."""
+            if isinstance(element, NavigableString):
+                text = str(element) # Keep whitespace initially
+                if text.strip(): # Only add if not just whitespace
+                    # Append as inline text, preserving original whitespace
+                    current_structure.append({'type': 'text_inline', 'content': text})
+                return
+
             if not isinstance(element, Tag):
-                return # Skip NavigableString, Comment, etc.
+                return # Skip Comment, etc.
 
             element_data = None
             tag_name = element.name
@@ -65,71 +73,74 @@ class StructureHandler:
             elif tag_name == 'p':
                 paragraph_parts = []
                 for child in element.children:
-                    if isinstance(child, NavigableString):
-                        text = child.strip()
-                        if text:
-                            paragraph_parts.append({'type': 'text_inline', 'content': text})
-                    elif isinstance(child, Tag) and child.name == 'a':
-                        href = child.get('href', '').strip() or "#"
-                        text = child.get_text(strip=True)
-                        if text: # Add link even if href is invalid initially
-                             paragraph_parts.append({'type': 'link_inline', 'text': text, 'href': href})
-                    elif isinstance(child, Tag) and child.name == 'code':
-                         inline_code_content = child.get_text().strip()
-                         if inline_code_content:
-                              paragraph_parts.append({'type': 'inline_code', 'content': inline_code_content})
-                    # Add other inline tags like strong, em if needed
+                    process_element(child, paragraph_parts) # Process children recursively
                 if paragraph_parts:
-                     # Represent paragraph as a list of its inline parts
-                     element_data = {'type': 'text', 'content': paragraph_parts} # Use 'text' type, content is list of inline parts
-            # Lists
+                     element_data = {'type': 'text', 'content': paragraph_parts}
+            # Lists - Special handling to capture nested structure within <li>
             elif tag_name in ['ul', 'ol']:
-                list_items_data = [li.get_text(strip=True) for li in element.find_all('li', recursive=False) if li.get_text(strip=True)]
-                if list_items_data:
-                    element_data = {'type': 'list', 'tag': tag_name, 'content': list_items_data}
+                list_items_structure = []
+                for li in element.find_all('li', recursive=False):
+                    item_structure = []
+                    # Process the *children* of the li tag
+                    for child in li.children:
+                         process_element(child, item_structure)
+                    if item_structure: # Only add if the list item resulted in some structure
+                         list_items_structure.append(item_structure) # Append the list representing li's structure
+                if list_items_structure:
+                    # Create the structure expected by the markdown formatter
+                    element_data = {'type': 'list', 'tag': tag_name, 'content': list_items_structure}
             # Code Blocks (pre)
             elif tag_name == 'pre':
                 code_tag = element.find('code')
                 if code_tag:
                     classes = code_tag.get('class') or []
                     if isinstance(classes, str): classes = classes.split()
-                    raw_code = code_tag.get_text()
+                    raw_code = code_tag.get_text() # Keep original formatting
                     language = next((cls[len("language-"):] for cls in classes if cls.startswith("language-")), None) or (classes[0] if classes else None)
                 else:
                     raw_code = element.get_text()
                     language = None
-                if raw_code.strip():
-                    if language is None or self.code_handler.is_language_supported(language):
-                        element_data = {'type': 'code', 'language': language, 'content': raw_code}
+                if raw_code.strip(): # Check if not just whitespace
+                    element_data = {'type': 'code', 'language': language, 'content': raw_code}
             # Tables
             elif tag_name == 'table':
                 table_content = self._extract_table_content(element)
                 if table_content.get('headers') or table_content.get('rows'):
                     element_data = {'type': 'table', 'content': table_content}
-            # Links (handle standalone links)
+            # Links (handle standalone links or links found during recursion)
             elif tag_name == 'a':
                 href = element.get('href', '').strip() or "#" # Default to # if empty
                 text = element.get_text(strip=True) # Keep getting text for potential use
-                # Add link regardless of text content, formatting handles empty text
-                # if text: # Removed condition
-                element_data = {'type': 'link', 'text': text, 'href': href} # Correct indentation
+                # Represent as inline link structure
+                element_data = {'type': 'link_inline', 'text': text, 'href': href}
             # Inline code tags (Standalone)
             elif tag_name == 'code' and element.parent.name != 'pre':
-                inline_code_content = element.get_text().strip()
-                if inline_code_content:
+                inline_code_content = element.get_text() # Keep internal spaces
+                if inline_code_content.strip(): # Check if not just whitespace
                     element_data = {'type': 'inline_code', 'content': inline_code_content}
+            # Handle inline formatting tags (strong, em, etc.)
+            elif tag_name in ['strong', 'em', 'b', 'i', 'u', 's', 'sub', 'sup']:
+                 inline_parts = []
+                 for child in element.children:
+                      process_element(child, inline_parts)
+                 if inline_parts:
+                      element_data = {'type': tag_name, 'content': inline_parts}
+            # Handle <br> tags
+            elif tag_name == 'br':
+                 element_data = {'type': 'linebreak'}
+
 
             # --- Append or Recurse ---
             if element_data:
                 current_structure.append(element_data)
+            # Only recurse into defined containers if no specific data was extracted
             elif tag_name in container_tags:
-                # Recurse into container tags
-                for child in element.find_all(recursive=False):
+                for child in element.children:
                     process_element(child, current_structure)
-            # else: ignore other tags or handle them specifically
+            # else: ignore other tags like 'li' as they are handled by their parent ('ul'/'ol')
 
         # Start processing from the direct children of the content area
-        for child in content_area.find_all(recursive=False):
+        for child in content_area.children: # Use children to include NavigableString
              process_element(child, structure) # Process each child
 
         return structure
@@ -137,7 +148,7 @@ class StructureHandler:
 
     def process_lists(self, soup: BeautifulSoup) -> None:
         """Process lists (ul, ol) to markdown format."""
-        # Removed list processing from here, moved to structure extraction
+        # Removed list processing from here, handled by structure extraction and markdown formatting
         pass
 
     def process_definition_lists(self, soup: BeautifulSoup) -> None:
@@ -200,28 +211,23 @@ class StructureHandler:
 
     def _extract_table_content(self, table: Tag) -> Dict[str, Any]:
         """Extract table content (headers and rows) as structured data."""
-        print("DEBUG: Extracting table content...")  # Debug output
         headers = []
         rows = []
         header_row = table.find('tr')
-        print(f"DEBUG: Found header row: {header_row}")  # Debug output
 
         if header_row:
             header_cells = header_row.find_all('th')
             if not header_cells:
                 header_cells = header_row.find_all('td')
-            print(f"DEBUG: Found header cells: {header_cells}")  # Debug output
             for th in header_cells:
                 headers.append(th.get_text().strip())
         data_rows = table.find_all('tr')[1:] if header_row else table.find_all('tr')
-        print(f"DEBUG: Found data rows: {data_rows}")  # Debug output
         for row in data_rows:
             cell_texts = []
             for cell in row.find_all(['td', 'th']):
                 cell_texts.append(cell.get_text().strip())
             rows.append(cell_texts)
         table_content = {'headers': headers, 'rows': rows}
-        print(f"DEBUG: Extracted table content: {table_content}")  # Debug output
         return table_content
 
     def process_footnotes(self, soup: BeautifulSoup) -> None:

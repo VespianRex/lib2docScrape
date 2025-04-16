@@ -15,7 +15,6 @@ src/simple_api.py
 src/backends/__init__.py
 src/backends/base.py
 src/backends/crawl4ai.py
-src/backends/http.py
 src/backends/http_backend.py
 src/backends/selector.py
 src/gui/app.py
@@ -27,14 +26,11 @@ tests/test_crawl4ai.py
 tests/test_crawl4ai_extended.py
 tests/test_crawler.py
 tests/test_crawler_advanced.py
-tests/test_document_processor.py
 tests/test_gui.py
 tests/test_helpers.py
-tests/test_html_processor.py
 tests/test_integration.py
 tests/test_integration_advanced.py
 tests/test_link_processor.py
-tests/test_metadata_extraction.py
 tests/test_organizer.py
 tests/test_processor.py
 tests/test_quality.py

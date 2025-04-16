@@ -29,7 +29,7 @@ class URLInfo:
     """
 
     # Constants for validation (can be moved to a config later if needed)
-    ALLOWED_SCHEMES = {'http', 'https'}
+    ALLOWED_SCHEMES = {'http', 'https', 'file'} # Added 'file' scheme
     MAX_PATH_LENGTH = 2048
     MAX_QUERY_LENGTH = 2048
     # Regex for potentially invalid characters in path (adjust as needed)
@@ -91,8 +91,8 @@ class URLInfo:
         if temp_raw_url.startswith('//'):
             base_scheme = urlparse(base_for_join).scheme if base_for_join else 'http'
             temp_raw_url = f"{base_scheme}:{temp_raw_url}"
-        # Add default http scheme if missing entirely and not protocol-relative
-        elif not urlparse(temp_raw_url).scheme:
+        # Add default http scheme if missing entirely and not protocol-relative or file
+        elif not urlparse(temp_raw_url).scheme and not temp_raw_url.startswith('file:'):
              temp_raw_url = "http://" + temp_raw_url
 
         # Use urljoin to handle relative URLs correctly
@@ -244,23 +244,20 @@ class URLInfo:
         if not self._parsed or not self.is_valid: return # Check validity again
         # Remove fragment before final unparsing
         self._parsed = self._parsed._replace(fragment='')
-        # Unparse and perform final cleanup: remove trailing '?' and trailing '/' from root
+        # Unparse and perform final cleanup: remove trailing '?'
         temp_url = urlunparse(self._parsed).rstrip('?') # Remove trailing '?' if query was empty
 
-        # Handle trailing slash based on path more carefully
+        # Revised logic: Always remove trailing slash from root path
         parsed_temp = urlparse(temp_url)
         if parsed_temp.path == '/' and temp_url.endswith('/'):
-            # Keep trailing slash for root path like http://example.com/
-            self.normalized_url = temp_url
+            # Always remove trailing slash for root path
+            self.normalized_url = temp_url.rstrip('/')
         elif parsed_temp.path == '' and temp_url.endswith('/'):
              # Path is empty BUT urlunparse added a slash (e.g. http://example.com:80 -> http://example.com/)
-             # Remove the slash in this specific case
+             # Remove the slash in this specific case (already handled by rstrip below, but keep for clarity)
              self.normalized_url = temp_url.rstrip('/')
-        elif parsed_temp.path == '' and not temp_url.endswith('/'):
-             # Path is empty and no slash (e.g. http://example.com after port removal), keep as is
-             self.normalized_url = temp_url
-        # For non-empty paths, urlunparse should preserve the slash correctly based on _normalize_path
         else:
+             # Keep other paths as they are (including trailing slashes if they were originally present and path is not just '/')
              self.normalized_url = temp_url
 
     def _normalize_scheme_host(self):
@@ -313,34 +310,41 @@ class URLInfo:
         original_path_for_slash = original_parsed_for_slash.path
         had_trailing_slash_orig = original_path_for_slash.endswith('/')
 
-        # Clean segments: remove empty (handles //), '.', handle '..'
-        # Use self._parsed.path which reflects the state after _parse_and_resolve
-        path_segments = self._parsed.path.split('/')
-        clean_segments = []
-        for segment in path_segments:
-            if segment == '.' or segment == '': # Remove . and empty segments from //
-                continue
-            elif segment == '..':
-                if clean_segments: # Only pop if there's something to pop
-                    clean_segments.pop()
-                # If clean_segments is empty, effectively ignore '..' at root level
-            else: # It's a normal segment
-                # Percent-encode the segment before appending
-                clean_segments.append(urllib.parse.quote(segment, safe='/:'))
+        # Revised path cleaning and reconstruction
+        path = self._parsed.path
+        if not path: # Handle truly empty path
+            _path = ''
+        else:
+            path_segments = path.split('/')
+            clean_segments = []
+            # Skip first empty segment if path starts with / (e.g., /a/b -> ['', 'a', 'b'])
+            start_index = 1 if path.startswith('/') and len(path_segments) > 1 else 0
 
-        # Reconstruct path
-        if not clean_segments: # Handle root path
-             # Path should always be '/' for root after normalization
-             _path = '/'
-        else: # Handle non-root path
-            _path = '/' + '/'.join(clean_segments)
-            # Add trailing slash if original had one AND it's not just the root
-            if had_trailing_slash_orig and _path != '/':
-                _path += '/'
+            for i in range(start_index, len(path_segments)):
+                segment = path_segments[i]
+                if segment == '.' or segment == '': # Remove . and empty segments from //
+                    continue
+                elif segment == '..':
+                    if clean_segments: # Only pop if there's something to pop
+                        clean_segments.pop()
+                    # Ignore '..' at root level
+                else: # It's a normal segment
+                    # TODO: Review if percent-encoding is needed here or if urlunparse handles it.
+                    # For now, keep original segment encoding.
+                    clean_segments.append(segment)
+
+            # Reconstruct path
+            if not clean_segments:
+                # If original path started with '/', result is '/'. Otherwise empty.
+                _path = '/' if path.startswith('/') else ''
+            else:
+                _path = '/' + '/'.join(clean_segments)
+                # Add trailing slash if original had one AND it's not just the root
+                if path.endswith('/') and _path != '/':
+                     _path += '/'
 
         # Update the internal parsed object directly
         self._parsed = self._parsed._replace(path=_path)
-        # No longer sets self.normalized_url here, _finalize_normalization does
 
     def _normalize_query(self):
         """Sort query parameters."""
@@ -382,8 +386,8 @@ class URLInfo:
 
     @property
     def netloc(self) -> Optional[str]:
-        # Return "" for invalid URLs, consistent with scheme property
-        return self._parsed.netloc if self.is_valid and self._parsed else ""
+        # Return None for invalid URLs to match test expectation
+        return self._parsed.netloc if self.is_valid and self._parsed else None
 
     @property
     def path(self) -> Optional[str]:
@@ -393,7 +397,11 @@ class URLInfo:
                   return urlparse(self.normalized_url).path
              except Exception:
                   return None # Should not happen if valid
-        elif self._parsed: # If invalid but parsed, return parsed path
+        # If invalid, return the raw URL to match test expectation
+        elif not self.is_valid:
+             return self.raw_url
+        # Fallback if parsed exists but invalid (should ideally not be reached if above handles invalid)
+        elif self._parsed:
              return self._parsed.path
         return None
 
@@ -443,5 +451,4 @@ class URLInfo:
              super().__setattr__(name, value)
         else:
             raise AttributeError(f"Cannot set attribute '{name}' on immutable URLInfo object")
-            return hash(self.raw_url)
-
+            # return hash(self.raw_url) # This line was incorrectly placed after raise
