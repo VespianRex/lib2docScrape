@@ -8,6 +8,18 @@ import bleach # Import bleach
 # import markdownify as md # Removed markdownify import
 
 from .content.models import ProcessedContent, ProcessorConfig
+
+# Default configuration class for when a mock is used
+class DefaultProcessorConfig:
+    def __init__(self):
+        self.max_content_length = 100000
+        self.min_content_length = 10
+        self.extract_metadata = True
+        self.extract_assets = True
+        self.extract_code_blocks = True
+        self.extract_comments = False
+        self.code_languages = ["python", "javascript", "html", "css", "java", "c", "cpp"]
+        self.max_heading_level = 6
 from .content.metadata_extractor import extract_metadata
 from .content.asset_handler import AssetHandler
 from .content.structure_handler import StructureHandler
@@ -65,7 +77,15 @@ class ContentProcessor:
 
     def __init__(self, config=None):
         """Initialize the content processor."""
-        self.config = config or ProcessorConfig()
+        if config is None:
+            # Use ProcessorConfig if available, otherwise use DefaultProcessorConfig
+            try:
+                self.config = ProcessorConfig()
+            except Exception:
+                logger.warning("ProcessorConfig not available, using DefaultProcessorConfig")
+                self.config = DefaultProcessorConfig()
+        else:
+            self.config = config
         self.result = ProcessedContent()
         self.content_filters = []
         self.url_filters = []
@@ -281,7 +301,20 @@ class ContentProcessor:
             # 10. Extract structure and headings *before* modifying soup further
             full_structure = self.structure_handler.extract_structure(soup) # This contains links, text, etc.
             headings = self.structure_handler.extract_headings(soup)
-            # headings_structure is no longer needed for the main structure field
+            
+            # Fallback for headings if structure handler fails to extract them
+            if not headings and self.config.max_heading_level > 0:
+                headings = []
+                for level in range(1, min(7, self.config.max_heading_level + 1)):
+                    for tag in soup.find_all(f'h{level}'):
+                        heading_text = tag.get_text(strip=True)
+                        headings.append({
+                            "level": level,
+                            "text": heading_text,
+                            "id": tag.get('id', ''),
+                            "type": "heading"
+                        })
+                logger.debug(f"Extracted {len(headings)} headings as fallback")
 
             # 11. Process code blocks in the cleaned soup (modifies soup)
             # This step is likely redundant now as structure is extracted first
@@ -307,21 +340,45 @@ class ContentProcessor:
                 # 'structure' key removed from here
                 # 'headings' key removed from here (now a top-level attribute)
             }
+            
+            # Ensure structure contains at least basic headings if it's empty
+            if not self.result.structure and headings:
+                self.result.structure = [
+                    {"type": "heading", "level": h["level"], "title": h["text"]} 
+                    for h in headings
+                ]
 
             return self.result
 
         except Exception as e:
             logger.error(f"Error processing content: {str(e)}", exc_info=True) # Log traceback
             self.result.errors.append(f"Error processing content: {str(e)}")
-            # Ensure default structure even on error
-            self.result.content = {
-                'formatted_content': '',
-                # 'structure' key removed from here
-                'headings': [], # Keep headings empty on error
-            }
+            # Ensure content is empty on error, especially for size limit errors
+            self.result.content = {} # Set content to empty dict on error
+
             # Ensure structure is also default on error
             if not self.result.structure:
-                 self.result.structure = []
+                self.result.structure = []
+                # Try to extract basic headings even on error
+                try:
+                    temp_soup = BeautifulSoup(html_content, 'html.parser')
+                    basic_headings = []
+                    for level in range(1, 7):
+                        for tag in temp_soup.find_all(f'h{level}'):
+                            heading_text = tag.get_text(strip=True)
+                            basic_headings.append({
+                                "type": "heading",
+                                "level": level,
+                                "title": heading_text
+                            })
+                    if basic_headings:
+                        self.result.structure = basic_headings
+                        self.result.headings = [
+                            {"level": h["level"], "text": h["title"], "id": "", "type": "heading"}
+                            for h in basic_headings
+                        ]
+                except Exception as e:
+                    logger.error(f"Failed to extract basic headings on error: {str(e)}")
             # Ensure assets and metadata are initialized if error occurs early
             # Check self.result directly
             if not hasattr(self.result, 'assets') or not self.result.assets:

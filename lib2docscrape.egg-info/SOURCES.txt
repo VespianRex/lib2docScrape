@@ -15,9 +15,12 @@ src/simple_api.py
 src/backends/__init__.py
 src/backends/base.py
 src/backends/crawl4ai.py
+src/backends/file_backend.py
 src/backends/http_backend.py
 src/backends/selector.py
 src/gui/app.py
+tests/__init__.py
+tests/conftest.py
 tests/test_base.py
 tests/test_content_processor.py
 tests/test_content_processor_advanced.py
@@ -34,4 +37,5 @@ tests/test_link_processor.py
 tests/test_organizer.py
 tests/test_processor.py
 tests/test_quality.py
-tests/test_url_handling.py
+tests/test_url_handling_integration.py
+tests/test_url_info_enhanced.py

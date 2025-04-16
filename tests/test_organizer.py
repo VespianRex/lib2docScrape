@@ -8,7 +8,7 @@ import pytest
 from lib2docScrape.doc_organizer import (DocumentCollection, DocumentMetadata,
                                        DocumentOrganizer, DocumentVersion,
                                        OrganizationConfig, SearchIndex)
-from lib2docScrape.processors.content_processor import ProcessedContent
+from src.processors.content_processor import ProcessedContent
 from tests.test_helpers import create_test_content
 
 

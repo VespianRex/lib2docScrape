@@ -1,23 +1,25 @@
+from src.crawler import DocumentationCrawler, CrawlTarget, CrawlStats, CrawlResult, CrawlerConfig  # Use CrawlerConfig
+from src.backends.base import CrawlResult as BackendCrawlResult  # Import for mock
+from src.processors.content_processor import ProcessedContent, ContentProcessor  # Import for mock
+from src.utils.url import URLInfo  # Corrected import path
 import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
-from src.crawler import DocumentationCrawler, CrawlTarget, CrawlStats, CrawlResult, CrawlerConfig # Use CrawlerConfig
-from src.backends.base import CrawlResult as BackendCrawlResult # Import for mock
-from src.processors.content_processor import ProcessedContent, ContentProcessor # Import for mock
 from src.backends.base import CrawlerBackend
-from src.utils.url_info import URLInfo
 # Import necessary types for QualityIssue
 from src.processors.quality_checker import QualityIssue, IssueType, IssueLevel
+
+TEST_URL = "http://example.com"
 
 @pytest.fixture
 def mock_backend():
     # Revert to return_value for simplicity, address side_effect complexity later if needed
     backend = AsyncMock(name="mock_test_backend")
-    backend.name = "mock_test_backend" # Explicitly set name attribute
+    backend.name = "mock_test_backend"  # Explicitly set name attribute
 
     # Configure crawl to return a valid BackendCrawlResult for the basic test URL
     mock_crawl_result = BackendCrawlResult(
-        url="http://example.com", # Match the URL used in basic tests
+        url=TEST_URL,  # Match the URL used in basic tests
         content={"html": "<html><head><title>Advanced Test for http://example.com</title></head><body>Mock content for http://example.com. <a href='/advanced_link'>Link</a></body></html>"},
         metadata={"status_code": 200, "headers": {"content-type": "text/html"}},
         status=200
@@ -34,11 +36,11 @@ def mock_backend():
 def mock_content_processor():
     # Mock the process method to return a ProcessedContent object
     mock_processed = ProcessedContent(
-        content={'formatted_content': 'Processed content', 'structure': []}, # Ensure structure key exists
+        content={'formatted_content': 'Processed content', 'structure': []},  # Ensure structure key exists
         metadata={'title': 'Mock Title'},
         assets={'images': [], 'stylesheets': [], 'scripts': [], 'media': []},
         headings=[],
-        structure=[], # Add top-level structure
+        structure=[],  # Add top-level structure
         title='Mock Title'
     )
     processor = AsyncMock(spec=ContentProcessor)
@@ -51,7 +53,7 @@ def mock_quality_checker():
     # Mock check_quality to return a list with a QualityIssue instance
     # Use a valid IssueType, e.g., GENERAL
     mock_issue = QualityIssue(
-        type=IssueType.GENERAL, # Corrected: Use a valid IssueType member
+        type=IssueType.GENERAL,  # Corrected: Use a valid IssueType member
         level=IssueLevel.WARNING,
         message="Low content quality",
         location="body"
@@ -75,7 +77,7 @@ def crawler(mock_backend, mock_content_processor, mock_quality_checker, mock_doc
         document_organizer=mock_document_organizer
     )
     from src.backends.selector import BackendCriteria
-    crawler.backend_selector.clear_backends() # Clear default backends first
+    crawler.backend_selector.clear_backends()  # Clear default backends first
     crawler.backend_selector.register_backend(
         mock_backend,
         BackendCriteria(
@@ -86,33 +88,37 @@ def crawler(mock_backend, mock_content_processor, mock_quality_checker, mock_doc
             min_success_rate=0.7
         )
     )
-    return crawler
+    yield crawler
+    # Finalizer: reset state and release resources
+    crawler.backend_selector.clear_backends()
+
+@pytest.fixture
+async def patched_rate_limiter(crawler):
+    async def mock_acquire(*args, **kwargs):
+        return 0.0  # Explicitly return float
+    with patch.object(crawler.rate_limiter, 'acquire', side_effect=mock_acquire):
+        yield
 
 @pytest.mark.asyncio
-async def test_crawler_basic_crawl(crawler):
+async def test_crawler_basic_crawl(crawler, patched_rate_limiter):
     """Test basic crawling functionality."""
-    # Mock the crawler's internal rate limiter for this test using an async side_effect
-    async def mock_acquire(*args, **kwargs):
-        return 0.0 # Explicitly return float
-    with patch.object(crawler.rate_limiter, 'acquire', side_effect=mock_acquire):
-        target = CrawlTarget(url="http://example.com")
-        result = await crawler.crawl(target)
+    target = CrawlTarget(url=TEST_URL)
+    result = await crawler.crawl(target)
 
-        assert result is not None
-        assert isinstance(result, CrawlResult)
-        assert result.stats.pages_crawled == 1
-        assert result.stats.successful_crawls == 1
+    assert result is not None
+    assert isinstance(result, CrawlResult)
+    assert result.stats.pages_crawled == 1
+    assert result.stats.successful_crawls == 1
     assert result.stats.failed_crawls == 0
     assert len(result.documents) == 1
-    assert result.documents[0]["url"] == "http://example.com"
+    assert result.documents[0]["url"] == TEST_URL
 
 @pytest.mark.asyncio
 async def test_crawler_failed_crawl(crawler, mock_backend):
     """Test handling of failed crawls."""
-    mock_backend.crawl.side_effect = None # Clear side_effect
+    mock_backend.crawl.side_effect = None  # Clear side_effect
     # Use BackendCrawlResult for failure case as well
     mock_backend.crawl.return_value = BackendCrawlResult(url="http://nonexistent.com", content={}, metadata={}, status=404, error="Not Found")
-
 
     target = CrawlTarget(url="http://nonexistent.com")
     result = await crawler.crawl(target)
@@ -122,7 +128,7 @@ async def test_crawler_failed_crawl(crawler, mock_backend):
     assert result.stats.successful_crawls == 0
     assert len(result.documents) == 0
     assert len(result.issues) == 1
-    assert "Not Found" in result.issues[0].message # Check specific error message
+    assert "Not Found" in result.issues[0].message  # Check specific error message
 
 @pytest.mark.asyncio
 async def test_crawler_retry_mechanism(crawler, mock_backend):
@@ -131,7 +137,7 @@ async def test_crawler_retry_mechanism(crawler, mock_backend):
     # Ensure the successful result is a BackendCrawlResult instance
     success_result = BackendCrawlResult(
         status=200,
-        url="http://example.com",
+        url=TEST_URL,
         content={"html": "<html>Success</html>"},
         metadata={'headers': {'content-type': 'text/html'}}
     )
@@ -139,31 +145,28 @@ async def test_crawler_retry_mechanism(crawler, mock_backend):
     mock_backend.crawl.side_effect = [
         Exception("Network error"),
         Exception("Timeout"),
-        success_result # Use the instance here
+        success_result  # Use the instance here
     ]
 
-    target = CrawlTarget(url="http://example.com")
+    target = CrawlTarget(url=TEST_URL)
     result = await crawler.crawl(target)
 
     assert result is not None
     assert result.stats.successful_crawls == 1
-    # Reset call count before assertion if mock_backend is reused across tests
-    # mock_backend.crawl.reset_mock() # Consider adding if needed
     assert mock_backend.crawl.call_count == 3
     # Reset side_effect after test if mock is shared
     mock_backend.crawl.side_effect = None
-
 
 @pytest.mark.asyncio
 @pytest.mark.skip(reason="Rate limiter timing is difficult to test reliably with mocks")
 async def test_crawler_rate_limiting(crawler):
     """Test rate limiting functionality."""
-    target = CrawlTarget(url="http://example.com")
+    target = CrawlTarget(url=TEST_URL)
     start_time = asyncio.get_event_loop().time()
 
     # Crawl multiple times
     for _ in range(3):
-        crawler._crawled_urls.clear() # Clear crawled URLs to ensure rate limiter is hit
+        crawler._crawled_urls.clear()  # Clear crawled URLs to ensure rate limiter is hit
         await crawler.crawl(target)
 
     end_time = asyncio.get_event_loop().time()
@@ -173,17 +176,17 @@ async def test_crawler_rate_limiting(crawler):
     # 3 requests should take at least 2 seconds
     # Assert that the total time reflects *some* delay from the rate limit.
     # For 3 calls at 1 req/sec, the delay between call 1 and 2 should be ~1s.
-    assert time_taken >= 1.0 # Correct assertion for token bucket
+    assert time_taken >= 1.0  # Correct assertion for token bucket
 
 @pytest.mark.asyncio
 async def test_crawler_content_processing(crawler, mock_content_processor):
     """Test content processing pipeline."""
-    target = CrawlTarget(url="http://example.com")
+    target = CrawlTarget(url=TEST_URL)
     # Ensure mock backend returns the expected URL for this test
     mock_backend = crawler.backend_selector.backends['mock_test_backend']
-    mock_backend.crawl.side_effect = None # Clear potential side effects from other tests
+    mock_backend.crawl.side_effect = None  # Clear potential side effects from other tests
     mock_backend.crawl.return_value = BackendCrawlResult(
-        url="http://example.com",
+        url=TEST_URL,
         content={"html": "<html><head><title>Advanced Test for http://example.com</title></head><body>Mock content for http://example.com. <a href='/advanced_link'>Link</a></body></html>"},
         metadata={"status_code": 200, "headers": {"content-type": "text/html"}},
         status=200
@@ -195,22 +198,21 @@ async def test_crawler_content_processing(crawler, mock_content_processor):
     mock_content_processor.process.assert_called_once()
     call_args = mock_content_processor.process.call_args[0][0]
     assert isinstance(call_args, str)
-    assert "Mock content for http://example.com." in call_args # Check for actual mock content substring
+    assert "Mock content for http://example.com." in call_args  # Check for actual mock content substring
 
 @pytest.mark.asyncio
 async def test_crawler_quality_checking(crawler, mock_quality_checker):
     """Test quality checking functionality."""
-    target = CrawlTarget(url="http://example.com")
+    target = CrawlTarget(url=TEST_URL)
     # Mock check_quality to return a list with a QualityIssue instance
     mock_issue = QualityIssue(
-        type=IssueType.GENERAL, # Corrected: Use a valid IssueType member
+        type=IssueType.GENERAL,  # Corrected: Use a valid IssueType member
         level=IssueLevel.WARNING,
         message="Low content quality",
         location="body"
     )
     # Set the return value for this specific test run
     mock_quality_checker.check_quality.return_value = ([mock_issue], {"quality_score": 0.5})
-
 
     result = await crawler.crawl(target)
 
@@ -225,7 +227,7 @@ async def test_crawler_quality_checking(crawler, mock_quality_checker):
 @pytest.mark.asyncio
 async def test_crawler_resource_cleanup(crawler):
     """Test proper cleanup of resources."""
-    target = CrawlTarget(url="http://example.com")
+    target = CrawlTarget(url=TEST_URL)
     await crawler.crawl(target)
 
     # Test cleanup
@@ -236,20 +238,17 @@ async def test_crawler_resource_cleanup(crawler):
     # Add more cleanup verifications as needed
 
 @pytest.mark.asyncio
-async def test_crawler_concurrent_requests(crawler, mock_backend): # Pass mock_backend here
+async def test_crawler_concurrent_requests(crawler, mock_backend):  # Pass mock_backend here
     """Test handling of concurrent requests."""
     # Use the side_effect function from the fixture for dynamic responses
-    # Corrected signature again to accept only url, matching the crawler's call
     async def mock_crawl_side_effect(url: str):
-        # Need to create URLInfo here if normalization is needed, or just use url
-        # For this test, using the raw url is likely sufficient
         return BackendCrawlResult(
             url=url,
             content={"html": f"<html><body>Content for {url}</body></html>"},
             metadata={"status_code": 200, "headers": {"content-type": "text/html"}},
             status=200
         )
-    mock_backend.crawl.side_effect = mock_crawl_side_effect # Set side_effect for this test
+    mock_backend.crawl.side_effect = mock_crawl_side_effect  # Set side_effect for this test
 
     targets = [
         CrawlTarget(url=f"http://example{i}.com")
@@ -266,39 +265,32 @@ async def test_crawler_concurrent_requests(crawler, mock_backend): # Pass mock_b
     # Reset side_effect after test
     mock_backend.crawl.side_effect = None
 
-
 @pytest.mark.asyncio
-async def test_crawler_url_normalization(crawler, mock_backend): # Pass mock_backend
+async def test_crawler_url_normalization(crawler, mock_backend):  # Pass mock_backend
     """Test URL normalization during crawling."""
-    # Use the side_effect function from the fixture for dynamic responses
-    # Corrected signature again to accept only url, matching the crawler's call
-    # Corrected signature again to accept only url, matching the crawler's call
-    async def mock_crawl_side_effect(url: str): # Removed config parameter
-        # Create URLInfo if needed for normalization, or use url directly
-        # url_info = URLInfo(url) # Example if normalization is needed
+    async def mock_crawl_side_effect(url: str):
         return BackendCrawlResult(
-            url=url, # Use the passed url
+            url=url,
             content={"html": f"<html><body>Content for {url}</body></html>"},
             metadata={"status_code": 200, "headers": {"content-type": "text/html"}},
             status=200
         )
-    mock_backend.crawl.side_effect = mock_crawl_side_effect # Set side_effect for this test
+    mock_backend.crawl.side_effect = mock_crawl_side_effect  # Set side_effect for this test
 
     # Temporarily disable quality checker for this test
     original_qc_return_value = crawler.quality_checker.check_quality.return_value
     crawler.quality_checker.check_quality.return_value = ([], {})
 
     test_urls = [
-        ("http://EXAMPLE.com", "http://example.com"), # Reverted: No trailing slash expected for root
+        ("http://EXAMPLE.com", "http://example.com"),  # Reverted: No trailing slash expected for root
         ("http://example.com/path//to/page", "http://example.com/path/to/page"),
-        # Test case for path traversal - expect successful crawl of normalized URL
-        ("http://example.com/./path/../page", "http://example.com/page"),
+        # Removed path traversal case as it's now caught by validation before normalization test here
+        # ("http://example.com/./path/../page", "http://example.com/page"),
     ]
 
     try:
         for input_url, expected_url in test_urls:
             target = CrawlTarget(url=input_url)
-            # Clear crawled URLs set for each iteration if crawler instance is reused
             crawler._crawled_urls.clear()
             result = await crawler.crawl(target)
 
@@ -306,37 +298,23 @@ async def test_crawler_url_normalization(crawler, mock_backend): # Pass mock_bac
             assert not result.issues, f"Expected no issues for {input_url}, but got: {result.issues}"
             assert result.documents, f"Expected documents for {input_url}, but got none."
             assert len(result.documents) == 1, f"Expected 1 document for {input_url}, got {len(result.documents)}"
-            # Check the URL stored in the document, which should be the normalized one
             assert result.documents[0]["url"] == expected_url, f"URL mismatch for {input_url}. Expected: {expected_url}, Got: {result.documents[0]['url']}"
     finally:
-        # Reset mocks
         mock_backend.crawl.side_effect = None
         crawler.quality_checker.check_quality.return_value = original_qc_return_value
 
-
-# Correct indentation for test_crawler_error_handling
+@pytest.mark.parametrize("error, expected_message", [
+    (Exception("Network error"), "Network error"),
+    (ValueError("Invalid response"), "Invalid response"),
+    (asyncio.TimeoutError(), "Timeout"),
+    (ConnectionError("Connection failed"), "Connection failed"),
+])
 @pytest.mark.asyncio
-async def test_crawler_error_handling(crawler, mock_backend):
+async def test_crawler_error_handling(crawler, mock_backend, error, expected_message):
     """Test various error scenarios."""
-    error_scenarios = [
-        (Exception("Network error"), "Network error"),
-        (ValueError("Invalid response"), "Invalid response"),
-        (asyncio.TimeoutError(), "Timeout"),
-        (ConnectionError("Connection failed"), "Connection failed"),
-    ]
-
-    for error, expected_message in error_scenarios:
-        # Ensure the exception is raised on all retry attempts
-        # Ensure the exception is raised on all retry attempts
-        mock_backend.crawl.side_effect = [error] * crawler.config.max_retries
-        crawler._crawled_urls.clear() # Clear crawled URLs for each scenario
-        target = CrawlTarget(url="http://example.com")
-        result = await crawler.crawl(target)
-
-        # Check the issues list for the error message
-        assert len(result.issues) == 1
-        # Check if the expected message is part of the actual issue message
-        assert expected_message in result.issues[0].message, \
-               f"Expected '{expected_message}' in issue message, but got '{result.issues[0].message}'"
-    # Reset side_effect after test
-    mock_backend.crawl.side_effect = None
+    mock_backend.crawl.side_effect = [error] * crawler.config.max_retries
+    crawler._crawled_urls.clear()  # Clear crawled URLs for each test case
+    target = CrawlTarget(url=TEST_URL)
+    result = await crawler.crawl(target)
+    assert len(result.issues) == 1
+    assert expected_message in result.issues[0].message, f"Expected '{expected_message}' in issue message, but got '{result.issues[0].message}'"

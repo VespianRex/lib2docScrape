@@ -5,16 +5,32 @@ scrapy>=2.11.0
 redis>=5.0.1
 sqlalchemy>=2.0.23
 fastapi>=0.109.0
+starlette>=0.37.2 # Dependency for fastapi
+anyio>=3.6.0 # Dependency for starlette/fastapi
+sniffio>=1.0 # Dependency for anyio
+
+
+
 uvicorn>=0.25.0
 python-dotenv>=1.0.0
 pydantic>=2.10.0
 httpx>=0.26.0
 pytest>=8.3.3
 pytest-asyncio>=0.24.0
+uvloop>=0.19.0 # Optional faster event loop, seems needed by conftest
+
 pytest-cov>=6.0.0
 black>=23.12.1
+coverage>=7.0.0 # Dependency for pytest-cov
+
 isort>=5.13.2
 mypy>=1.8.0
+pluggy>=1.0.0 # Dependency for pytest
+iniconfig>=1.1.1 # Dependency for pytest
+
+
+jinja2>=3.1.0 # Dependency for starlette/fastapi templating
+
 ruff>=0.1.9
 numpy>=1.26.0
 pandas>=2.2.0
@@ -30,3 +46,6 @@ certifi>=2024.2.2
 markdownify>=0.14.1
 jinja2>=3.1.5
 aiofiles>=23.2.1
+# URL handling
+tldextract>=3.4.0
+idna>=3.0.0

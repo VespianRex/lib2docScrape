@@ -271,9 +271,9 @@ async def test_content_processing_pipeline(
 
     # Verify code block processing
     version = doc.versions[-1]
-    # Check the processed content dict within the version changes
-    assert "python" in str(version.changes.get('content', {})).lower() # Check within content dict
-    assert "example.run()" in str(version.changes.get('content', {}))
+    # Check the processed content dict within the version
+    assert "python" in str(version.content).lower() # Check within content dict
+    assert "example.run()" in str(version.content)
 
 
 @pytest.mark.asyncio
@@ -339,7 +339,7 @@ async def test_document_organization(
 
     # Verify collection
     collection = integrated_crawler.document_organizer.collections[collection_id]
-    assert len(collection.documents) == len(organizer_doc_ids)
+    assert len(collection.document_ids) == len(organizer_doc_ids) # Check document_ids attribute
 
     # Test document relationships (expecting some similarity)
     found_related = False

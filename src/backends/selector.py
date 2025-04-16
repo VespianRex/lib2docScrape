@@ -10,7 +10,7 @@ from pydantic import BaseModel, field_validator
 
 from .base import CrawlerBackend
 from .crawl4ai import Crawl4AIBackend, Crawl4AIConfig
-from ..utils.url_info import URLInfo
+from src.utils.url import URLInfo # Use absolute import path from src root
 
 
 class BackendCriteria(BaseModel):

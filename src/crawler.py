@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urljoin, urlparse
@@ -19,7 +20,7 @@ from .utils.helpers import (
     RateLimiter, RetryStrategy, Timer # Removed URLInfo, URLProcessor
 )
 # Import the correct URLInfo and sanitize function
-from .utils.url_info import URLInfo
+from .utils.url import URLInfo # Corrected import path for modular URLInfo
 from .processors.content.url_handler import sanitize_and_join_url
 
 from enum import Enum
@@ -519,8 +520,8 @@ class DocumentationCrawler:
             logging.debug(f"Skipping non-HTTP/S/file URL: {normalized_url}")
             return False
 
-        # Check external domains
-        if not target.follow_external:
+        # Check external domains (only for http/https, not for file)
+        if not target.follow_external and url_info.scheme in ['http', 'https']:
             # Use URLInfo's netloc attribute
             if url_info.netloc != urlparse(target.url).netloc.lower():
                  logging.debug(f"Skipping external domain: {url_info.netloc} (target: {urlparse(target.url).netloc.lower()})")
@@ -576,6 +577,10 @@ class DocumentationCrawler:
 
             logging.info(f"Processing URL: {normalized_url} (Depth: {current_depth})")
             visited_urls.add(normalized_url) # Add normalized URL to visited set
+
+            # Handle file:// URLs differently
+            if url_info.scheme == 'file':
+                return await self._process_file_url(url_info, current_depth, target, stats)
 
             # Get backend for this URL
             # Prioritize direct backend if provided (e.g., for testing)
@@ -1024,6 +1029,122 @@ class DocumentationCrawler:
         # crawl4ai_criteria = BackendCriteria(priority=0) # Default backend
         # self.backend_selector.register_backend(crawl4ai_backend, crawl4ai_criteria)
 
+
+    async def _process_file_url(
+        self,
+        url_info: URLInfo,
+        current_depth: int,
+        target: CrawlTarget,
+        stats: CrawlStats
+    ) -> Tuple[Optional[CrawlResult], List[Tuple[str, int]], Dict[str, Any]]:
+        """Process a file:// URL, reading from the local filesystem."""
+        normalized_url = url_info.normalized_url
+        new_links_to_crawl = []
+        quality_metrics = {}
+        
+        try:
+            # Convert file:// URL to local path
+            file_path = url_info.path
+            if os.name == 'nt' and file_path.startswith('/'):  # Windows path handling
+                file_path = file_path[1:]  # Remove leading slash
+            
+            logging.info(f"Processing file URL: {normalized_url} (Path: {file_path})")
+            
+            if not os.path.exists(file_path):
+                logging.error(f"File not found: {file_path}")
+                stats.failed_crawls += 1
+                return CrawlResult(
+                    target=target, 
+                    stats=stats, 
+                    documents=[], 
+                    issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"File not found: {file_path}")],
+                    metrics={}, 
+                    processed_url=normalized_url,
+                    failed_urls=[normalized_url],
+                    errors={normalized_url: FileNotFoundError(f"File not found: {file_path}")}
+                ), [], {}
+            
+            # Read file content
+            if os.path.isdir(file_path):
+                # For directories, look for index.html
+                index_path = os.path.join(file_path, "index.html")
+                if os.path.exists(index_path):
+                    file_path = index_path
+                else:
+                    logging.error(f"Directory has no index.html: {file_path}")
+                    stats.failed_crawls += 1
+                    return CrawlResult(
+                        target=target, 
+                        stats=stats, 
+                        documents=[], 
+                        issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"Directory has no index.html: {file_path}")],
+                        metrics={}, 
+                        processed_url=normalized_url,
+                        failed_urls=[normalized_url],
+                        errors={normalized_url: FileNotFoundError(f"Directory has no index.html: {file_path}")}
+                    ), [], {}
+            
+            # Read the file
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Process content using ContentProcessor
+            processed_content = await self.content_processor.process(content, base_url=normalized_url)
+            
+            stats.successful_crawls += 1
+            stats.pages_crawled += 1
+            stats.bytes_processed += len(content)
+            
+            # Perform quality check
+            if self.quality_checker:
+                quality_issues, quality_metrics = await self.quality_checker.check_quality(processed_content)
+            else:
+                quality_issues, quality_metrics = [], {}
+            
+            # Prepare result data
+            crawl_result = CrawlResult(
+                target=target,
+                stats=stats,
+                documents=[{
+                    'url': normalized_url,
+                    'content': processed_content.content,
+                    'metadata': processed_content.metadata,
+                    'assets': processed_content.assets,
+                    'title': processed_content.title
+                }],
+                issues=quality_issues,
+                metrics=quality_metrics,
+                structure=processed_content.structure,
+                processed_url=normalized_url
+            )
+            stats.quality_issues += len(crawl_result.issues)
+            
+            # Extract new links if depth allows
+            if current_depth < target.depth:
+                found_hrefs = self._find_links_recursive(processed_content.structure)
+                for href in found_hrefs:
+                    if href:
+                        # Resolve relative URLs
+                        absolute_href = urljoin(normalized_url, href)
+                        resolved_link_info = URLInfo(absolute_href)
+                        if self._should_crawl_url(resolved_link_info, target):
+                            new_links_to_crawl.append((resolved_link_info.normalized_url, current_depth + 1))
+            
+            return crawl_result, new_links_to_crawl, quality_metrics
+            
+        except Exception as e:
+            logging.error(f"Error processing file URL {normalized_url}: {str(e)}", exc_info=True)
+            stats.failed_crawls += 1
+            return CrawlResult(
+                target=target, 
+                stats=stats, 
+                documents=[], 
+                issues=[QualityIssue(type=IssueType.GENERAL, level=IssueLevel.ERROR, message=f"File processing error: {str(e)}")],
+                metrics={}, 
+                processed_url=normalized_url,
+                failed_urls=[normalized_url],
+                errors={normalized_url: e}
+            ), [], {}
 
     async def cleanup(self):
         """Clean up resources, like closing the aiohttp session."""

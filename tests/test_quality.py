@@ -68,14 +68,14 @@ async def test_quality_checker_content_length(quality_checker: QualityChecker):
     """Test content length validation."""
     # Test content that's too short
     short_content = create_processed_content(
-        content={"text": "Too short"}
+        content={"formatted_content": "Too short"} # Use formatted_content key
     )
     issues, metrics = await quality_checker.check_quality(short_content)
     assert any(i.type == IssueType.CONTENT_LENGTH for i in issues)
     
     # Test content that's acceptable
     good_content = create_processed_content(
-        content={"text": "This is a sufficiently long piece of content that should pass the minimum length check. " * 5}
+        content={"formatted_content": "This is a sufficiently long piece of content that should pass the minimum length check. " * 5} # Use formatted_content key
     )
     issues, metrics = await quality_checker.check_quality(good_content)
     assert not any(i.type == IssueType.CONTENT_LENGTH for i in issues)
@@ -218,7 +218,7 @@ async def test_quality_checker_custom_config():
         url="https://example.com",
         title="Test Document",
         content={
-            "text": "This is a test document with sufficient length to pass the custom minimum.",
+            "formatted_content": "This is a test document with sufficient length to pass the custom minimum.", # Use formatted_content key
             "headings": [
                 {"level": 1, "text": "Main Title"},
                 {"level": 2, "text": "Subtitle"}

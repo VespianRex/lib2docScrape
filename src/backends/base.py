@@ -5,7 +5,7 @@ from typing import Any, Dict, Optional, Union, TYPE_CHECKING # Added TYPE_CHECKI
 from pydantic import BaseModel, field_validator, Field # Added Field
 from datetime import datetime
 
-from ..utils.url_info import URLInfo # Updated import path
+from ..utils.url import URLInfo # Corrected import path for modular URLInfo
 
 # Forward reference for type hinting
 if TYPE_CHECKING:

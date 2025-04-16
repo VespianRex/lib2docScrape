@@ -1,0 +1,186 @@
+"""
+Tests for the URL validation module.
+"""
+
+import pytest
+from urllib.parse import urlparse
+from src.utils.url.validation import (
+    validate_url, validate_scheme, validate_netloc, 
+    validate_port, validate_path, validate_query,
+    validate_security_patterns
+)
+
+def test_validate_scheme():
+    """Test scheme validation."""
+    # Valid schemes
+    assert validate_scheme(urlparse('http://example.com'))[0]
+    assert validate_scheme(urlparse('https://example.com'))[0]
+    assert validate_scheme(urlparse('ftp://example.com'))[0]
+    assert validate_scheme(urlparse('file:///path/to/file'))[0]
+    
+    # Invalid schemes
+    is_valid, error = validate_scheme(urlparse('javascript:alert(1)'))
+    assert not is_valid
+    assert "Invalid scheme" in error
+    
+    is_valid, error = validate_scheme(urlparse('data:text/html,<script>alert(1)</script>'))
+    assert not is_valid
+    assert "Invalid scheme" in error
+    
+    is_valid, error = validate_scheme(urlparse('unknown://example.com'))
+    assert not is_valid
+    assert "Invalid scheme" in error
+
+def test_validate_netloc():
+    """Test network location validation."""
+    # Valid netlocs
+    assert validate_netloc(urlparse('http://example.com'))[0]
+    assert validate_netloc(urlparse('http://subdomain.example.com'))[0]
+    assert validate_netloc(urlparse('http://example-domain.com'))[0]
+    assert validate_netloc(urlparse('http://localhost'))[0]
+    assert validate_netloc(urlparse('file:///path/to/file'))[0]  # No netloc for file URLs
+    
+    # Invalid netlocs
+    is_valid, error = validate_netloc(urlparse('http://'))
+    assert not is_valid
+    assert "Missing host" in error
+    
+    is_valid, error = validate_netloc(urlparse('http://user:pass@example.com'))
+    assert not is_valid
+    assert "Auth info not allowed" in error
+    
+    # This would be caught in real parsing, but we'll test it directly
+    oversized_domain = 'a' * 300 + '.com'
+    is_valid, error = validate_netloc(urlparse(f'http://{oversized_domain}'))
+    assert not is_valid
+    assert "Domain too long" in error
+    
+    # Invalid domain format
+    is_valid, error = validate_netloc(urlparse('http://invalid'))
+    assert not is_valid
+    assert "Invalid domain" in error
+
+def test_validate_port():
+    """Test port validation."""
+    # Valid ports
+    assert validate_port(urlparse('http://example.com:80'))[0]
+    assert validate_port(urlparse('http://example.com:8080'))[0]
+    assert validate_port(urlparse('http://example.com:443'))[0]
+    assert validate_port(urlparse('http://example.com'))[0]  # No port specified
+    
+    # Invalid ports
+    invalid_port_url = urlparse('http://example.com:65536')
+    # This is a hack because urlparse actually validates the port range
+    # so we need to create a ParseResult with an invalid port manually
+    from urllib.parse import ParseResult
+    invalid_port = ParseResult('http', 'example.com:99999', '/', '', '', '')
+    invalid_port = invalid_port._replace(port=99999)
+    is_valid, error = validate_port(invalid_port)
+    assert not is_valid
+    assert "Invalid port" in error
+
+def test_validate_path():
+    """Test path validation."""
+    # Valid paths
+    assert validate_path(urlparse('http://example.com/path/to/resource'))[0]
+    assert validate_path(urlparse('http://example.com/'))[0]
+    assert validate_path(urlparse('http://example.com'))[0]
+    
+    # Invalid paths
+    # Too long path
+    long_path = '/a' * 3000
+    is_valid, error = validate_path(urlparse(f'http://example.com{long_path}'))
+    assert not is_valid
+    assert "Path too long" in error
+    
+    # Path with invalid characters
+    is_valid, error = validate_path(urlparse('http://example.com/path<script>'))
+    assert not is_valid
+    assert "Invalid chars" in error
+    
+    # Path with traversal attempts
+    is_valid, error = validate_path(urlparse('http://example.com/../etc/passwd'))
+    assert not is_valid
+    assert "Path traversal" in error
+
+def test_validate_query():
+    """Test query validation."""
+    # Valid queries
+    assert validate_query(urlparse('http://example.com?param=value'))[0]
+    assert validate_query(urlparse('http://example.com?param1=value1&param2=value2'))[0]
+    assert validate_query(urlparse('http://example.com'))[0]  # No query
+    
+    # Invalid queries
+    # Too long query
+    long_query = 'param=' + 'a' * 3000
+    is_valid, error = validate_query(urlparse(f'http://example.com?{long_query}'))
+    assert not is_valid
+    assert "Query too long" in error
+    
+    # Query with invalid characters
+    is_valid, error = validate_query(urlparse('http://example.com?param=<script>'))
+    assert not is_valid
+    assert "Invalid chars" in error
+
+def test_validate_security_patterns():
+    """Test security pattern validation."""
+    # Valid URLs with no security issues
+    assert validate_security_patterns(urlparse('http://example.com/path'))[0]
+    assert validate_security_patterns(urlparse('http://example.com?param=value'))[0]
+    
+    # XSS attempts
+    is_valid, error = validate_security_patterns(urlparse('http://example.com/path<script>alert(1)</script>'))
+    assert not is_valid
+    assert "XSS pattern" in error
+    
+    is_valid, error = validate_security_patterns(urlparse('http://example.com?param=<script>alert(1)</script>'))
+    assert not is_valid
+    assert "XSS pattern" in error
+    
+    # SQL injection attempts
+    is_valid, error = validate_security_patterns(urlparse("http://example.com/path?id=1' OR '1'='1"))
+    assert not is_valid
+    assert "SQLi pattern" in error
+    
+    # Command injection attempts
+    is_valid, error = validate_security_patterns(urlparse('http://example.com/path?cmd=cat%20/etc/passwd|grep%20root'))
+    assert not is_valid
+    assert "Cmd Injection pattern" in error
+    
+    # Null byte injection
+    is_valid, error = validate_security_patterns(urlparse('http://example.com/path%00.jpg'))
+    assert not is_valid
+    assert "Null byte" in error
+    
+    # JavaScript scheme in path or query
+    is_valid, error = validate_security_patterns(urlparse('http://example.com/javascript:alert(1)'))
+    assert not is_valid
+    assert "JavaScript scheme" in error
+    
+    is_valid, error = validate_security_patterns(urlparse('http://example.com?url=javascript:alert(1)'))
+    assert not is_valid
+    assert "JavaScript scheme" in error
+
+def test_validate_url():
+    """Test full URL validation."""
+    # Valid URLs
+    assert validate_url(urlparse('http://example.com'))[0]
+    assert validate_url(urlparse('https://example.com/path?param=value'))[0]
+    assert validate_url(urlparse('ftp://example.com'))[0]
+    assert validate_url(urlparse('file:///path/to/file'))[0]
+    
+    # Invalid URLs
+    # Invalid scheme
+    is_valid, error = validate_url(urlparse('javascript:alert(1)'))
+    assert not is_valid
+    assert "Invalid scheme" in error
+    
+    # Invalid netloc
+    is_valid, error = validate_url(urlparse('http://'))
+    assert not is_valid
+    assert "Missing" in error
+    
+    # Invalid path (XSS attempt)
+    is_valid, error = validate_url(urlparse('http://example.com/<script>alert(1)</script>'))
+    assert not is_valid
+    assert "Invalid chars" in error or "XSS pattern" in error

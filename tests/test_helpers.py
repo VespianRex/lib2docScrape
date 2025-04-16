@@ -14,7 +14,7 @@ from src.utils.helpers import (
     generate_checksum,
     setup_logging
 )
-from src.utils.url_info import URLInfo, URLType # Import URLInfo and URLType for potential future use if needed
+from src.utils.url import URLInfo, URLType # Corrected import path
 from lib2docScrape.doc_organizer import DocumentContent
 
 # test_url_processor removed as the tested class URLProcessor was removed from helpers.py
@@ -283,7 +283,7 @@ def create_mock_response(status_code=200, content=None, url="https://example.com
     
     return mock_response
 
-def create_test_url_info(url, url_type=URLType.DOCUMENTATION, domain=None, path=None):
+def create_test_url_info(url, url_type=URLType.INTERNAL, domain=None, path=None):
     """
     Create a URLInfo object for testing.
     
@@ -296,14 +296,19 @@ def create_test_url_info(url, url_type=URLType.DOCUMENTATION, domain=None, path=
     Returns:
         URLInfo: Configured URLInfo object
     """
+    parsed = urlparse(url)
     url_info = URLInfo(url)
     url_info.url_type = url_type
     
     if domain:
         url_info.domain = domain
+    else:
+        url_info.domain = parsed.netloc
     
     if path:
         url_info.path = path
+    else:
+        url_info.path = parsed.path
         
     return url_info
 

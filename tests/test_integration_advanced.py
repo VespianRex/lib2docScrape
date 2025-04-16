@@ -245,7 +245,7 @@ async def test_content_processing_integration():
         result = await crawler.crawl(target)
         
         # Use target.url for consistency when accessing crawled_pages
-        processed = result.crawled_pages[target.url] # This should be a ProcessedContent object
+        processed = result.crawled_pages["https://example.com/"] # This should be a ProcessedContent object
 
         # Check content processing (accessing the 'content' dict within ProcessedContent)
         assert "Test Document" in processed.content.get('formatted_content', '')

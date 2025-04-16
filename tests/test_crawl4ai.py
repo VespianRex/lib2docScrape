@@ -4,9 +4,7 @@ from src.backends.crawl4ai import Crawl4AIBackend, Crawl4AIConfig
 from src.backends.selector import BackendSelector, BackendCriteria
 import ssl
 from typing import Dict # Import Dict
-# Import mocking utilities directly from extended tests
 from tests.test_crawl4ai_extended import MockResponse, MockClientSession
-# Keep existing imports below if they were there
 from src.backends.base import CrawlResult
 from src.utils.helpers import URLInfo
 
@@ -32,7 +30,8 @@ async def test_crawl_basic(crawl4ai_backend):
     result = await crawl4ai_backend.crawl(url)
     
     assert result is not None
-    assert result.url == url
+    # Assert against the expected *normalized* URL
+    assert result.url == "https://example.com/"  # Normalized URL with trailing slash
     assert result.status in [200, 404, 500]  # Accept common status codes
     assert isinstance(result.content, dict)
     assert isinstance(result.metadata, dict)

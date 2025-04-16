@@ -1,52 +1,59 @@
-import pytest
+from typing import Dict, Any, List, Optional, Union
+import aiohttp
 import os
 import sys
-import asyncio
-import pytest_asyncio # Import pytest_asyncio
-from typing import Dict, Any, List, Optional # Added Optional
-from typing import Dict, Any, List
-import logging # Added import
 import platform
-from unittest.mock import Mock, AsyncMock # Import AsyncMock
+import asyncio
+import logging
+import pytest
+import pytest_asyncio
+from unittest.mock import Mock, AsyncMock
 
 if platform.system() != 'Windows':
-    import uvloop
-    uvloop.install()
+    pass  # Removed uvloop.install() to avoid ImportError
+    # import uvloop  # Comment out uvloop import for troubleshooting
+    # uvloop.install()
 
 from bs4 import BeautifulSoup
-# Add the project root directory to Python path
-project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_root)
+
+# Remove manual sys.path manipulation.
+# Instead, ensure your test runner (e.g., pytest) is configured with the correct PYTHONPATH,
+# or use organization-approved import hooks or test utilities.
+#
+# For example, in pytest.ini or pyproject.toml:
+# [pytest]
+# pythonpath = src
+#
+# Or use organization-specific test bootstrap utilities if available.
 
 from src.backends.base import CrawlerBackend, CrawlResult
 from src.backends.selector import BackendCriteria, BackendSelector
-from src.crawler import CrawlerConfig, DocumentationCrawler, CrawlTarget # Added CrawlTarget
+from src.crawler import CrawlerConfig, DocumentationCrawler, CrawlTarget
 from src.organizers.doc_organizer import DocumentOrganizer, OrganizationConfig
-from src.processors.content_processor import ContentProcessor, ProcessorConfig, ProcessedContent # Import ProcessedContent
+from src.processors.content_processor import ContentProcessor, ProcessorConfig, ProcessedContent
 from src.processors.quality_checker import QualityChecker, QualityConfig
-from src.utils.url_info import URLInfo # Import URLInfo
+from src.utils.url import URLInfo
 
 class MockSuccessBackend(CrawlerBackend):
     """Mock backend that always succeeds."""
 
-    def __init__(self):
+    def __init__(self, delay: float = 0.0):
         super().__init__(name="mock_success_backend")
         self.crawl_called = False
         self.validate_called = False
         self.process_called = False
+        self.delay = delay  # Make delay configurable
 
-    # Updated signature to match crawler call: crawl(url=..., config=...)
-    async def crawl(self, url: str, config: Optional[CrawlerConfig] = None) -> CrawlResult: # Make config optional
-        """Simulate a successful crawl with a delay."""
+    async def crawl(self, url: Union[str, URLInfo], config: Optional[CrawlerConfig] = None) -> CrawlResult:
+        """Simulate a successful crawl with a configurable delay."""
         self.crawl_called = True
-        # Simulate network delay for rate limiting tests
-        await asyncio.sleep(0.15) # Increased delay
+        if self.delay > 0:
+            await asyncio.sleep(self.delay)  # Use configurable delay
 
-        # Use the provided URL directly (assuming it's already normalized by the caller if needed)
-        normalized_url = url
+        normalized_url = url.normalized_url if isinstance(url, URLInfo) else url
 
         return CrawlResult(
-            url=normalized_url, # Use normalized URL
+            url=normalized_url,
             content={
                 "html": f"""
                 <html>
@@ -107,12 +114,11 @@ class MockFailureBackend(CrawlerBackend):
         self.validate_called = False
         self.process_called = False
 
-    # Updated signature to match crawler call: crawl(url_info=..., config=...)
-    async def crawl(self, url_info: URLInfo, config: CrawlerConfig) -> CrawlResult:
+    async def crawl(self, url: Union[str, URLInfo], config: Optional[CrawlerConfig] = None) -> CrawlResult:
         self.crawl_called = True
-        normalized_url = url_info.normalized_url # Get normalized URL
+        normalized_url = url.normalized_url if isinstance(url, URLInfo) else url
         return CrawlResult(
-            url=normalized_url, # Use normalized URL
+            url=normalized_url,
             content={},
             metadata={"error": "Simulated failure"},
             status=500,
@@ -128,28 +134,30 @@ class MockFailureBackend(CrawlerBackend):
         return {"error": "Processing failed"}
 
 @pytest.fixture
-def sample_html() -> str:
-    """Sample HTML content for testing."""
-    return """
-    <html>
-        <head>
-            <title>Test Document</title>
-            <meta name="description" content="Test description" />
-        </head>
-        <body>
-            <h1>Test Heading</h1>
-            <p>This is a test paragraph.</p>
-            <pre><code>def test():
+def sample_html_factory():
+    """Factory function to generate sample HTML content with custom parameters."""
+    def _factory(title="Test Document", heading="Test Heading", paragraph="This is a test paragraph.", link="/test"):
+        return f"""
+        <html>
+            <head>
+                <title>{title}</title>
+                <meta name="description" content="Test description" />
+            </head>
+            <body>
+                <h1>{heading}</h1>
+                <p>{paragraph}</p>
+                <pre><code>def test():
     pass</code></pre>
-            <a href="/test">Test Link</a>
-        </body>
-    </html>
-    """
+                <a href="{link}">Test Link</a>
+            </body>
+        </html>
+        """
+    return _factory
 
 @pytest.fixture
-def soup(sample_html: str) -> BeautifulSoup:
+def soup(sample_html_factory) -> BeautifulSoup:
     """BeautifulSoup object for testing."""
-    return BeautifulSoup(sample_html, 'html.parser')
+    return BeautifulSoup(sample_html_factory(), 'html.parser')
 
 @pytest.fixture
 def processor_config() -> ProcessorConfig:
@@ -172,18 +180,24 @@ def content_processor(processor_config: ProcessorConfig) -> ContentProcessor:
     """Content processor instance for testing."""
     # This fixture now returns a mock that provides a structure with a link
     mock_processed = ProcessedContent(
-        content={'formatted_content': 'Processed content'}, # Content dict doesn't need structure
-        metadata={'title': 'Mock Title'},
-        assets={'images': [], 'stylesheets': [], 'scripts': [], 'media': []},
-        headings=[{'level': 1, 'text': 'Mock Title'}],
+        content={
+            'formatted_content': 'Processed content',
+            'headings': [{'level': 1, 'text': 'Sample Document'}],
+            'code_blocks': [{'language': 'python', 'content': 'def test():\n    pass'}],
+            'links': [{'text': 'Test Link', 'url': '/test'}]
+        },
+        metadata={'title': 'Sample Document'},
+        assets={'images': ['/test.jpg'], 'stylesheets': [], 'scripts': [], 'media': []},
+        headings=[{'level': 1, 'text': 'Sample Document'}],
         # Add a sample link structure matching StructureHandler output
         structure=[{'type': 'text', 'content': [{'type': 'link_inline', 'text': 'Test Link', 'href': '/test'}]}], # Simulate link within a paragraph
-        title='Mock Title'
+        title='Sample Document'
     )
     processor = AsyncMock(spec=ContentProcessor) # Use AsyncMock
     processor.process = AsyncMock(return_value=mock_processed) # Mock the process method
+    # Add config attribute to the mock to fix test_content_size_limits
+    processor.config = processor_config
     return processor
-
 
 @pytest.fixture
 def quality_config() -> QualityConfig:
@@ -228,19 +242,19 @@ def sample_urls() -> List[str]:
         "https://example.com/api"
     ]
 
-@pytest_asyncio.fixture # Use pytest_asyncio fixture
+@pytest_asyncio.fixture
 async def mock_success_backend() -> MockSuccessBackend:
     """Mock backend that succeeds."""
     # No async setup needed for this simple mock, just return
     return MockSuccessBackend()
 
-@pytest_asyncio.fixture # Use pytest_asyncio fixture
+@pytest_asyncio.fixture
 async def mock_failure_backend() -> MockFailureBackend:
     """Mock backend that fails."""
     # No async setup needed for this simple mock, just return
     return MockFailureBackend()
 
-@pytest.fixture(scope="function") # Explicitly set function scope
+@pytest.fixture(scope="function")
 def backend_selector(mock_success_backend: MockSuccessBackend) -> BackendSelector:
     """Configured backend selector."""
     selector = BackendSelector() # Initializes with default 'crawl4ai'
@@ -274,8 +288,7 @@ def document_organizer() -> DocumentOrganizer:
 
 @pytest.fixture
 def crawler(
-    # REMOVE backend_selector dependency
-    mock_success_backend: MockSuccessBackend, # Inject mock directly
+    mock_success_backend: MockSuccessBackend,
     content_processor: ContentProcessor,
     quality_checker: QualityChecker,
     document_organizer: DocumentOrganizer
@@ -312,58 +325,26 @@ def crawler(
     logging.debug(f"Crawler instance using selector id={id(crawler_instance.backend_selector)}, backends={list(crawler_instance.backend_selector.backends.keys())}")
     return crawler_instance
 
-# @pytest.fixture # Comment out custom event loop - let pytest-asyncio handle it
-# def event_loop():
-#     """Create an instance of the default event loop for each test case."""
-#     loop = asyncio.new_event_loop()
-#     yield loop
-#     loop.close()
-
-# Fixture specifically for Crawl4AIBackend tests
 @pytest_asyncio.fixture
-async def crawl4ai_backend(monkeypatch):
-    """Provides a Crawl4AIBackend instance for testing."""
-    from src.backends.crawl4ai import Crawl4AIBackend, Crawl4AIConfig # Import locally
+async def crawl4ai_backend(mock_session):
+    """Provides a Crawl4AIBackend instance for testing with injected mock session."""
+    from src.backends.crawl4ai import Crawl4AIBackend, Crawl4AIConfig
     config = Crawl4AIConfig(
         max_retries=2,
         timeout=10.0,
         headers={"User-Agent": "Test/1.0"},
-        rate_limit=0.1,  # Fast rate limit for testing
+        rate_limit=0.1,
         max_depth=3,
         concurrent_requests=2
     )
     backend = Crawl4AIBackend(config=config)
+    # Patch the backend's _create_session method to return the mock_session
+    async def mock_create_session():
+        return mock_session
+    backend._create_session = mock_create_session
+    return backend
 
-    # Use the mock_session fixture passed as an argument
-    # This part seems incomplete or potentially problematic if mock_session isn't defined
-    # async def mock_create_session():
-    #     # This now returns the fixture-provided mock_session
-    #     # which has predefined responses for /page1, /page2 etc.
-    #     return mock_session # mock_session needs to be defined or injected
-
-    # Re-enable monkeypatch to use the mock_session via mock_create_session
-    # monkeypatch.setattr(backend, "_create_session", mock_create_session) # Allow real session for retry test patch
-
-    yield backend # Provide the backend to the test
-
-    # Cleanup
-    await backend.close()
-
-# Fixture for a mock aiohttp session (example)
 @pytest_asyncio.fixture
 async def mock_session():
     session = AsyncMock(spec=aiohttp.ClientSession)
-    # Configure mock responses as needed for tests using crawl4ai_backend
-    # Example:
-    # async def mock_get(*args, **kwargs):
-    #     url = args[0]
-    #     response = AsyncMock(spec=aiohttp.ClientResponse)
-    #     if "page1" in url:
-    #         response.status = 200
-    #         response.text = AsyncMock(return_value="<html>Page 1</html>")
-    #     else:
-    #         response.status = 404
-    #     return response
-    # session.get = mock_get
-    yield session
-    # No explicit close needed for mock usually
+    return session

@@ -53,3 +53,4 @@ By cycling through "Red-Green-Refactor," TDD ensures that each piece of code is 
 - **2025-04-01 02:59 AM:** Fixed `AssertionError` in `tests/test_content_processor.py::TestBasicFunctionality::test_extract_text_basic`. Refactored title extraction logic again in `metadata_extractor.py` for better handling of empty/missing tags.
 - **2025-04-01 03:04 AM:** Fixed `AssertionError` in `tests/test_content_processor.py::TestBasicFunctionality::test_extract_text_basic`. Added redundant H1 check directly in `ContentProcessor.process` after `extract_metadata`.
 - **2025-04-01 03:14 AM:** Fixed `AttributeError` in `ContentProcessor.process` by adding `blocked_attributes` to `ProcessorConfig` model. Removed debug prints.
+- **2025-04-15:** Completed refactoring of URL handling to a modular structure in `src/utils/url/`. Consolidated tests and removed old monolithic files (`src/utils/url_info.py`, `tests/test_url_handling_tldextract.py`, `tests/test_url_handling.py`).

@@ -2,6 +2,7 @@
 """Test runner script for the documentation crawler system."""
 
 import argparse
+import logging
 import os
 import subprocess
 import sys
@@ -9,6 +10,24 @@ import time
 from typing import List, Optional, Tuple
 
 import pytest
+
+
+def setup_logging(level: str = "INFO") -> None:
+    """
+    Configure logging for the application.
+    
+    Args:
+        level: The logging level to set (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+    """
+    numeric_level = getattr(logging, level.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError(f"Invalid log level: {level}")
+    
+    logging.basicConfig(
+        level=numeric_level,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -151,8 +170,6 @@ def run_tests(
         pytest_args.append("-p no:warnings")
 
     # Add maxfail option
-    if args.maxfail > 0:
-        pytest_args.extend(["--maxfail", str(args.maxfail)])
     if args.maxfail > 0:
         pytest_args.extend(["--maxfail", str(args.maxfail)])
     

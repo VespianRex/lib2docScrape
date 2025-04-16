@@ -7,7 +7,7 @@ from urllib.parse import urlparse, unquote
 from pathlib import Path
 
 from .base import CrawlerBackend, CrawlResult
-from ..utils.url_info import URLInfo # Import URLInfo
+from ..utils.url import URLInfo # Corrected import path for modular URLInfo
 
 logger = logging.getLogger(__name__)
 

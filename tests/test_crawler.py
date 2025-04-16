@@ -12,7 +12,7 @@ from src.crawler import (CrawlerConfig, CrawlResult as OrchestratorResult,
 from src.processors.content_processor import ProcessedContent
 from src.models.project import ProjectType, ProjectIdentity, ProjectIdentifier
 from src.utils.search import DuckDuckGoSearch, DUCKDUCKGO_AVAILABLE
-from src.utils.url_info import URLInfo # Import URLInfo
+from src.utils.url import URLInfo # Corrected import path
 
 
 class MockCrawlerBackend(CrawlerBackend):

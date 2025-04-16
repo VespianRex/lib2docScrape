@@ -31,8 +31,8 @@ class QualityIssue(BaseModel):
 
 class QualityConfig(BaseModel):
     """Configuration for quality checking."""
-    min_content_length: int = 100
-    max_content_length: int = 100000
+    min_content_length: int = 100  # Set to 0 to disable minimum length check
+    max_content_length: int = 100000  # Set to 0 to disable maximum length check
     min_headings: int = 1
     max_heading_level: int = 6
     min_internal_links: int = 2
@@ -53,17 +53,23 @@ class QualityChecker:
         metrics = {}
 
         # Check content length
-        text = content.content.get("formatted_content", "") # Use formatted_content for length check
+        text = content.content.get("formatted_content", "")
+        if text is None:
+            text = ""
+            
         content_length = len(text)
         metrics["content_length"] = content_length
 
-        if content_length < self.config.min_content_length:
+        # Only check minimum length if configured
+        if self.config.min_content_length > 0 and content_length < self.config.min_content_length:
             issues.append(QualityIssue(
                 type=IssueType.CONTENT_LENGTH,
                 level=IssueLevel.ERROR,
                 message=f"Content length ({content_length}) is below minimum ({self.config.min_content_length})"
             ))
-        elif content_length > self.config.max_content_length:
+            
+        # Only check maximum length if configured
+        if self.config.max_content_length > 0 and content_length > self.config.max_content_length:
             issues.append(QualityIssue(
                 type=IssueType.CONTENT_LENGTH,
                 level=IssueLevel.WARNING,

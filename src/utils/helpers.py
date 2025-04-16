@@ -1,21 +1,21 @@
 import re
 import time
-import asyncio # Add asyncio import
+import asyncio
 import idna
 import hashlib
 import logging
 import threading
-import asyncio # Ensure asyncio is imported
-import asyncio # Ensure asyncio is imported
 import requests
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 from urllib.parse import urlparse, urljoin, urlunparse, parse_qs, parse_qsl, urlencode
-from enum import Enum, auto # Added auto
-from dataclasses import dataclass, field # Added field
+from enum import Enum, auto
+from dataclasses import dataclass, field
 from pydantic import BaseModel, Field, validator
 import ipaddress
-from .url_info import URLInfo, URLType # Import the new class and Enum
+
+# Import the new modular implementation
+from src.utils.url import URLInfo, URLType, URLSecurityConfig
 
 
 # Note: The URLInfo BaseModel and URLType Enum are now defined in url_info.py
@@ -23,68 +23,35 @@ from .url_info import URLInfo, URLType # Import the new class and Enum
 
 
 class URLProcessor:
-    """Handles URL processing, normalization and validation."""
+    """Handles URL processing, normalization and validation.
+    
+    This class is an adapter for the new URLInfo implementation.
+    """
+    # Define constants that match the expected configuration
     ALLOWED_SCHEMES = {'http', 'https'}
     ASSET_EXTENSIONS = {'.pdf', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.css', '.js'}
-    MAX_PATH_LENGTH = 2048
-    MAX_QUERY_LENGTH = 2048
-    PRIVATE_IP_PATTERNS = [
-        re.compile(r'^127\.'),
-        re.compile(r'^10\.'),
-        re.compile(r'^172\.(1[6-9]|2[0-9]|3[0-1])\.'),
-        re.compile(r'^192\.168\.'),
-        re.compile(r'^0\.0\.0\.0'),
-        re.compile(r'^::1$'),
-    ]
-    INVALID_CHARS = re.compile(r'[\<\>\[\]\{\}\|\\\^]')
-    INVALID_PATH_TRAVERSAL = re.compile(r'(?:^|/)\.{2}(?:/|$)')
-
+    
     @staticmethod
     def normalize_url(url: str, base_url: Optional[str] = None) -> str:
         """Normalize URL to canonical form."""
-        # Import removed as URLNormalizer is deprecated
-        # This method itself is likely unused now and relies on removed code.
-        # Returning original URL for now to avoid breaking calls, but should be removed later.
-        logging.warning("URLProcessor.normalize_url is deprecated and likely unused.")
-        return url
-
+        logging.warning("URLProcessor.normalize_url is deprecated. Use URLInfo instead.")
+        url_info = URLInfo(url, base_url)
+        return url_info.normalized_url if url_info.is_valid else url
+    
     @classmethod
     def _determine_url_type(cls, url: str, base_url: Optional[str] = None) -> URLType:
         """Determine URL type (internal, external, asset, unknown)."""
-        if not url:
-            return URLType.UNKNOWN
-
-        try:
-            parsed_url = urlparse(url)
-            
-            # Check if it's an asset
-            if any(parsed_url.path.lower().endswith(ext) for ext in cls.ASSET_EXTENSIONS):
-                return URLType.ASSET
-
-            # If no base_url, treat as external
-            if not base_url:
-                return URLType.EXTERNAL
-
-            # Parse base URL for comparison
-            parsed_base = urlparse(base_url)
-
-            # Check if internal
-            if (not parsed_url.netloc or 
-                parsed_url.netloc.lower() == parsed_base.netloc.lower()):
-                return URLType.INTERNAL
-
-            return URLType.EXTERNAL
-
-        except Exception:
-            return URLType.UNKNOWN
-
+        url_info = URLInfo(url, base_url)
+        return url_info.url_type
+    
     @classmethod
     def process_url(cls, url: str, base_url: Optional[str] = None) -> URLInfo:
         """
         Processes a URL string, returning a URLInfo object containing
         validation status, normalized form, and other details.
         """
-        # All logic is now encapsulated within the URLInfo class constructor
+        # Return the new URLInfo implementation.
+        # It now uses the shared security config from src.utils.url.security
         return URLInfo(url, base_url)
 
 
@@ -261,27 +228,17 @@ def sanitize_and_join_url(url, base_url=None):
     if not url:
         return url
 
-    # Handle data URLs
-    if url.startswith('data:'):
-        return url
-
-    # Check null/empty URLs
-    if not url:
-        return '#'
-
     try:
-        # Normalize URL first
-        normalized_url = url.strip().lower()
-
-        # Check for dangerous protocols first
-        if any(normalized_url.startswith(proto) for proto in ['javascript:', 'data:', 'vbscript:']):
+        # Use the new URLInfo implementation
+        url_info = URLInfo(url, base_url)
+        
+        # If URL is invalid or has security issues, return a safe alternative
+        # Check only is_valid, as is_safe is not a property anymore
+        if not url_info.is_valid:
             return '#'
-
-        # Handle relative URLs
-        if base_url and not normalized_url.startswith(('http://', 'https://', 'mailto:', 'tel:', 'ftp://')):
-            resolved_url = urljoin(base_url, url)
-            return resolved_url
-
-        return url
-    except Exception:
+            
+        # Return the normalized and resolved URL
+        return url_info.normalized_url
+    except Exception as e:
+        logging.debug(f"Error sanitizing URL: {e}")
         return '#'  # Return safe URL on any error
