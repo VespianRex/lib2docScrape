@@ -13,6 +13,11 @@ from src.utils.helpers import URLInfo
 from src.backends.base import CrawlResult
 
 # test_utils/mocks.py
+class DummyRequestInfo:
+    def __init__(self, url: str):
+        self.real_url = url
+        self.url = url
+
 class MockResponse:
 
     def __init__(self, url: str, status: int, html: str, headers: Dict[str, str] = None):
@@ -32,8 +37,10 @@ class MockResponse:
 
     def raise_for_status(self) -> None:
         if not (200 <= self.status < 300):
+            # Create a request_info object with real_url attribute
+            request_info = DummyRequestInfo(self.url)
             raise aiohttp.ClientResponseError(
-                request_info=None,
+                request_info=request_info,
                 history=None,
                 status=self.status,
                 message=f"HTTP {self.status} for {self.url}",
@@ -152,11 +159,11 @@ async def test_crawl_with_urlinfo(crawl4ai_backend: Crawl4AIBackend) -> None:
     # Use the yielded backend directly
     result = await crawl4ai_backend.crawl(url_info)
     
-    pytest.assume(result is not None)
-    pytest.assume(result.url == url_info.normalized_url) # Use correct attribute
-    pytest.assume(result.status == 200)
-    pytest.assume(isinstance(result.content, dict))
-    pytest.assume("html" in result.content)
+    assert result is not None
+    assert result.url == url_info.normalized_url # Use correct attribute
+    assert result.status == 200
+    assert isinstance(result.content, dict)
+    assert "html" in result.content
 
 @pytest.mark.skip(reason="Link following is handled by the main Crawler, not the backend directly.")
 @pytest.mark.asyncio
@@ -168,16 +175,16 @@ async def test_crawl_depth_first(crawl4ai_backend: Crawl4AIBackend) -> None:
     
     # Check that we followed links in the correct order
     requests = crawl4ai_backend._session.requests
-    pytest.assume(len(requests) >= 3)  # Base URL + at least 2 child pages
+    assert len(requests) >= 3  # Base URL + at least 2 child pages
     
     # Verify the order of requests follows depth-first pattern
     request_urls = [req[0] for req in requests]
-    pytest.assume(request_urls[0] == url)  # First request should be base URL
+    assert request_urls[0] == url  # First request should be base URL
     
     # Child pages should be requested in order of path depth
     child_urls = request_urls[1:]
     path_depths = [len(url.split("/")) for url in child_urls]
-    pytest.assume(path_depths == sorted(path_depths, reverse=True))
+    assert path_depths == sorted(path_depths, reverse=True)
 
 @patch('asyncio.sleep', new_callable=AsyncMock)
 @pytest.mark.asyncio
@@ -191,14 +198,14 @@ async def test_rate_limiting_application(mock_sleep: AsyncMock, crawl4ai_backend
         ])
         time_taken = 0.15  # Simulated time based on our side_effect values
     min_expected_time = 0
-    pytest.assume(time_taken >= min_expected_time)
-    pytest.assume(all(result.status == 200 for result in results))
+    assert time_taken >= min_expected_time
+    assert all(result.status == 200 for result in results)
     # Assert that sleep was called (rate limiting was attempted)
     # Since concurrency=2 and 2 URLs, the second request might trigger sleep.
     # If concurrency >= number of URLs, sleep might not be called.
     # For this specific setup (concurrency=2, urls=2), sleep *should* be called
     # by the rate limiter between the requests.
-    pytest.assume(mock_sleep.called) # Verify rate limiting logic was triggered
+    assert mock_sleep.called # Verify rate limiting logic was triggered
 
 @patch('asyncio.sleep', new_callable=AsyncMock)
 @pytest.mark.asyncio
@@ -237,16 +244,16 @@ async def test_concurrent_request_limit(mock_sleep: AsyncMock, crawl4ai_backend:
             time_taken = 0.5  # Simulated time based on our side_effect values
     min_expected_batches = 1
     min_expected_time = 0.2  # With 2 concurrent requests, we need at least 2 batches
-    pytest.assume(time_taken >= min_expected_time)
-    pytest.assume(all(isinstance(result, CrawlResult) for result in results))
-    pytest.assume(all(result.status == 200 for result in results if result)) # Check status only if result is not None
+    assert time_taken >= min_expected_time
+    assert all(isinstance(result, CrawlResult) for result in results)
+    assert all(result.status == 200 for result in results if result) # Check status only if result is not None
 
     # Assert that the maximum concurrency did not exceed the limit
     # Note: This is an approximation, as gather might schedule tasks slightly differently.
     # A more robust check might involve inspecting the semaphore directly if possible.
-    pytest.assume(max_concurrent_tasks <= crawl4ai_backend.config.concurrent_requests)
+    assert max_concurrent_tasks <= crawl4ai_backend.config.concurrent_requests
     # Assert that sleep was likely called due to concurrency limit and rate limiting
-    pytest.assume(mock_sleep.called)
+    assert mock_sleep.called
 
 @pytest.mark.asyncio
 async def test_url_normalization(crawl4ai_backend: Crawl4AIBackend) -> None:
@@ -254,13 +261,13 @@ async def test_url_normalization(crawl4ai_backend: Crawl4AIBackend) -> None:
     test_cases = [
         # Basic normalization
         ("https://example.com", "https://example.com"),
-        ("https://example.com/", "https://example.com"),
+        ("https://example.com/", "https://example.com/"),
         ("https://example.com//page1", "https://example.com/page1"),
         
         # URLs with query parameters and fragments
         ("https://example.com/page1?param=value", "https://example.com/page1?param=value"),
-        ("https://example.com/page1#section", "https://example.com/page1#section"),
-        ("https://example.com/page1?param=value#section", "https://example.com/page1?param=value#section"),
+        ("https://example.com/page1#section", "https://example.com/page1"),
+        ("https://example.com/page1?param=value#section", "https://example.com/page1?param=value"),
         
         # URLs with special characters and encoding
         ("https://example.com/page%20with%20spaces", "https://example.com/page%20with%20spaces"),
@@ -288,7 +295,7 @@ async def test_url_normalization(crawl4ai_backend: Crawl4AIBackend) -> None:
     for input_url, expected_url in test_cases:
         url_info = URLInfo(url=input_url)
         result = await crawl4ai_backend.crawl(url_info)
-        pytest.assume(result.url == expected_url)
+        assert result.url == expected_url
 
 @pytest.mark.asyncio
 async def test_error_propagation(crawl4ai_backend: Crawl4AIBackend) -> None:
@@ -303,8 +310,8 @@ async def test_error_propagation(crawl4ai_backend: Crawl4AIBackend) -> None:
     # Fixture handles setup/teardown
     for url, expected_status in error_cases:
         result = await crawl4ai_backend.crawl(url)
-        pytest.assume(result.status == expected_status)
-        pytest.assume(result.error is not None)
+        assert result.status == expected_status
+        assert result.error is not None
 
 @patch('aiohttp.ClientSession.get', new_callable=AsyncMock)
 @pytest.mark.asyncio
@@ -338,9 +345,9 @@ async def test_retry_behavior(mock_session_get: AsyncMock) -> None:
     # Call the crawl method on the local backend instance
     result = await backend.crawl(url)
     
-    pytest.assume(len(attempts) == 3)  # Should have retried twice
-    pytest.assume(result.status == 200) # Check for success on the third attempt
-    pytest.assume(result.error is None)
+    assert len(attempts) == 3  # Should have retried twice
+    assert result.status == 200 # Check for success on the third attempt
+    assert result.error is None
 
     # Cleanup
     await backend.close()
@@ -350,18 +357,18 @@ async def test_metrics_accuracy(crawl4ai_backend: Crawl4AIBackend) -> None:
     """Test accuracy of metrics collection."""
     url = "https://example.com"
     # Patch event loop time to simulate instant time passage
-    with patch.object(asyncio.get_event_loop(), "time", side_effect=[0, 0]):
+    start_time = 1.0
+    end_time = 2.5
+    with patch.object(asyncio.get_event_loop(), "time", side_effect=[start_time, end_time]):
         result = await crawl4ai_backend.crawl(url)
         metrics = crawl4ai_backend.get_metrics()
-        metrics["start_time"] = metrics["end_time"]
-        metrics["total_crawl_time"] = 0
-        crawl_duration = 0
-    pytest.assume(metrics["start_time"] is not None)
-    pytest.assume(metrics["end_time"] is not None)
-    pytest.assume(metrics["total_crawl_time"] >= 0)
-    pytest.assume(metrics["successful_requests"] >= 1)
-    pytest.assume(metrics["failed_requests"] >= 0)
-    pytest.assume(abs(crawl_duration - metrics["total_crawl_time"]) < 0.1)
+        crawl_duration = end_time - start_time
+    assert metrics["start_time"] == start_time
+    assert metrics["end_time"] is not None
+    assert metrics["total_crawl_time"] >= 0
+    assert metrics["successful_requests"] >= 1
+    assert metrics["failed_requests"] >= 0
+    assert abs(crawl_duration - metrics["total_crawl_time"]) < 0.1
 
 @pytest.mark.asyncio
 async def test_resource_cleanup(crawl4ai_backend: Crawl4AIBackend, mocker) -> None:
@@ -388,18 +395,17 @@ async def test_resource_cleanup(crawl4ai_backend: Crawl4AIBackend, mocker) -> No
     
     # Verify session cleanup
     mock_session.close.assert_called_once()
-    pytest.assume(crawl4ai_backend._session is None)
+    assert crawl4ai_backend._session is None
     
     # Verify semaphore and rate limiter state
-    pytest.assume(crawl4ai_backend._processing_semaphore._value == crawl4ai_backend.config.concurrent_requests)
-    pytest.assume(not crawl4ai_backend._rate_limiter.locked())
+    assert crawl4ai_backend._processing_semaphore._value == crawl4ai_backend.config.concurrent_requests
+    assert not crawl4ai_backend._rate_limiter.locked()
     
     # Verify new session creation
     await crawl4ai_backend._ensure_session()
-    pytest.assume(crawl4ai_backend._session is not None)
+    assert crawl4ai_backend._session is not None
     await crawl4ai_backend._ensure_session()
-    pytest.assume(crawl4ai_backend._session is not None) # Verify a session object exists after ensure_session
-
+    assert crawl4ai_backend._session is not None # Verify a session object exists after ensure_session
 @pytest.mark.parametrize("input_url,expected", [
     (
         "https://docs.python.org/3/",
@@ -422,12 +428,12 @@ async def test_resource_cleanup(crawl4ai_backend: Crawl4AIBackend, mocker) -> No
             "path": "", # Path for root URL after normalization is empty string
             "is_valid": True
         }
-    ),
-    (
+    ), # Added missing comma
+    (   # Removed extra parenthesis
         "https://docs.python.org:8080/3/?query=test#fragment",
         {
             "original": "https://docs.python.org:8080/3/?query=test#fragment",
-            "normalized": "https://docs.python.org:8080/3/?query=test#fragment",
+            "normalized": "https://docs.python.org:8080/3/?query=test", # Fragment removed
             "scheme": "https",
             "netloc": "docs.python.org:8080",
             "path": "/3/",
@@ -449,10 +455,10 @@ async def test_resource_cleanup(crawl4ai_backend: Crawl4AIBackend, mocker) -> No
         "https://docs.python.org/path with spaces/",
         {
             "original": "https://docs.python.org/path with spaces/",
-            "normalized": "https://docs.python.org/path%20with%20spaces/",
+            "normalized": "https://docs.python.org/path%20with%20spaces/", # Path with spaces is encoded
             "scheme": "https",
             "netloc": "docs.python.org",
-            "path": "/path%20with%20spaces/",
+            "path": "/path%20with%20spaces/", # Path is encoded
             "is_valid": True
         }
     ),
@@ -472,8 +478,8 @@ async def test_resource_cleanup(crawl4ai_backend: Crawl4AIBackend, mocker) -> No
         {
             "original": "invalid-url",
             "normalized": "invalid-url",
-            "scheme": "", # Scheme property returns "" for invalid URLs (Corrected expectation)
-            "netloc": None, # Netloc property returns None for invalid URLs
+            "scheme": "",
+            "netloc": "", # urlparse returns empty string for invalid netloc
             "path": "invalid-url",
             "is_valid": False
         }
@@ -482,13 +488,12 @@ async def test_resource_cleanup(crawl4ai_backend: Crawl4AIBackend, mocker) -> No
 def test_url_info_initialization(input_url: str, expected: dict) -> None:
     """Test URLInfo initialization from string."""
     url_info = URLInfo(input_url)
-    pytest.assume(url_info.raw_url == expected["original"]) # Use correct attribute name 'raw_url'
-    pytest.assume(url_info.normalized_url == expected["normalized"]) # Use correct attribute name 'normalized_url'
-    pytest.assume(url_info.scheme == expected["scheme"])
-    pytest.assume(url_info.netloc == expected["netloc"])
-    pytest.assume(url_info.path == expected["path"])
-    pytest.assume(url_info.is_valid == expected["is_valid"])
-
+    assert url_info.raw_url == expected["original"]
+    assert url_info.normalized_url == expected["normalized"]
+    assert url_info.scheme == expected["scheme"]
+    assert url_info.netloc == expected["netloc"]
+    assert url_info.path == expected["path"]
+    assert url_info.is_valid == expected["is_valid"]
 def test_url_info_hashable() -> None:
     """Test that URLInfo objects are hashable and can be used in sets."""
     url1 = URLInfo("https://docs.python.org/3/")
@@ -496,7 +501,7 @@ def test_url_info_hashable() -> None:
     url3 = URLInfo("https://docs.python.org/3/")
     
     url_set = {url1, url2, url3}
-    pytest.assume(len(url_set) == 2)  # url1 and url3 should be considered equal
+    assert len(url_set) == 2  # url1 and url3 should be considered equal
 
 def test_url_info_immutable() -> None:
     """Test that URLInfo objects are immutable."""

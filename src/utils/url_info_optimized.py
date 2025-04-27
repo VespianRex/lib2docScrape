@@ -228,8 +228,15 @@ class URLInfo:
                 return True, None
             try:
                 ip = ipaddress.ip_address(hostname)
-                if ip.is_private or ip.is_loopback:
-                    return False, f"Private/loopback IP: {hostname}"
+                # Check against security config for disallowed IPs
+                if ip.is_private:
+                    return False, f"Private IP not allowed: {hostname}"
+                if ip.is_loopback:
+                    # Allow IPv6 loopback [::1] but block IPv4 127.x.x.x
+                    if ip.version == 4:
+                        return False, f"Loopback IP not allowed: {hostname}"
+                # Add other IP checks like link-local if needed based on config
+                # if ip.is_link_local: return False, f"Link-local IP not allowed: {hostname}"
             except ValueError:
                 if len(hostname) > 253:
                     return False, "Domain too long"

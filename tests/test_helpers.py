@@ -15,7 +15,7 @@ from src.utils.helpers import (
     setup_logging
 )
 from src.utils.url import URLInfo, URLType # Corrected import path
-from lib2docScrape.doc_organizer import DocumentContent
+from src.organizers.doc_organizer import DocumentContent
 
 # test_url_processor removed as the tested class URLProcessor was removed from helpers.py
 # URL processing is now handled by URLInfo in src/utils/url_info.py and tested in test_url_handling.py

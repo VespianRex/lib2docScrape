@@ -5,9 +5,9 @@ from typing import Dict, List
 
 import pytest
 
-from lib2docScrape.doc_organizer import (DocumentCollection, DocumentMetadata,
+from src.organizers.doc_organizer import (DocumentCollection, DocumentMetadata,
                                        DocumentOrganizer, DocumentVersion,
-                                       OrganizationConfig, SearchIndex)
+                                       OrganizationConfig, SearchEngine)
 from src.processors.content_processor import ProcessedContent
 from tests.test_helpers import create_test_content
 

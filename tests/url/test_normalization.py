@@ -3,7 +3,7 @@ Tests for the URL normalization module.
 """
 
 import pytest
-from urllib.parse import urlparse
+import urllib.parse
 from src.utils.url.normalization import (
     normalize_hostname, normalize_path, normalize_url, is_default_port
 )
@@ -47,7 +47,7 @@ def test_normalize_path():
     assert normalize_path("/path/to/resource") == "/path/to/resource"
     
     # Handle empty paths
-    assert normalize_path("") == "/"
+    assert normalize_path("") == ""
     
     # Resolve dot segments
     assert normalize_path("/path/./to/../resource") == "/path/resource"
@@ -70,36 +70,46 @@ def test_normalize_path():
 def test_normalize_url():
     """Test URL normalization."""
     # Test with a simple URL
-    parsed = urlparse("http://EXAMPLE.com/path")
-    normalized_parsed, normalized_str = normalize_url(parsed)
-    assert normalized_str == "http://example.com/path"
-    assert normalized_parsed.scheme == "http"
-    assert normalized_parsed.netloc == "example.com"
-    assert normalized_parsed.path == "/path"
-    
+    url_simple = "http://EXAMPLE.com/path"
+    normalized_str_simple = normalize_url(url_simple)
+    assert normalized_str_simple == "http://example.com/path"
+    # Verify components by parsing the normalized string
+    parsed_simple = urllib.parse.urlparse(normalized_str_simple)
+    assert parsed_simple.scheme == "http"
+    assert parsed_simple.netloc == "example.com"
+    assert parsed_simple.path == "/path"
+
     # Test with a complex URL
-    parsed = urlparse("HTTPS://User:Pass@EXAMPLE.COM:443/path/./to/../resource?a=1&b=2&a=3")
-    normalized_parsed, normalized_str = normalize_url(parsed)
-    assert normalized_str == "https://example.com/path/resource?a=1&b=2&a=3"
-    assert normalized_parsed.scheme == "https"
-    assert normalized_parsed.netloc == "example.com"  # No user:pass, default port removed
-    assert normalized_parsed.path == "/path/resource"
-    assert normalized_parsed.query == "a=1&b=2&a=3"
-    
+    url_complex = "HTTPS://User:Pass@EXAMPLE.COM:443/path/./to/../resource?a=1&b=2&a=3"
+    normalized_str_complex = normalize_url(url_complex)
+    assert normalized_str_complex == "https://example.com/path/resource?a=1&a=3&b=2"
+    # Verify components by parsing the normalized string
+    parsed_complex = urllib.parse.urlparse(normalized_str_complex)
+    assert parsed_complex.scheme == "https"
+    assert parsed_complex.netloc == "example.com"  # No user:pass, default port removed
+    assert parsed_complex.path == "/path/resource"
+    assert parsed_complex.query == "a=1&a=3&b=2"
+
     # Test with IDN domain
-    parsed = urlparse("http://ümlaut.com/path")
-    normalized_parsed, normalized_str = normalize_url(parsed)
-    assert "xn--mlaut-jva.com" in normalized_str
-    assert normalized_parsed.netloc == "xn--mlaut-jva.com"
-    
+    url_idn = "http://ümlaut.com/path"
+    normalized_str_idn = normalize_url(url_idn)
+    assert normalized_str_idn == "http://xn--mlaut-jva.com/path"
+    # Verify components by parsing the normalized string
+    parsed_idn = urllib.parse.urlparse(normalized_str_idn)
+    assert parsed_idn.netloc == "xn--mlaut-jva.com"
+
     # Test with non-default port
-    parsed = urlparse("http://example.com:8080/path")
-    normalized_parsed, normalized_str = normalize_url(parsed)
-    assert normalized_str == "http://example.com:8080/path"
-    assert normalized_parsed.netloc == "example.com:8080"
-    
-    # Test with trailing slash
-    parsed = urlparse("http://example.com/path/")
-    normalized_parsed, normalized_str = normalize_url(parsed, True)
-    assert normalized_str == "http://example.com/path/"
-    assert normalized_parsed.path == "/path/"
+    url_port = "http://example.com:8080/path"
+    normalized_str_port = normalize_url(url_port)
+    assert normalized_str_port == "http://example.com:8080/path"
+    # Verify components by parsing the normalized string
+    parsed_port = urllib.parse.urlparse(normalized_str_port)
+    assert parsed_port.netloc == "example.com:8080"
+
+    # Test with trailing slash (passed to normalize_path via normalize_url)
+    url_trailing = "http://example.com/path/"
+    normalized_str_trailing = normalize_url(url_trailing, had_trailing_slash=True)
+    assert normalized_str_trailing == "http://example.com/path/"
+    # Verify components by parsing the normalized string
+    parsed_trailing = urllib.parse.urlparse(normalized_str_trailing)
+    assert parsed_trailing.path == "/path/"

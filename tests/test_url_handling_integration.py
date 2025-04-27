@@ -42,14 +42,17 @@ class TestURLIntegration:
         mock_get.assert_called_once()
         # Check the URL passed to the mock_get call
         call_args, call_kwargs = mock_get.call_args
-        assert call_args[0] == target_url # Check the URL argument
+        # The crawler normalizes the URL before fetching, so compare against the normalized version
+        expected_normalized_url = "https://example.com/"
+        assert call_args[0] == expected_normalized_url # Check the URL argument
 
         # Check results from the returned CrawlResult object
         assert crawl_result is not None
         assert crawl_result.stats.successful_crawls == 1
         assert len(crawl_result.documents) == 1
         document = crawl_result.documents[0]
-        assert document['url'] == target_url
+        # The document URL should store the normalized URL
+        assert document['url'] == expected_normalized_url
         # Check status from the document metadata if available, or assume 200 if processed
         # assert document['metadata'].get('status_code', 200) == 200 # Assuming status is in metadata
         assert "Link 1" in document['content'].get("formatted_content", "")

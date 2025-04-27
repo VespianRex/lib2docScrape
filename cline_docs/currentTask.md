@@ -1,20 +1,30 @@
-# Current Task: Implement Recommendation #2
+# Current Task: Fix Test Failures (Phase 1)
 
 ## Objective
-Replace custom sanitization logic in `src/processors/content_processor.py` with the `bleach` library for improved security against XSS and other injection attacks.
+Address the test failures outlined in `docs/TestSolvingPlan.md`, starting with Phase 1: URL Utilities (`src/utils/url/`).
 
-## Plan
-1.  **Add Dependency:** Add `bleach` to the project dependencies in `pyproject.toml`. Execute `uv sync` to install it.
-2.  **Read Files:**
-    *   Read `src/processors/content_processor.py`.
-    *   Read `src/processors/content/models.py` (to check `ProcessorConfig`).
-3.  **Modify `content_processor.py`:**
-    *   Import `bleach`.
-    *   Define allowed HTML tags and attributes (potentially using `bleach.sanitizer.ALLOWED_TAGS` and `ALLOWED_ATTRIBUTES` as a base, adding necessary ones like `pre`, `code`, table tags, `img[src]`, `a[href]`, etc.). Store these in constants or potentially make them configurable via `ProcessorConfig`.
-    *   Replace the `_sanitize_soup` method implementation with a call to `bleach.clean()`. Pass the string representation of the relevant HTML part (e.g., `str(soup)`) to `bleach.clean()`, along with the defined allowed tags and attributes. Re-parse the cleaned HTML string back into a `BeautifulSoup` object if necessary for subsequent processing steps.
-    *   Remove the `_sanitize_soup` call from the `process` method (around line 137) and integrate the `bleach.clean()` call appropriately within the `process` method's flow (likely after initial parsing and unescaping, before structure/metadata extraction).
-    *   Remove the `blocked_attributes` field from `ProcessorConfig` in `src/processors/content/models.py` as `bleach` handles allowed attributes directly. Update the `ContentProcessor.__init__` and `configure` methods accordingly.
-4.  **Apply Changes:** Use `apply_diff` to modify the files.
-5.  **Run Tests:** Execute `uv run pytest tests/test_content_processor.py tests/test_content_processor_edge.py` to verify the sanitization changes. Analyze and fix any failures.
-6.  **Run Full Test Suite:** Execute `uv run pytest` to check for broader regressions.
-7.  **Update Documentation:** Update `codebaseSummary.md` and `techStack.md` to reflect the use of `bleach`.
+## Current Step
+**Phase 1: URL Utilities (`src/utils/url/`)**
+*   **Task 1.1 (`info.py`): Fix `URLInfo` Initialization & Validation**
+    *   ✅ Subtask 1.1.1: Implement port validation fix (Issue E, Test `test_invalid_url_initialization[http://example.com:99999-Invalid port]`). Catch `ValueError`, set correct error, prevent `UnboundLocalError`.
+    *   ✅ Subtask 1.1.2: Implement scheme validation (Issue B, Tests `test_valid_url_initialization[file:///...]`, `test_invalid_url_initialization[ftp://...]`). Allow `file`, disallow `ftp` with auth.
+    *   ✅ Subtask 1.1.3: Implement security pattern checks (Issue C, J, Tests `test_invalid_url_initialization[...]` for traversal, XSS, private IP, null byte; `test_validate_security_patterns`). Ensure correct error messages.
+    *   ✅ Subtask 1.1.4: Implement invalid label check (Issue D, Test `test_invalid_url_initialization[http://<invalid>...]`). Ensure `normalize_hostname` raises `ValueError`.
+    *   ✅ Subtask 1.1.5: Fix "Missing host" vs "Missing netloc" (Issue G, Test `test_validate_netloc`).
+*   **Task 1.2 (`info.py`): Fix `URLInfo` Normalization**
+    *   ✅ Subtask 1.2.1: Implement trailing slash logic (Issue A, Tests `test_valid_url_initialization[http://example.com]`, `test_valid_url_initialization[http://localhost:8080]`).
+    *   ✅ Subtask 1.2.2: Implement path normalization using `posixpath.normpath` (Issue I, Test `test_valid_url_initialization[http://EXAMPLE.com:80/./path/../other/]`).
+*   **Task 1.3 (`info.py`): Fix `URLInfo` Properties**
+    *   ✅ Subtask 1.3.1: Fix `netloc` property to strip auth (Issue C, Test `test_url_properties`).
+    *   ✅ Subtask 1.3.2: Implement `tldextract` fallbacks for IP/localhost (Issue H, Tests `test_tldextract_properties[...]`).
+*   **Task 1.4 (`normalization.py`): Fix Normalization Functions**
+    *   ✅ Subtask 1.4.1: Fix `normalize_hostname` to raise `ValueError` correctly (Test `test_normalize_hostname`).
+    *   ➡️ **Subtask 1.4.2:** Fix `normalize_path` for empty input (Test `test_normalize_path`).
+*   Task 1.5 (`validation.py`): Fix Validation Functions & Tests
+
+## Next Steps
+1.  Read `src/utils/url/normalization.py`.
+2.  Implement the fix for Subtask 1.4.2 (Fix `normalize_path` for empty input).
+3.  Update `docs/TestSolvingPlan.md` to mark Subtask 1.4.2 as complete.
+4.  Update this file (`currentTask.md`) for the next subtask.
+5.  Run relevant tests to confirm the fixes.

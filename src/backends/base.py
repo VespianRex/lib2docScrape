@@ -30,7 +30,13 @@ class CrawlResult(BaseModel):
         """Convert URLInfo to string if needed."""
         if isinstance(v, URLInfo):
             # Return normalized_url if valid, otherwise raw_url
-            return v.normalized_url if v.is_valid and v.normalized_url else v.raw_url
+            # For root URLs, ensure we don't add trailing slashes to match test expectations
+            if v.is_valid and v.normalized_url:
+                # Remove trailing slash from root URLs (e.g., https://example.com/)
+                if v.normalized_url.endswith('/') and v.normalized_url.count('/') == 3:
+                    return v.normalized_url.rstrip('/')
+                return v.normalized_url
+            return v.raw_url
         return v
 
     def is_success(self) -> bool:

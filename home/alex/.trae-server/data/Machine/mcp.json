@@ -1,0 +1,16 @@
+// ... existing code ...
+    "Сontext7": {
+      "autoApprove": [],
+      "disabled": false,
+      "timeout": 60,
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-v", "/home/alex/DEV/lib2docScrape:/app",
+        "context7-mcp"
+      ],
+      "transportType": "stdio"
+    }
+// ... existing code ...

@@ -81,8 +81,8 @@ class Crawl4AIBackend(CrawlerBackend):
             "cached_pages": 0,
             "total_pages": 0, # Renamed to pages_crawled for consistency
             "pages_crawled": 0,
-            "start_time": None,
-            "end_time": None
+            "start_time": 0.0, # Use float for timestamp
+            "end_time": 0.0 # Use float for timestamp
         })
         self.content_processor = ContentProcessor() # Initialize ContentProcessor
         logger.info(f"Initialized Crawl4AI backend with config: {self.config}")
@@ -136,48 +136,52 @@ class Crawl4AIBackend(CrawlerBackend):
             await self._progress_callback(url, depth, status)
 
     def _is_same_domain(self, url1: str, url2: str) -> bool:
-        """Check if two URLs belong to the same domain."""
+        """Check if two URLs belong to the same domain using URLInfo."""
         try:
-            domain1 = urlparse(url1).netloc.lower()
-            domain2 = urlparse(url2).netloc.lower()
+            url1_info = URLInfo(url=url1)
+            url2_info = URLInfo(url=url2)
 
-            # Extract base domain without subdomains
-            base1 = '.'.join(domain1.split('.')[-2:])
-            base2 = '.'.join(domain2.split('.')[-2:])
+            # If either URL is invalid, they are not considered the same domain
+            if not url1_info.is_valid or not url2_info.is_valid:
+                 logger.debug(f"Domain comparison: One or both URLs are invalid. {url1} (valid: {url1_info.is_valid}) vs {url2} (valid: {url2_info.is_valid})")
+                 return False
 
-            logger.debug(f"Domain comparison: {domain1} vs {domain2}")
-            logger.debug(f"Base domain comparison: {base1} vs {base2}")
+            # Compare registered domains (domain + suffix) for a more robust check
+            # This handles subdomains correctly (e.g., www.example.com and example.com are same registered domain)
+            domain1_registered = url1_info.registered_domain.lower()
+            domain2_registered = url2_info.registered_domain.lower()
 
-            # First check exact domain match
-            if domain1 == domain2:
-                return True
+            logger.debug(f"Domain comparison (registered domain): {domain1_registered} vs {domain2_registered}")
 
-            # Then check if one is a subdomain of the other
-            return domain1.endswith(f".{base2}") or domain2.endswith(f".{base1}")
+            return domain1_registered == domain2_registered
 
         except Exception as e:
-            logger.error(f"Error comparing domains {url1} and {url2}: {str(e)}")
+            logger.error(f"Error comparing domains {url1} and {url2} using URLInfo: {str(e)}")
             return False
 
     def _is_in_subfolder(self, base_url: str, link_url: str) -> bool:
-        """Check if a link is within the same subfolder structure."""
+        """Check if a link is within the same subfolder structure using URLInfo."""
         try:
-            # Normalize both URLs
-            base_url = self._normalize_url(base_url)
-            link_url = self._normalize_url(link_url)
+            base_url_info = URLInfo(url=base_url)
+            link_url_info = URLInfo(url=link_url)
 
-            # Must be same domain
-            if not self._is_same_domain(base_url, link_url):
-                logger.debug(f"Different domains: {urlparse(base_url).netloc} vs {urlparse(link_url).netloc}")
+            # If either URL is invalid, cannot determine subfolder relationship
+            if not base_url_info.is_valid or not link_url_info.is_valid:
+                 logger.debug(f"Subfolder check: One or both URLs are invalid. {base_url} (valid: {base_url_info.is_valid}) vs {link_url} (valid: {link_url_info.is_valid})")
+                 return False
+
+            # Must be same registered domain
+            if base_url_info.registered_domain.lower() != link_url_info.registered_domain.lower():
+                logger.debug(f"Subfolder check: Different registered domains. {base_url_info.registered_domain} vs {link_url_info.registered_domain}")
                 return False
 
-            # Get paths
-            base_path = urlparse(base_url).path.strip('/').split('/')
-            link_path = urlparse(link_url).path.strip('/').split('/')
+            # Get normalized paths from URLInfo
+            base_path = base_url_info.path.strip('/').split('/')
+            link_path = link_url_info.path.strip('/').split('/')
 
             # If base path is longer, link can't be in its subfolder
             if len(base_path) > len(link_path):
-                logger.debug(f"Base path longer than link path: {len(base_path)} > {len(link_path)}")
+                logger.debug(f"Subfolder check: Base path longer than link path. {len(base_path)} > {len(link_path)}")
                 return False
 
             # Check if link path starts with base path
@@ -186,73 +190,8 @@ class Crawl4AIBackend(CrawlerBackend):
             return result
 
         except Exception as e:
-            logger.error(f"Error checking subfolder for {link_url}: {str(e)}")
+            logger.error(f"Error checking subfolder for {link_url} using URLInfo: {str(e)}")
             return False
-
-    def _normalize_url(self, url: str) -> str:
-        """Normalize URL to avoid duplicates."""
-        parsed = urlparse(url)
-
-        # Remove default ports and www
-        netloc = parsed.netloc.lower()
-        if ':' in netloc:
-            host, port = netloc.split(':')
-            if (parsed.scheme == 'http' and port == '80') or (parsed.scheme == 'https' and port == '443'):
-                netloc = host
-
-        # Remove www. prefix
-        if netloc.startswith('www.'):
-            netloc = netloc[4:]
-
-        # Normalize path - resolve .. and .
-        path = parsed.path
-        if not path:
-            path = '/'
-        else:
-            # Split path and resolve . and ..
-            segments = []
-            for segment in path.split('/'):
-                if segment == '.' or not segment:
-                    continue
-                elif segment == '..':
-                    if segments:
-                        segments.pop()
-                else:
-                    segments.append(segment)
-            path = '/' + '/'.join(segments)
-
-        # Remove trailing slash unless it's the root path
-        if path != '/' and path.endswith('/'):
-            path = path[:-1]
-
-        # Remove fragments completely
-        fragment = ''
-
-        # Sort query parameters
-        query = parsed.query
-        if query:
-            params = []
-            for param in sorted(query.split('&')):
-                if '=' in param:
-                    key, value = param.split('=', 1)
-                    params.append(f"{key.lower()}={value}")
-                else:
-                    params.append(param.lower())
-            query = '&'.join(params)
-
-        # Rebuild URL without fragments and with normalized components
-        components = (
-            parsed.scheme.lower(),
-            netloc,
-            path,
-            '',  # Remove params
-            query,
-            fragment
-        )
-        normalized = str(urlunparse(components))
-
-        logger.debug(f"Normalized URL: {url} -> {normalized}")
-        return normalized
 
     def _should_follow_link(self, base_url: str, link: str) -> bool:
         """Determine if a link should be followed."""
@@ -264,13 +203,24 @@ class Crawl4AIBackend(CrawlerBackend):
             return False
 
         try:
-            # Convert relative URLs to absolute and normalize
-            absolute_link = self._normalize_url(urljoin(base_url, link))
-            logger.debug(f"Absolute link: {absolute_link}")
+            # Convert relative URLs to absolute using urljoin
+            absolute_link_str = urljoin(base_url, link)
+            
+            # Use URLInfo to validate and normalize the absolute link
+            absolute_link_info = URLInfo(url=absolute_link_str)
+
+            if not absolute_link_info.is_valid:
+                 logger.debug(f"Skipping invalid link: {absolute_link_str} - Reason: {absolute_link_info.error_message}")
+                 return False
+
+            # Use the normalized URL string from URLInfo
+            normalized_absolute_link = absolute_link_info.normalized_url
+            logger.debug(f"Normalized absolute link: {normalized_absolute_link}")
+
 
             # Skip if already crawled
-            if absolute_link in self._crawled_urls:
-                logger.debug(f"Link already crawled: {absolute_link}")
+            if normalized_absolute_link in self._crawled_urls:
+                logger.debug(f"Link already crawled: {normalized_absolute_link}")
                 return False
 
             # Check if we've hit the page limit
@@ -278,24 +228,26 @@ class Crawl4AIBackend(CrawlerBackend):
                 logger.debug(f"Page limit reached: {len(self._crawled_urls)} >= {self.config.max_pages}")
                 return False
 
-            # Get domain without www.
-            link_domain = urlparse(absolute_link).netloc.lower()
-            if link_domain.startswith('www.'):
-                link_domain = link_domain[4:]
+            # Get domain from normalized URLInfo
+            link_domain = absolute_link_info.hostname.lower()
+            # No need to remove www. here, URLInfo's hostname property should handle it if needed for comparison
 
-            # Only follow links to the same subdomain as the initial URL
+            # Only follow links to the same domain as the initial URL
             if self._initial_domain is None:
-                parsed = urlparse(base_url)
-                self._initial_domain = parsed.netloc.lower()
-                if self._initial_domain.startswith('www.'):
-                    self._initial_domain = self._initial_domain[4:]
+                # Use URLInfo for the base URL as well
+                base_url_info = URLInfo(url=base_url)
+                if not base_url_info.is_valid:
+                     logger.error(f"Invalid base URL for initial domain check: {base_url}")
+                     return False # Cannot determine initial domain from invalid base URL
+
+                self._initial_domain = base_url_info.hostname.lower()
                 logger.debug(f"Initial domain set to: {self._initial_domain}")
 
             if link_domain != self._initial_domain:
-                logger.debug(f"Skipping different subdomain: {link_domain} (initial: {self._initial_domain})")
+                logger.debug(f"Skipping different domain: {link_domain} (initial: {self._initial_domain})")
                 return False
 
-            logger.debug(f"Final decision for {absolute_link}: True")
+            logger.debug(f"Final decision for {normalized_absolute_link}: True")
             return True
 
         except Exception as e:
@@ -323,7 +275,8 @@ class Crawl4AIBackend(CrawlerBackend):
                             url=url, # Use the 'url' parameter passed to this method
                             content={"html": html},
                             metadata={"headers": dict(response.headers)},
-                            status=response.status
+                            status=response.status,
+                            error=None if 200 <= response.status < 300 else f"HTTP {response.status} for {url}" # Set error for non-200 status
                         )
 
             except Exception as e:
@@ -333,10 +286,10 @@ class Crawl4AIBackend(CrawlerBackend):
                     await asyncio.sleep(2 ** retries)  # Exponential backoff
                 logger.warning(f"Retry {retries}/{self.config.max_retries} for {url}: {str(e)}")
 
-        return CrawlResult(
-            url=url, # Use the 'url' parameter passed to this method
-            content={},
-            metadata={},
+            return CrawlResult(
+                url=url, # Use the 'url' parameter passed to this method
+                content={},
+                metadata={},
             status=0,
             error=f"Failed after {retries} retries: {last_error}"
         )
@@ -345,8 +298,8 @@ class Crawl4AIBackend(CrawlerBackend):
     async def crawl(self, url: Union[str, URLInfo], config: Optional[Any] = None, params: Optional[Dict[str, Any]] = None) -> CrawlResult:
         """Crawl the specified URL and return all crawled pages."""
         # --- Metrics Start ---
-        start_crawl_time = datetime.now()
-        if self.metrics["start_time"] is None: # Set overall start time only once
+        start_crawl_time = datetime.now() # Use datetime for consistency
+        if not self.metrics.get("start_time"): # Set overall start time only once, use .get for safety
              self.metrics["start_time"] = start_crawl_time
 
         # --- URL Initialization and Validation ---
@@ -409,8 +362,8 @@ class Crawl4AIBackend(CrawlerBackend):
              )
              self.metrics["successful_requests"] += 1
              self.metrics["pages_crawled"] += 1
-             self.metrics["end_time"] = datetime.now()
-             self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
+             self.metrics["end_time"] = datetime.now().timestamp()
+             self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
              return result
             # No need to prepend 'https://' as URLInfo validation ensures a valid scheme
 
@@ -517,7 +470,7 @@ class Crawl4AIBackend(CrawlerBackend):
 
         # --- Metrics End ---
         self.metrics["end_time"] = datetime.now()
-        if self.metrics["start_time"]: # Ensure start_time was set
+        if self.metrics.get("start_time"): # Ensure start_time was set, use .get for safety
              self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
 
         return final_result
@@ -527,13 +480,12 @@ class Crawl4AIBackend(CrawlerBackend):
         if not content or not content.content.get("html"):
             return False
         return True
-
     async def process(self, content: CrawlResult) -> Dict[str, Any]:
         """Process the crawled content using ContentProcessor."""
         html_text = content.content.get("html")
         if not html_text:
-             logger.warning(f"No HTML content found for URL: {content.url}")
-             return {"error": "No HTML content found"}
+            logger.warning(f"No HTML content found for URL: {content.url}")
+            return {"error": "No HTML content found"}
 
         try:
             # Use the initialized ContentProcessor
@@ -549,17 +501,16 @@ class Crawl4AIBackend(CrawlerBackend):
             # The test expects a dict with a 'content' key or 'error'
             # Let's wrap the ProcessedContent model dump in a 'content' key
             if processed_data.errors:
-                 # If ContentProcessor reported errors, return them
-                 return {"error": "; ".join(processed_data.errors)}
+                # If ContentProcessor reported errors, return them
+                return {"error": "; ".join(processed_data.errors)}
             else:
-                 # Return the full processed data structure
-                 # Convert dataclass to dict for serialization
-                 return {"content": asdict(processed_data)}
+                # Return the full processed data structure
+                # Convert dataclass to dict for serialization
+                return {"content": asdict(processed_data)}
 
         except Exception as e:
             logger.error(f"Error processing content for {content.url}: {str(e)}", exc_info=True)
             return {"error": f"Failed to process content: {str(e)}"}
-
     def get_metrics(self) -> Dict[str, Any]:
         """Get current crawler metrics."""
         metrics = super().get_metrics()
@@ -577,7 +528,6 @@ class Crawl4AIBackend(CrawlerBackend):
             )
         })
         return metrics
-
     def _is_valid_link(self, link: str, base_url: str) -> bool:
         """Check if a link is valid for crawling."""
         try:
@@ -604,16 +554,15 @@ class Crawl4AIBackend(CrawlerBackend):
 
             # Skip links that are just anchors to the same page
             if (parsed_link.scheme == parsed_base.scheme and
-                parsed_link.netloc == parsed_base.netloc and
-                parsed_link.path == parsed_base.path and
-                parsed_link.fragment != parsed_base.fragment):
+                    parsed_link.netloc == parsed_base.netloc and
+                    parsed_link.path == parsed_base.path and
+                    parsed_link.fragment != parsed_base.fragment):
                 return False
 
             return True
         except Exception as e:
             logging.debug(f"Error validating link {link}: {str(e)}")
             return False
-
     async def _wait_rate_limit(self) -> None:
         """Enforce rate limiting between requests."""
         async with self._rate_limiter:

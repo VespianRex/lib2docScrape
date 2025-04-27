@@ -5,11 +5,11 @@ def test_url_processor_port_handling():
     # No need to instantiate URLProcessor anymore
 
     port_urls = {
-        "http://example.com:80": "http://example.com/",  # Default HTTP port removed, trailing slash added
-        "https://example.com:443": "https://example.com/",  # Default HTTPS port removed, trailing slash added
-        "http://example.com:8080": "http://example.com:8080/",  # Non-default port kept, trailing slash added
-        "https://example.com:8443": "https://example.com:8443/",  # Non-default port kept, trailing slash added
-        "http://example.com:": "http://example.com/",  # Empty port removed, trailing slash added
+        "http://example.com:80": "http://example.com",  # Default HTTP port removed, no trailing slash
+        "https://example.com:443": "https://example.com",  # Default HTTPS port removed, no trailing slash
+        "http://example.com:8080": "http://example.com:8080",  # Non-default port kept, no trailing slash
+        "https://example.com:8443": "https://example.com:8443",  # Non-default port kept, no trailing slash
+        "http://example.com:": "http://example.com",  # Empty port removed, no trailing slash
         "http://example.com:abc": None,  # Invalid port
         "http://example.com:65536": None,  # Port number too high
         "http://example.com:80/": "http://example.com/", # Default HTTP port removed, trailing slash kept

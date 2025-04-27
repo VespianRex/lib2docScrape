@@ -62,3 +62,23 @@ The current `url/normalization.py` module **satisfies the SRS's requirements for
 2. Implement pluggable normalization pattern
 3. Add integration hooks for QA and validation
 4. Enhance test coverage for edge cases
+
+## URL Handling Modularization
+
+- Refactored URL handling into separate, focused modules following Single Responsibility Principle:
+  - `security.py`: Centralized security rule checks with pre-compiled regexes for performance
+  - `parsing.py`: URL resolution with proper handling of schemes, protocol-relative URLs, and base URLs
+  - `normalization.py`: Hostname and path normalization with robust IDNA and error handling
+  - `classification.py`: URL type determination (internal/external/unknown)
+  
+- Benefits of this modularization:
+  - Each module can be tested independently with focused unit tests
+  - Performance optimization through compiled regexes and function specialization
+  - Improved maintainability by keeping related code together
+  - Easier onboarding for new developers (smaller, focused modules)
+  - Reduced cyclomatic complexity in the main URLInfo class
+
+- Next steps:
+  - Add test cases for edge cases in IDNA encoding
+  - Implement additional URL classification heuristics for subdomains
+  - Create domain-specific validators for specialized content types

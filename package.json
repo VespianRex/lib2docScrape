@@ -1,0 +1,25 @@
+{
+  "name": "lib2docscrape",
+  "version": "1.0.0",
+  "description": "An autonomous documentation crawler system built around Crawl4AI, with support for multiple backends and adaptive crawling capabilities. This system automatically discovers, crawls, processes, and organizes technical documentation from various sources, with intelligent backend selection and self-optimization capabilities.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests",
+    "doc": "docs",
+    "example": "examples"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VespianRex/lib2docScrape.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/VespianRex/lib2docScrape/issues"
+  },
+  "homepage": "https://github.com/VespianRex/lib2docScrape#readme"
+}

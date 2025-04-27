@@ -17,7 +17,12 @@
 
 3. Models
    - Quality: Quality-related data structures
-   - URL: URL handling and validation
+   - URL:
+     - URLInfo: Main URL validator and normalizer
+     - Security: URL security rules and checks
+     - Parsing: URL resolution and protocol handling
+     - Normalization: URL component normalization
+     - Classification: URL relationship detection (internal/external)
 
 ### Data Flow
 1. Input URL/Document → 
@@ -27,7 +32,8 @@
 5. Quality Validation
 
 ## External Dependencies
-To be analyzed from requirements.txt
+- `tldextract`: For accurate domain parsing using the Public Suffix List
+- `idna`: For proper handling of internationalized domain names
 
 ## Recent Significant Changes
 
@@ -49,6 +55,19 @@ To be analyzed from requirements.txt
   - `suffix`: The TLD suffix (e.g., "co.uk" from "example.co.uk")
   - `registered_domain`: Domain + suffix without subdomains
   - `subdomain`: Just the subdomain part of the URL
+
+### URL Modularization Phase 1
+- Dramatically improved URL handling by breaking the monolithic implementation into specialized modules:
+  - `security.py`: Centralized security pattern scanning with optimized regex compilation
+  - `normalization.py`: Functions for path and hostname normalization (with IDNA support)
+  - `parsing.py`: URL resolution helpers with scheme defaulting and protocol-relative URL handling
+  - `classification.py`: Determines URL relationships (internal/external) 
+
+- Benefits:
+  - Reduced code complexity and improved maintainability
+  - Targeted, fast-running unit tests for each specific concern
+  - Improved performance through pre-compiled regexes and specialized functions
+  - Better developer experience with focused modules and clear responsibilities
 
 ## External Dependencies
 - `tldextract`: For accurate domain parsing using the Public Suffix List

@@ -2,6 +2,9 @@ import functools
 import logging
 from typing import Optional, Tuple, Any, Dict, List
 from urllib.parse import urlparse, urljoin, parse_qsl, ParseResult, urlunparse
+import posixpath
+import ipaddress # Import ipaddress for IP checking
+import re # Import re for hostname label validation
 
 # Try to import tldextract for better domain parsing
 try:
@@ -14,27 +17,10 @@ except ImportError:
 # Import modular components
 from .types import URLType
 from .validation import validate_url
-from .normalization import normalize_url
+from .normalization import normalize_url, normalize_hostname, normalize_path # Updated import
+from .security import URLSecurityConfig # Added import
 
-# Helper functions for URL normalization
-def normalize_path(path: str) -> str:
-    """Normalize path to always have a root slash if empty."""
-    return path if path else "/"
-
-def normalize_hostname(hostname: str) -> str:
-    """Normalize hostname by lowercasing, stripping trailing dot, and handling IDNA."""
-    if not hostname:
-        raise ValueError("hostname is empty")
-    try:
-        # Try to import idna for proper hostname normalization
-        import idna
-        ascii_host = idna.encode(hostname.rstrip(".").lower()).decode("ascii")
-        return ascii_host
-    except ImportError:
-        # Fallback if idna is not available
-        return hostname.rstrip(".").lower()
-    except Exception:
-        raise ValueError("invalid hostname")
+# Removed duplicate normalize_path and normalize_hostname functions
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +71,7 @@ class URLInfo:
                  self._normalized_url = self._raw_url # Fallback for failed resolution
                  self._initialized = True
                  return
-                 logger.debug(f"URLInfo Resolution Failed: error='{self.error_message}', fallback='{self._normalized_url}'")
+                 # Unreachable logger call removed
 
             logger.debug(f"URLInfo Resolved: resolved_url='{resolved_url_str}'")
             # Store if original path (before query/fragment) had a trailing slash
@@ -95,456 +81,402 @@ class URLInfo:
             # Parse the resolved URL (removes fragment automatically)
             self._parsed = urlparse(resolved_url_str)
 
-            logger.debug(f"URLInfo Parsed Resolved: parsed='{self._parsed}', original_trailing_slash={self._original_path_had_trailing_slash}")
-            # --- Validation ---
-            # Relaxed validation - only check if we have a scheme and netloc
-            validation_passed = bool(self._parsed.scheme and self._parsed.netloc)
-            error = None if validation_passed else "Missing scheme or host"
-
-            if validation_passed:
-                logger.debug(f"URLInfo Before Validation: parsed='{self._parsed}'")
-                self.is_valid = True
-                # --- Normalization ---
-                logger.debug(f"URLInfo Validation Passed.")
-                try:
-                    # Pass the original trailing slash status to normalization
-                    logger.debug(f"URLInfo Before Normalization: parsed='{self._parsed}', original_trailing_slash={self._original_path_had_trailing_slash}")
-                    
-                    # Only add trailing slash if original had it, don't force it for root URLs
-                    should_have_trailing_slash = self._original_path_had_trailing_slash
-                    
-                    # Use a more relaxed normalization approach
-                    norm_parsed, norm_url_str = self._normalize_url_relaxed(
-                        self._parsed,
-                        had_trailing_slash=should_have_trailing_slash
-                    )
-                    self._normalized_parsed = norm_parsed
-                    self._normalized_url = norm_url_str
-                except ValueError as norm_error:
-                    logger.debug(f"URLInfo After Normalization: norm_parsed='{norm_parsed}', norm_url='{norm_url_str}'")
-                    # Handle normalization errors specifically
-                    self.is_valid = False # Mark as invalid if normalization fails
-                    self.error_message = f"Normalization failed: {norm_error}"
-                    self._normalized_url = resolved_url_str # Use resolved URL as fallback
-                    logger.error(f"URLInfo Normalization Value Error: {norm_error}", exc_info=True)
-                    self._normalized_parsed = self._parsed # Use original parsed as fallback
-                except Exception as e:
-                    # Catch unexpected normalization errors
-                    self.is_valid = False
-                    self.error_message = f"Unexpected normalization error: {type(e).__name__}: {str(e)}"
-                    self._normalized_url = resolved_url_str
-                    logger.error(f"URLInfo Unexpected Normalization Error: {type(e).__name__}: {str(e)}", exc_info=True)
-                    self._normalized_parsed = self._parsed
-            else:
+            # Validate port after initial parsing (moved from validate_url for early exit)
+            if self._parsed.port is not None and not (0 <= self._parsed.port <= 65535):
                 self.is_valid = False
-                # Loosen error messages for test compatibility, include key substring for search
-                if error and isinstance(error, str):
-                    if "scheme" in error or "disallowed scheme" in error.lower():
-                        self.error_message = "Invalid scheme"
-                    elif "directory traversal" in error.lower():
-                        self.error_message = "Directory traversal attempt"
-                    elif "idna" in error.lower():
-                        self.error_message = "Invalid label chars"
-                    elif "xss" in error.lower() or "Invalid chars" in error:
-                        self.error_message = "XSS pattern"
-                    elif "private/loopback" in error.lower():
-                        self.error_message = "Private/loopback IP"
-                    elif "port out of range" in error.lower():
-                        self.error_message = "Invalid port"
-                    elif "auth" in error.lower():
-                        self.error_message = "Auth info not allowed"
-                    elif "Missing netloc" in error or "Missing host" in error:
-                        self.error_message = "Missing host"
-                    else:
-                        self.error_message = error
-                else:
-                    self.error_message = error
-                logger.debug(f"URLInfo Validation Failed: error='{self.error_message}'")
-                # Use the resolved (but unnormalized) URL if validation fails
-                self._normalized_url = resolved_url_str
-                self._normalized_parsed = self._parsed # Keep the parsed version even if invalid
+                self.error_message = f"Invalid port: {self._parsed.port}"
+                self._normalized_url = resolved_url_str # Fallback before normalization
+                self._initialized = True
+                logger.debug(f"URLInfo Invalid Port: raw_url='{self._raw_url}', error='{self.error_message}'")
+                return # Exit initialization
 
-                logger.debug(f"URLInfo Fallback Normalized: norm_parsed='{self._normalized_parsed}', norm_url='{self._normalized_url}'")
-            # --- URL Type Determination ---
-            # Determine type based on the *normalized* URL if valid, otherwise use resolved
-            url_to_compare = self._normalized_url if self.is_valid and self._normalized_url else resolved_url_str
-            self.url_type = self._determine_url_type(url_to_compare, self.base_url)
+            logger.debug(f"URLInfo Parsed Resolved: parsed='{self._parsed}', original_trailing_slash={self._original_path_had_trailing_slash}")
+
+            # --- Validation ---
+            # Call the comprehensive validation function from validation module
+            # This handles scheme, netloc, path/query lengths, and security patterns
+            self.is_valid, self.error_message = validate_url(self._parsed)
+            logger.debug(f"URLInfo Validation Result: is_valid={self.is_valid}, error='{self.error_message}'")
+
+            if self.is_valid:
+                # --- Normalization ---
+                # Normalize the URL using the dedicated function from normalization module
+                self._normalized_url = normalize_url(resolved_url_str, had_trailing_slash=self._original_path_had_trailing_slash)
+                self._normalized_parsed = urlparse(self._normalized_url)
+                logger.debug(f"URLInfo Normalized: normalized_url='{self._normalized_url}'")
+
+                # --- Final Checks & Type Determination ---
+                # Determine URL type (internal/external) based on normalized URL and base URL
+                self.url_type = self._determine_url_type(self._normalized_url, self.base_url)
+                logger.debug(f"URLInfo Type Determined: url_type='{self.url_type}'")
+            else:
+                # If validation failed, set normalized URL to the resolved string before normalization attempt
+                self._normalized_url = resolved_url_str
+
+        except ValueError as e:
+            # Catch ValueErrors specifically (e.g., from port conversion, validation, normalization)
+            self.is_valid = False
+            self.error_message = f"ValueError: {str(e)}"
+            # Use resolved_url_str if available, else raw_url
+            self._normalized_url = resolved_url_str if 'resolved_url_str' in locals() else self._raw_url
+            logger.warning(f"URLInfo ValueError: raw_url='{self._raw_url}', error='{self.error_message}'")
 
         except Exception as e:
-            # Catch-all for unexpected errors during init
+            # Catch any other unexpected errors during processing
             self.is_valid = False
-            # Standardize error messages for test compatibility
-            if "port out of range" in str(e).lower():
-                self.error_message = "Invalid port"
-            else:
-                self.error_message = f"Initialization failed: {type(e).__name__}: {str(e)}"
-            # Ensure normalized_url has a fallback value
-            self._normalized_url = self._raw_url
-            logger.error(f"URLInfo Unexpected Initialization Error: {type(e).__name__}: {str(e)}", exc_info=True)
+            # Ensure error message is set even in unexpected cases
+            self.error_message = self.error_message or f"Unexpected error: {type(e).__name__}: {str(e)}"
+            # Use resolved_url_str if available, else raw_url
+            self._normalized_url = resolved_url_str if 'resolved_url_str' in locals() else self._raw_url
+            logger.error(f"URLInfo Unexpected Error: raw_url='{self._raw_url}', error='{self.error_message}'", exc_info=True)
 
-        # Final fallback if normalized_url is still None
-        if self._normalized_url is None:
-             self._normalized_url = self._raw_url
+        # Fallback normalized URL if validation failed or error occurred
+        # Ensure normalized_url is always a string, even if invalid
+        if not self.is_valid:
+            # If normalization didn't happen or failed, ensure normalized_url has a fallback
+            if self._normalized_url is None:
+                self._normalized_url = self._raw_url or ""
+            # Ensure normalized_parsed is None if invalid
+            self._normalized_parsed = None
 
         self._initialized = True
-        logger.debug(f"URLInfo Final State: normalized_url='{self.normalized_url}', is_valid={self.is_valid}, error='{self.error_message}'")
+        logger.debug(f"URLInfo Init Complete: raw_url='{self._raw_url}', is_valid={self.is_valid}, norm_url='{self._normalized_url}', error='{self.error_message}'")
 
     def _resolve_url(self, url: str, base_url: Optional[str]) -> Optional[str]:
-        """Handles relative URL resolution and basic scheme checks."""
+        """Resolves a potentially relative URL against a base URL."""
         if not isinstance(url, str) or not url:
-            self.error_message = "URL must be a non-empty string"
+            self.error_message = "URL must be a non-empty string for resolution"
             return None
 
         temp_raw_url = url.strip()
+        base_for_join = base_url
 
-        # Only block obviously dangerous schemes
+        # Early check for disallowed schemes like javascript: or data:
         if ':' in temp_raw_url:
             raw_scheme = temp_raw_url.split(':', 1)[0].lower()
-            if raw_scheme in ['javascript', 'data', 'vbscript']: # Only block the most dangerous schemes
-                 self.error_message = "Invalid scheme"
-                 return None
+            if raw_scheme in ['javascript', 'data']:
+                self.error_message = f"Disallowed scheme: {raw_scheme}"
+                return None # Fail early
 
         # Handle protocol-relative URLs (e.g., //example.com)
         if temp_raw_url.startswith('//'):
-            base_scheme = 'http' # Default scheme
-            if base_url:
-                parsed_base_scheme = urlparse(base_url).scheme
+            base_scheme = 'http' # Default to http
+            if base_for_join:
+                parsed_base_scheme = urlparse(base_for_join).scheme
                 if parsed_base_scheme:
                     base_scheme = parsed_base_scheme
             temp_raw_url = f"{base_scheme}:{temp_raw_url}"
 
-        # Resolve relative URLs using urljoin
-        if base_url:
-            try:
-                # Ensure base URL has a scheme for urljoin to work correctly
-                parsed_base = urlparse(base_url)
-                if not parsed_base.scheme:
-                    # Add default scheme if base is missing one (e.g., "www.example.com/path")
-                    base_url_with_scheme = "http://" + base_url
-                    logger.debug(f"Added default scheme to base URL: {base_url_with_scheme}")
-                else:
-                    base_url_with_scheme = base_url
+        # Add default scheme (http) if missing and looks like a host/path
+        elif not urlparse(temp_raw_url).scheme and not base_for_join:
+            # Avoid adding scheme to absolute file paths or Windows paths
+            if not temp_raw_url.startswith('/') and not re.match(r'^[a-zA-Z]:[\\/]', temp_raw_url):
+                # Check if it looks like a domain (contains '.') or 'localhost'
+                potential_host = temp_raw_url.split('/')[0].split('?')[0].split(':')[0]
+                if '.' in potential_host or potential_host.lower() == 'localhost':
+                    temp_raw_url = "http://" + temp_raw_url
 
-                # urljoin handles path resolution logic
-                resolved_url = urljoin(base_url_with_scheme, temp_raw_url)
-                return resolved_url
+        # Resolve relative URLs using urljoin
+        resolved_url = temp_raw_url
+        if base_for_join:
+            try:
+                # Ensure base URL has a scheme for urljoin
+                parsed_base = urlparse(base_for_join)
+                if not parsed_base.scheme:
+                    base_for_join = "http://" + base_for_join
+
+                # urljoin handles relative path resolution
+                resolved_url = urljoin(base_for_join, temp_raw_url)
             except ValueError as e:
                 self.error_message = f"URL resolution failed: {e}"
-                logger.warning(f"urljoin failed for base='{base_url}', relative='{temp_raw_url}': {e}")
-                return None # Indicate resolution failure
-        else:
-             # If no base_url, return the (potentially scheme-adjusted) url
-             # Add default http scheme if missing and looks like a domain
-             parsed_no_base = urlparse(temp_raw_url)
-             if not parsed_no_base.scheme and parsed_no_base.netloc:
-                 return "http://" + temp_raw_url
-             return temp_raw_url
+                return None
 
+        # Remove fragment identifier (#...) as it's not part of the canonical URL
+        resolved_url_no_frag = resolved_url.split('#', 1)[0]
 
-    @staticmethod
-    def _determine_url_type(url_str: Optional[str], base_url_str: Optional[str]) -> URLType:
-        """Determines whether URL is internal or external relative to base_url."""
-        if not url_str or not base_url_str:
+        # Userinfo (user:pass@) is handled during validation, not removed here.
+
+        # Return the URL string without the fragment.
+        return resolved_url_no_frag
+    # If further error handling is needed here, it should be added explicitly.
+
+        # The following lines were part of a removed try/except block and are now deleted.
+        # # This parsing should ideally not fail if urljoin succeeded, but handle defensively
+        # self.error_message = f"Post-resolution parsing failed: {e}"
+        # return None
+
+        # Return the URL string without the fragment.
+        return resolved_url_no_frag
+
+    def _determine_url_type(self, normalized_url: Optional[str], base_url: Optional[str]) -> URLType:
+        """Determines if the URL is internal or external relative to the base URL."""
+        if not self.is_valid or not normalized_url:
             return URLType.UNKNOWN
+
+        if not base_url:
+            return URLType.EXTERNAL # No base URL means everything is external
+
         try:
-            url_p = urlparse(url_str)
-            base_p = urlparse(base_url_str)
+            base_info = URLInfo(base_url) # Parse the base URL
+            if not base_info.is_valid:
+                logger.warning(f"Base URL '{base_url}' is invalid, cannot determine URL type.")
+                return URLType.UNKNOWN
 
-            # Handle special cases like empty paths or root paths
-            if not url_p.netloc and not url_p.scheme:
-                # Relative URL without netloc is always internal
-                return URLType.INTERNAL
-                
-            # Normalize hostnames by removing www prefix for comparison
-            def normalize_hostname(hostname):
-                if not hostname:
-                    return ""
-                return hostname.lower().lstrip("www.")
-                
-            # Normalize netloc to handle default ports
-            def normalize_netloc(parsed):
-                hostname = parsed.hostname or ""
-                port = parsed.port
-                
-                # Remove default ports for comparison
-                if port:
-                    if (parsed.scheme == "http" and port == 80) or (parsed.scheme == "https" and port == 443):
-                        return hostname.lower()
-                return (parsed.netloc or "").lower()
-            
-            # Compare normalized hostnames (ignoring www prefix)
-            url_host = normalize_hostname(url_p.hostname)
-            base_host = normalize_hostname(base_p.hostname)
-            
-            if url_host == base_host:
-                # If schemes are specified, they should match too
-                if url_p.scheme and base_p.scheme:
-                    return URLType.INTERNAL if url_p.scheme.lower() == base_p.scheme.lower() else URLType.EXTERNAL
-                # If one scheme is missing but hosts match, consider internal
-                return URLType.INTERNAL
-            else:
-                # Consider it external if hosts differ
+            # Compare schemes first
+            if self.scheme != base_info.scheme:
+                logger.debug(f"Type determined EXTERNAL (scheme mismatch: {self.scheme} vs {base_info.scheme})")
                 return URLType.EXTERNAL
+
+            # Then compare registered domains (e.g., example.com)
+            # Use properties that rely on tldextract if available
+            if self.registered_domain and base_info.registered_domain:
+                if self.registered_domain == base_info.registered_domain:
+                    logger.debug(f"Type determined INTERNAL (registered domain match: {self.registered_domain})")
+                    return URLType.INTERNAL
+                else:
+                    logger.debug(f"Type determined EXTERNAL (registered domain mismatch: {self.registered_domain} vs {base_info.registered_domain})")
+                    return URLType.EXTERNAL
+            else:
+                # Fallback: Compare hostnames if tldextract failed or wasn't available
+                # This might incorrectly classify subdomains as external
+                logger.debug("Comparing hostnames as fallback for URL type determination.")
+                if self.hostname == base_info.hostname:
+                    logger.debug(f"Type determined INTERNAL (hostname fallback match: {self.hostname})")
+                    return URLType.INTERNAL
+                else:
+                    logger.debug(f"Type determined EXTERNAL (hostname fallback mismatch: {self.hostname} vs {base_info.hostname})")
+                    return URLType.EXTERNAL
         except Exception as e:
-            logger.warning(f"URL type determination failed for url='{url_str}', base='{base_url_str}': {e}")
+            logger.error(f"Error determining URL type for '{normalized_url}' against base '{base_url}': {e}", exc_info=True)
             return URLType.UNKNOWN
 
-    # --- Properties ---
+    # --- Properties --- #
+
     @property
     def raw_url(self) -> str:
-        """The original URL string passed during initialization."""
+        """The original, unmodified URL string."""
         return self._raw_url
 
-    @property
+    @functools.cached_property
     def normalized_url(self) -> str:
-        """The normalized URL string. Returns the raw URL if validation or normalization failed."""
-        # Ensure a string is always returned, defaulting to raw_url if normalization failed
-        return self._normalized_url if self._normalized_url is not None else self._raw_url
-        
-    def _normalize_url_relaxed(self, parsed: ParseResult, had_trailing_slash: bool = False) -> Tuple[ParseResult, str]:
-        """
-        Relaxed URL normalization that:
-        1. Lowercases scheme and hostname
-        2. Removes default ports (80 for http, 443 for https)
-        3. Preserves auth info
-        4. Only adds trailing slash if original had it
-        5. Preserves path segments (including directory traversal)
-        """
-        # Normalize scheme to lowercase
-        scheme = parsed.scheme.lower()
-        
-        # Parse netloc components
-        username = parsed.username or ""
-        password = parsed.password or ""
-        hostname = parsed.hostname or ""
-        port = parsed.port
-        
-        # Normalize hostname to lowercase
-        hostname = hostname.lower()
-        
-        # Rebuild netloc, removing default ports
-        if port is not None:
-            if (scheme == "http" and port == 80) or (scheme == "https" and port == 443):
-                # Skip adding port for default values
-                port_str = ""
-            else:
-                port_str = f":{port}"
-        else:
-            port_str = ""
-            
-        # Rebuild netloc with auth info if present
-        if username:
-            if password:
-                auth = f"{username}:{password}@"
-            else:
-                auth = f"{username}@"
-        else:
-            auth = ""
-            
-        netloc = f"{auth}{hostname}{port_str}"
-        
-        # Handle path - preserve original path structure
-        path = parsed.path
-        
-        # Only add trailing slash if original had it
-        if had_trailing_slash and not path.endswith('/'):
-            path = path + '/'
-        # For empty paths, don't force a trailing slash
-        if path in ["", "/"]:
-            path = "" if not had_trailing_slash else "/"
-            
-        # Create new parsed result with normalized components
-        norm_parsed = ParseResult(
-            scheme=scheme,
-            netloc=netloc,
-            path=path,
-            params=parsed.params,
-            query=parsed.query,
-            fragment=""  # Fragments are handled separately
-        )
-        
-        # Convert back to string
-        norm_url_str = urlunparse(norm_parsed)
-        
-        return norm_parsed, norm_url_str
+        """The normalized URL string."""
+        if not self._initialized:
+            raise RuntimeError("URLInfo not fully initialized.")
+        # Ensure a string is always returned, even if invalid
+        return self._normalized_url if self._normalized_url is not None else self._raw_url or ""
 
-    @property
-    def scheme(self) -> str:
-        """The URL scheme (e.g., 'http', 'https') from the normalized URL."""
-        # Use normalized_parsed if available and valid, otherwise fallback gracefully
-        p = self._normalized_parsed if self.is_valid and self._normalized_parsed else self._parsed
-        return p.scheme.lower() if p and p.scheme else ""
+    @functools.cached_property
+    def scheme(self) -> Optional[str]:
+        """The URL scheme (e.g., 'http', 'https')."""
+        p = self._normalized_parsed if self.is_valid else self._parsed
+        return p.scheme if p else None
 
     @functools.cached_property
     def netloc(self) -> Optional[str]:
-        """The network location part (e.g., 'www.example.com:8080') from the normalized URL."""
-        # Use normalized_parsed for consistency if valid
-        # Return None for invalid URLs to match test expectations
-        if not self.is_valid:
-            return None
-        return self._normalized_parsed.netloc if self._normalized_parsed else (self._parsed.netloc if self._parsed else "")
+        """The network location (e.g., 'www.example.com:80')."""
+        p = self._normalized_parsed if self.is_valid else self._parsed
+        return p.netloc if p else None
 
     @functools.cached_property
-    def path(self) -> str:
-        """The path component (e.g., '/path/to/resource') from the normalized URL."""
-        return self._normalized_parsed.path if self.is_valid and self._normalized_parsed else (self._parsed.path if self._parsed else "")
+    def hostname(self) -> Optional[str]:
+        """The hostname (e.g., 'www.example.com'). Lowercased."""
+        p = self._normalized_parsed if self.is_valid else self._parsed
+        return p.hostname.lower() if p and p.hostname else None
 
     @functools.cached_property
-    def query(self) -> str:
-        """The query string (e.g., 'a=1&b=2') from the normalized URL."""
-        return self._normalized_parsed.query if self.is_valid and self._normalized_parsed else (self._parsed.query if self._parsed else "")
-
-    @property
     def port(self) -> Optional[int]:
-        """The port number specified in the *original* parsed URL, or None."""
-        # Port comes from the original parsing before normalization might remove default ports
-        return self._parsed.port if self._parsed else None
+        """The port number."""
+        p = self._normalized_parsed if self.is_valid else self._parsed
+        return p.port if p else None
+
+    @functools.cached_property
+    def path(self) -> Optional[str]:
+        """The URL path (e.g., '/path/to/resource')."""
+        p = self._normalized_parsed if self.is_valid else self._parsed
+        return p.path if p else None
+
+    @functools.cached_property
+    def query(self) -> Optional[str]:
+        """The query string (e.g., 'a=1&b=2')."""
+        p = self._normalized_parsed if self.is_valid else self._parsed
+        return p.query if p else None
 
     @functools.cached_property
     def query_params(self) -> Dict[str, List[str]]:
-        """Parsed query parameters from the normalized URL as a dictionary of lists."""
-        if not self.is_valid or not self._normalized_parsed or not self._normalized_parsed.query:
-            return {}
-        try:
-            # Use parse_qsl on the normalized query string
-            result: Dict[str, List[str]] = {}
-            for key, value in parse_qsl(self._normalized_parsed.query, keep_blank_values=True):
-                if key in result:
-                    result[key].append(value)
-                else:
-                    result[key] = [value]
-            return result
-        except Exception as e:
-             logger.warning(f"Failed to parse query params from '{self._normalized_parsed.query}': {e}")
-             return {}
-
-    @property
-    def username(self) -> str:
-        """The username component from the *original* parsed URL, if present."""
-        # Username/password should be extracted before normalization might remove them
-        return self._parsed.username if self._parsed else ""
-
-    @property
-    def password(self) -> str:
-        """The password component from the *original* parsed URL, if present."""
-        return self._parsed.password if self._parsed else ""
-
-    @property
-    def fragment(self) -> str:
-        """The fragment (hash) component from the *raw* URL."""
-        # Fragment is stripped during parsing/normalization, get from raw
-        if '#' in self._raw_url:
-            return self._raw_url.split('#', 1)[1]
-        return ""
+        """The query parameters as a dictionary."""
+        params: Dict[str, List[str]] = {}
+        if self.query:
+            try:
+                parsed_q = parse_qsl(self.query, keep_blank_values=True)
+                for key, value in parsed_q:
+                    params.setdefault(key, []).append(value)
+            except Exception as e:
+                logger.warning(f"Failed to parse query string '{self.query}': {e}")
+        return params.copy() # Return a copy for immutability
 
     @functools.cached_property
-    def hostname(self) -> str:
-        """The hostname (e.g., 'www.example.com') from the normalized URL."""
-        # Use normalized_parsed for consistency if valid
-        return self._normalized_parsed.hostname if self.is_valid and self._normalized_parsed else (self._parsed.hostname if self._parsed else "")
-
-    # --- Domain Parsing with tldextract ---
-    @functools.cached_property
-    def domain_parts(self) -> Dict[str, str]:
-        """Extracts domain components using tldextract (if available)."""
-        default_parts = {
-            'subdomain': '', 'domain': '', 'suffix': '', 'registered_domain': '',
-        }
-        # Use hostname from normalized URL for tldextract
-        host = self.hostname
-        if not self.is_valid or not host:
-            return default_parts
-
-        if not TLDEXTRACT_AVAILABLE or tldextract is None:
-            logger.debug("tldextract not available, using basic domain splitting.")
-            parts = host.split('.')
-            if len(parts) < 2: # Cannot determine domain/suffix
-                 default_parts['domain'] = host
-                 default_parts['registered_domain'] = host
-                 return default_parts
-            # Basic split heuristic (may be incorrect for multi-level TLDs)
-            default_parts['suffix'] = parts[-1]
-            default_parts['domain'] = parts[-2]
-            default_parts['registered_domain'] = f"{parts[-2]}.{parts[-1]}"
-            if len(parts) > 2:
-                default_parts['subdomain'] = '.'.join(parts[:-2])
-            return default_parts
-
+    def fragment(self) -> Optional[str]:
+        """The fragment identifier (e.g., 'section'). Based on raw URL."""
+        # Fragment is removed during resolution/parsing, so get from raw URL
         try:
-            # Use tldextract on the normalized hostname
-            extract_result = tldextract.extract(host)
+            return urlparse(self._raw_url).fragment or None
+        except Exception:
+            return None
+
+    @functools.cached_property
+    def is_secure(self) -> bool:
+        """Checks if the URL uses a secure scheme (HTTPS or FTPS)."""
+        return self.scheme in ('https', 'ftps')
+
+    @functools.cached_property
+    def is_absolute(self) -> bool:
+        """Checks if the URL is absolute (has scheme and netloc)."""
+        # Consider file scheme as absolute even without netloc
+        return bool(self.scheme and (self.netloc or self.scheme == 'file'))
+
+    @functools.cached_property
+    def is_relative(self) -> bool:
+        """Checks if the URL is relative."""
+        return not self.is_absolute
+
+    @functools.cached_property
+    def is_ip_address(self) -> bool:
+        """Checks if the hostname is an IP address."""
+        if not self.hostname:
+            return False
+        try:
+            ipaddress.ip_address(self.hostname)
+            return True
+        except ValueError:
+            return False
+
+    # --- TLDextract Properties (with fallback) --- #
+
+    @functools.cached_property
+    def _tld_extract_result(self) -> Optional[Any]:
+        """Internal helper to cache tldextract result or fallback."""
+        if not self.hostname or self.is_ip_address or self.hostname == 'localhost':
+            return None # No TLD for IPs or localhost
+
+        if TLDEXTRACT_AVAILABLE and tldextract:
+            try:
+                # Use hostname which is already normalized (lowercase, IDNA)
+                return tldextract.extract(self.hostname)
+            except Exception as e:
+                logger.warning(f"tldextract failed for hostname '{self.hostname}': {e}")
+                return None
+        else:
+            # Basic fallback if tldextract is not available
+            parts = self.hostname.split('.')
+            if len(parts) < 2:
+                return None # Cannot determine TLD with less than 2 parts
+            # Simple assumption: last part is suffix, second-to-last is domain
+            # This is often wrong for multi-part TLDs (e.g., co.uk)
+            class FallbackExtract:
+                suffix = parts[-1]
+                domain = parts[-2]
+                # Ensure subdomain is None if no parts exist before domain/suffix
+                subdomain = '.'.join(parts[:-2]) if len(parts) > 2 else None
+                registered_domain = f"{domain}.{suffix}"
+            return FallbackExtract()
+
+    @functools.cached_property
+    def domain_parts(self) -> Dict[str, Optional[str]]:
+        """Returns a dictionary of domain components (subdomain, domain, suffix, registered_domain)."""
+        # Prioritize checking for IP/localhost before using tldextract result
+        if self.is_ip_address or self.hostname == 'localhost':
+            # Handle IPs and localhost explicitly
             return {
-                'subdomain': extract_result.subdomain,
-                'domain': extract_result.domain,
-                'suffix': extract_result.suffix,
-                'registered_domain': extract_result.registered_domain,
+                'subdomain': None, # Ensure subdomain is None
+                'domain': self.hostname, # Treat the IP/localhost as the 'domain'
+                'suffix': None,
+                'registered_domain': self.hostname,
             }
-        except Exception as e:
-            logger.warning(f"tldextract failed for hostname '{host}': {e}")
-            # Fallback to basic splitting on error
-            parts = host.split('.')
-            if len(parts) >= 2:
-                 default_parts['suffix'] = parts[-1]
-                 default_parts['domain'] = parts[-2]
-                 default_parts['registered_domain'] = f"{parts[-2]}.{parts[-1]}"
-                 if len(parts) > 2:
-                     default_parts['subdomain'] = '.'.join(parts[:-2])
-            else:
-                 default_parts['domain'] = host
-                 default_parts['registered_domain'] = host
-            return default_parts
+
+        extract = self._tld_extract_result
+        if extract:
+            # Use tldextract result, ensuring subdomain is None if empty string
+            sub = extract.subdomain
+            return {
+                'subdomain': sub if sub else None,
+                'domain': extract.domain or None,
+                'suffix': extract.suffix or None,
+                'registered_domain': extract.registered_domain or None,
+            }
+        else:
+            # Fallback if tldextract failed or hostname is unusual
+            return {
+                'subdomain': None,
+                'domain': self.hostname, # Fallback domain to hostname
+                'suffix': None,
+                'registered_domain': self.hostname, # Fallback registered_domain to hostname
+            }
 
     @functools.cached_property
-    def domain(self) -> str:
-        """The domain name part (e.g., 'example' in 'www.example.com')."""
-        return self.domain_parts['domain']
+    def subdomain(self) -> Optional[str]:
+        """The subdomain part (e.g., 'www')."""
+        return self.domain_parts.get('subdomain')
 
     @functools.cached_property
-    def registered_domain(self) -> str:
-        """The registered domain (domain + suffix, e.g., 'example.com')."""
-        return self.domain_parts['registered_domain']
+    def domain(self) -> Optional[str]:
+        """The domain part (e.g., 'example' from 'www.example.com', or '[::1]' for IPv6)."""
+        # Special handling for IP addresses where tldextract might return the full IP as domain
+        parsed = self._normalized_parsed or self._parsed
+        if parsed and parsed.hostname:
+            try:
+                # Check if hostname is an IP address
+                ipaddress.ip_address(parsed.hostname)
+                # For IPs, return the full hostname (including brackets for IPv6)
+                return parsed.hostname
+            except ValueError:
+                # Not an IP address, rely on tldextract
+                pass
+        # Fallback to tldextract result if not an IP
+        return self.domain_parts.get('domain')
 
     @functools.cached_property
-    def subdomain(self) -> str:
-        """The subdomain part (e.g., 'www' in 'www.example.com')."""
-        return self.domain_parts['subdomain']
+    def suffix(self) -> Optional[str]:
+        """The top-level domain (TLD) or suffix (e.g., 'com', 'co.uk')."""
+        return self.domain_parts.get('suffix')
 
     @functools.cached_property
-    def suffix(self) -> str:
-        """The public suffix/TLD (e.g., 'com', 'co.uk')."""
-        return self.domain_parts['suffix']
-
-    # Alias for backward compatibility or common usage
-    @property
-    def tld(self) -> str:
+    def tld(self) -> Optional[str]:
         """Alias for suffix."""
         return self.suffix
 
-    # Alias for backward compatibility or common usage
-    @property
-    def root_domain(self) -> str:
+    @functools.cached_property
+    def registered_domain(self) -> Optional[str]:
+        """The registered domain (e.g., 'example.com', 'example.co.uk')."""
+        return self.domain_parts.get('registered_domain')
+
+    @functools.cached_property
+    def root_domain(self) -> Optional[str]:
         """Alias for registered_domain."""
         return self.registered_domain
 
-    # --- Dunder Methods ---
-    def __eq__(self, other: Any) -> bool:
-        """Compares based on the normalized URL string."""
-        if not isinstance(other, URLInfo):
-            return NotImplemented # Use NotImplemented for type mismatches
-        # If both URLs are valid, compare normalized forms
-        if self.is_valid and other.is_valid:
-            return self.normalized_url == other.normalized_url
-        # If both URLs are invalid, compare raw URLs
-        if not self.is_valid and not other.is_valid:
-            return self.raw_url == other.raw_url
-        # If one is valid and one is invalid, they're not equal
-        return False
+    # --- Methods --- #
 
-    def __hash__(self) -> int:
-        """Generates hash based on the normalized URL string if valid, raw URL if invalid."""
-        if self.is_valid:
-            return hash(self.normalized_url)
-        return hash(self.raw_url)
+    def join(self, relative_url: str) -> 'URLInfo':
+        """Joins a relative URL with the current URL (if valid)."""
+        if not self.is_valid:
+            raise ValueError("Cannot join with an invalid base URL")
+        # Use the normalized URL as the base for joining
+        return URLInfo(relative_url, base_url=self.normalized_url)
+
+    def replace(self, **kwargs: Any) -> 'URLInfo':
+        """Creates a new URLInfo object with specified components replaced."""
+        if not self.is_valid or not self._normalized_parsed:
+            raise ValueError("Cannot replace components on an invalid or unparsed URL")
+
+        # Use the normalized parsed result as the base
+        new_parsed = self._normalized_parsed._replace(**kwargs)
+        new_url_str = urlunparse(new_parsed)
+
+        # Create a new URLInfo instance from the modified string
+        # Pass the original base_url if it existed
+        return URLInfo(new_url_str, base_url=self.base_url)
+
+    # --- Dunder Methods --- #
 
     def __str__(self) -> str:
         """Returns the normalized URL string."""
@@ -552,40 +484,136 @@ class URLInfo:
 
     def __repr__(self) -> str:
         """Returns a developer-friendly representation."""
-        status = "valid" if self.is_valid else f"invalid ({self.error_message})"
-        return f"URLInfo(raw='{self.raw_url}', normalized='{self.normalized_url}', status='{status}')"
+        status = 'valid' if self.is_valid else f'invalid ({self.error_message})'
+        return f"URLInfo(raw='{self._raw_url}', normalized='{self.normalized_url}', status='{status}')"
 
-    def __setattr__(self, name, value):
-        """Prevents attribute modification after initialization."""
-        if getattr(self, "_initialized", False) and name != "_initialized":
-            # Allow modification only if _initialized is not set or is False
-             raise AttributeError(f"Cannot modify immutable URLInfo attribute '{name}' after initialization")
-        super().__setattr__(name, value)
+    def __eq__(self, other: object) -> bool:
+        """Checks equality based on the normalized URL string."""
+        if isinstance(other, URLInfo):
+            # If both are valid, compare normalized URLs
+            if self.is_valid and other.is_valid:
+                return self.normalized_url == other.normalized_url
+            # If both are invalid, compare raw URLs for potential equality check on input
+            elif not self.is_valid and not other.is_valid:
+                # Note: Comparing raw URLs for invalid instances might have limited use cases,
+                # but allows distinguishing between different invalid inputs.
+                return self._raw_url == other._raw_url
+            # If one is valid and the other is invalid, they are not equal
+            else:
+                return False
+        elif isinstance(other, str):
+            # Compare normalized URL with the string
+            return self.is_valid and self.normalized_url == other
+        return NotImplemented
 
-    # --- Potential Future Methods (Example) ---
-    # def with_scheme(self, new_scheme: str) -> 'URLInfo':
-    #     """Returns a new URLInfo instance with the scheme changed."""
-    #     if not self.is_valid or not self._normalized_parsed:
-    #         logger.warning("Cannot modify scheme of an invalid URLInfo object.")
-    #         return self # Return self for immutability on failure
-    #     try:
-    #         new_parts = self._normalized_parsed._replace(scheme=new_scheme)
-    #         new_url_str = new_parts.geturl() # Reconstruct URL string
-    #         # Create a new instance from the modified string
-    #         return URLInfo(new_url_str, base_url=self.base_url)
-    #     except Exception as e:
-    #         logger.error(f"Failed to change scheme to '{new_scheme}': {e}")
-    #         return self # Return self on error
+    def __hash__(self) -> int:
+        """Computes hash based on the normalized URL for valid URLs, or raw URL for invalid ones."""
+        # Hash should be consistent with __eq__ logic
+        if self.is_valid:
+            return hash(self.normalized_url)
+        else:
+            # Use raw URL for hashing invalid instances to match __eq__ logic
+            return hash(self._raw_url)
 
-    # def join(self, relative_path: str) -> 'URLInfo':
-    #      """Joins the current URL with a relative path."""
-    #      if not self.is_valid:
-    #          logger.warning("Cannot join path to an invalid URLInfo object.")
-    #          return self
-    #      try:
-    #          # Use urljoin with the *normalized* URL as the base
-    #          joined_url_str = urljoin(self.normalized_url, relative_path)
-    #          return URLInfo(joined_url_str) # Base is implicitly handled by urljoin
-    #      except Exception as e:
-    #          logger.error(f"Failed to join path '{relative_path}': {e}")
-    #          return self
+    def __bool__(self) -> bool:
+        """Returns True if the URL is valid, False otherwise."""
+        return self.is_valid
+
+    def __getstate__(self) -> Dict[str, Any]:
+        """Prepare the object for pickling. Exclude cached properties."""
+        state = {slot: getattr(self, slot) for slot in self.__slots__ if hasattr(self, slot) and slot != '__dict__'} # Exclude __dict__ explicitly
+        # Add __dict__ back if it exists and contains cached_property data
+        if hasattr(self, '__dict__') and self.__dict__:
+            state['__dict__'] = self.__dict__.copy() # Copy to avoid modifying original
+        return state
+
+    def __setstate__(self, state: Dict[str, Any]) -> None:
+        """Restore the object state from pickling."""
+        # Restore __dict__ first if present
+        if '__dict__' in state:
+            self.__dict__.update(state['__dict__'])
+            del state['__dict__']
+        # Restore slotted attributes
+        for slot, value in state.items():
+            setattr(self, slot, value)
+        # Ensure _initialized is set, default to False if missing in state
+        if not hasattr(self, '_initialized'):
+            self._initialized = False
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """Prevent modification of attributes after initialization."""
+        # Allow setting attributes during __init__ (before _initialized is True)
+        # Also allow modification of __dict__ for functools.cached_property
+        if name == '__dict__' or not getattr(self, '_initialized', False):
+            super().__setattr__(name, value)
+        else:
+            raise AttributeError(f"Cannot set attribute '{name}' on immutable URLInfo object")
+
+# Example Usage (can be removed or kept for demonstration)
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+
+    urls_to_test = [
+        "http://example.com",
+        "https://www.Example.co.uk:443/path/./../to/resource?a=1&b=2#section",
+        "//google.com/",
+        "page.html",
+        "../images/logo.png",
+        "javascript:alert('XSS')",
+        "http://192.168.1.1/admin",
+        "http://example.com/path%00null",
+        "http://user:pass@example.com/",
+        "http://xn--mnchen-3ya.de/", # IDN
+        "http://localhost:8080/test",
+        "file:///etc/passwd",
+        "http://[::1]/", # IPv6 Loopback
+        "",
+        None,
+    ]
+
+    base = "https://example.com/docs/current/"
+
+    for url_str in urls_to_test:
+        print(f"--- Testing URL: {url_str} (Base: {base if url_str and not urlparse(url_str).scheme else 'None'}) ---")
+        try:
+            info = URLInfo(url_str, base_url=base if url_str and not urlparse(str(url_str)).scheme else None)
+            print(f"  Raw:        {info.raw_url}")
+            print(f"  Normalized: {info.normalized_url}")
+            print(f"  Is Valid:   {info.is_valid}")
+            if not info.is_valid:
+                print(f"  Error:      {info.error_message}")
+            else:
+                print(f"  Scheme:     {info.scheme}")
+                print(f"  Hostname:   {info.hostname}")
+                print(f"  Port:       {info.port}")
+                print(f"  Path:       {info.path}")
+                print(f"  Query:      {info.query}")
+                print(f"  Fragment:   {info.fragment}")
+                print(f"  Type:       {info.url_type}")
+                print(f"  Reg Domain: {info.registered_domain}")
+                print(f"  DomainParts:{info.domain_parts}")
+                print(f"  Is Secure:  {info.is_secure}")
+                print(f"  Is Absolute:{info.is_absolute}")
+                print(f"  Is IP Addr: {info.is_ip_address}")
+
+            # Test join
+            if info.is_valid:
+                try:
+                    joined_info = info.join("new_page.html?q=test")
+                    print(f"  Joined URL: {joined_info.normalized_url}")
+                except ValueError as e:
+                    print(f"  Join failed: {e}")
+
+            # Test replace
+            if info.is_valid:
+                try:
+                    replaced_info = info.replace(scheme='ftp', port=2121)
+                    print(f"  Replaced:   {replaced_info.normalized_url}")
+                except ValueError as e:
+                    print(f"  Replace failed: {e}")
+                except Exception as e:
+                     print(f"  Replace unexpected error: {e}")
+
+        except Exception as e:
+            print(f"  *** UNEXPECTED ERROR during URLInfo creation: {e} ***")
+        print("-" * 20)
