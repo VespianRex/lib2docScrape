@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/content/structure_handler.py
+# hypothesis_version: 6.131.20
+
+[' |', ' | ', '#', '#fn', '---', 'CodeHandler', 'a', 'abbr', 'article', 'aside', 'b', 'br', 'class', 'classes', 'code', 'colspan', 'content', 'dd', 'div', 'dl', 'dt', 'em', 'figure', 'fnref', 'footer', 'footnotes', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'headers', 'heading', 'href', 'html.parser', 'i', 'id', 'iframe', 'inline_code', 'language', 'language-', 'level', 'li', 'linebreak', 'link_inline', 'list', 'main', 'nav', 'ol', 'p', 'pre', 'rows', 's', 'section', 'src', 'strong', 'sub', 'sup', 'table', 'tag', 'td', 'text', 'text_inline', 'th', 'title', 'tr', 'type', 'u', 'ul', '| ']

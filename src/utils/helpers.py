@@ -15,7 +15,9 @@ from pydantic import BaseModel, Field, validator
 import ipaddress
 
 # Import the new modular implementation
-from src.utils.url import URLInfo, URLType, URLSecurityConfig
+from src.utils.url.info import URLInfo, URLType # Corrected import path
+from src.utils.url.factory import create_url_info # Added import for factory
+from src.utils.url.security import URLSecurityConfig # Import from correct location
 
 
 # Note: The URLInfo BaseModel and URLType Enum are now defined in url_info.py
@@ -34,14 +36,14 @@ class URLProcessor:
     @staticmethod
     def normalize_url(url: str, base_url: Optional[str] = None) -> str:
         """Normalize URL to canonical form."""
-        logging.warning("URLProcessor.normalize_url is deprecated. Use URLInfo instead.")
-        url_info = URLInfo(url, base_url)
+        logging.warning("URLProcessor.normalize_url is deprecated. Use create_url_info instead.")
+        url_info = create_url_info(url, base_url)
         return url_info.normalized_url if url_info.is_valid else url
     
     @classmethod
     def _determine_url_type(cls, url: str, base_url: Optional[str] = None) -> URLType:
         """Determine URL type (internal, external, asset, unknown)."""
-        url_info = URLInfo(url, base_url)
+        url_info = create_url_info(url, base_url)
         return url_info.url_type
     
     @classmethod
@@ -52,36 +54,58 @@ class URLProcessor:
         """
         # Return the new URLInfo implementation.
         # It now uses the shared security config from src.utils.url.security
-        return URLInfo(url, base_url)
+        return create_url_info(url, base_url)
 
 
 class RateLimiter:
     """Rate limiter using token bucket algorithm."""
     def __init__(self, requests_per_second: float):
         self.rate = requests_per_second
-        self.last_check = asyncio.get_event_loop().time() # Use event loop time
+        self.last_check = time.time() # Use time.time for consistency
         self.tokens = requests_per_second
         self.max_tokens = requests_per_second
         self._lock = asyncio.Lock() # Use asyncio.Lock
+        # Add a logger instance for more control if needed, or use the root logger
+        self.logger = logging.getLogger(f"{__name__}.RateLimiter")
+
 
     async def acquire(self) -> float: # Make method async
         """Acquire a token, returning the time to wait if necessary."""
+        self.logger.debug(f"Attempting to acquire token. Current tokens (approx): {self.tokens:.4f}")
         async with self._lock: # Use async with
-            now = asyncio.get_event_loop().time() # Use event loop time
+            now = time.time() # Use time.time for consistency
             time_passed = now - self.last_check
-            logging.debug(f"RateLimiter: now={now}, last_check={self.last_check}, time_passed={time_passed}")
-            self.tokens = min(self.max_tokens, self.tokens + time_passed * self.rate)
-            logging.debug(f"RateLimiter: tokens replenished to {self.tokens}")
-            self.last_check = now
+            self.last_check = now # Update last_check immediately
 
-            if self.tokens < 1:
-                wait_time = (1 - self.tokens) / self.rate
-                logging.debug(f"RateLimiter: tokens < 1 ({self.tokens}), need to wait {wait_time}s")
+            current_tokens_before_replenish = self.tokens
+            self.tokens += time_passed * self.rate
+            if self.tokens > self.max_tokens:
+                self.tokens = self.max_tokens
+            
+            self.logger.debug(
+                f"Inside lock: now={now:.4f}, time_passed={time_passed:.4f}, "
+                f"tokens_before_rep={current_tokens_before_replenish:.4f}, rate={self.rate}, "
+                f"tokens_after_rep={self.tokens:.4f}"
+            )
+
+            if self.tokens < 1.0: # Use 1.0 for clarity with float comparison
+                wait_time = (1.0 - self.tokens) / self.rate
+                # It's possible tokens became slightly positive after replenishment but still < 1
+                # and wait_time could be negative if tokens > 1 due to precision.
+                # Ensure wait_time is non-negative.
+                wait_time = max(0, wait_time)
+                self.logger.debug(
+                    f"Not enough tokens ({self.tokens:.4f} < 1.0). "
+                    f"Calculated wait_time={wait_time:.4f}s. Returning wait_time."
+                )
                 return wait_time
-
-            self.tokens -= 1
-            logging.debug(f"RateLimiter: acquired token, tokens remaining {self.tokens}")
-            return 0.0
+            else:
+                self.tokens -= 1.0
+                self.logger.debug(
+                    f"Token acquired. Tokens remaining: {self.tokens:.4f}. "
+                    f"Returning 0.0 wait time."
+                )
+                return 0.0
 
 
 class RetryStrategy:
@@ -229,16 +253,16 @@ def sanitize_and_join_url(url, base_url=None):
         return url
 
     try:
-        # Use the new URLInfo implementation
-        url_info = URLInfo(url, base_url)
-        
-        # If URL is invalid or has security issues, return a safe alternative
-        # Check only is_valid, as is_safe is not a property anymore
+        # Use the new URLInfo implementation via the factory
+        url_info = create_url_info(url, base_url)
+
+        # If URL is invalid, return a safe alternative
         if not url_info.is_valid:
+            logging.debug(f"Sanitize failed for invalid URL: {url_info.raw_url} ({url_info.error_message})")
             return '#'
-            
+
         # Return the normalized and resolved URL
-        return url_info.normalized_url
+        return url_info.url # Use the .url property which includes fragment if present
     except Exception as e:
-        logging.debug(f"Error sanitizing URL: {e}")
+        logging.debug(f"Error sanitizing URL '{url}': {e}")
         return '#'  # Return safe URL on any error

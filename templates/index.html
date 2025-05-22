@@ -1,692 +1,104 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>lib2docScrape - Documentation Crawler</title>
-    <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/themes/prism.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/4.0.0/github-markdown.min.css" rel="stylesheet">
-    <style>
-        .loader {
-            border-top-color: #3498db;
-            animation: spinner 1.5s linear infinite;
-        }
-        @keyframes spinner {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .doc-content {
-            max-height: 80vh;
-            overflow-y: auto;
-            padding: 2rem;
-            background: white;
-            border-radius: 0.5rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        .doc-content pre {
-            background: #f6f8fa;
-            border-radius: 0.375rem;
-            padding: 1rem;
-            margin: 1rem 0;
-            overflow-x: auto;
-        }
-        .doc-content code {
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 0.875rem;
-            padding: 0.2em 0.4em;
-            background: #f6f8fa;
-            border-radius: 0.25rem;
-        }
-        .doc-content h1, .doc-content h2, .doc-content h3, .doc-content h4 {
-            margin-top: 1.5em;
-            margin-bottom: 1em;
-            font-weight: 600;
-            line-height: 1.25;
-        }
-        .doc-content table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 1rem 0;
-        }
-        .doc-content th, .doc-content td {
-            border: 1px solid #e5e7eb;
-            padding: 0.75rem;
-            text-align: left;
-        }
-        .doc-content th {
-            background: #f9fafb;
-        }
-        .package-card {
-            transition: all 0.3s ease;
-            animation: fadeIn 0.5s ease-in;
-        }
-        .package-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
-        .crawl-progress {
-            animation: pulse 2s infinite;
-        }
-        .tree-container {
-            max-height: 400px;
-            overflow: auto;
-            padding: 1rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.5rem;
-        }
-        .tree-node {
-            padding-left: 1.5rem;
-            position: relative;
-        }
-        .tree-node::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 50%;
-            width: 1rem;
-            height: 1px;
-            background: #cbd5e0;
-        }
-        .tree-node-content {
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.25rem;
-            margin: 0.25rem 0;
-        }
-        .tree-node-content:hover {
-            background: #f7fafc;
-        }
-        .doc-tabs {
-            display: flex;
-            border-bottom: 2px solid #e2e8f0;
-            margin-bottom: 1rem;
-        }
-        .doc-tab {
-            padding: 0.5rem 1rem;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            margin-bottom: -2px;
-        }
-        .doc-tab.active {
-            border-bottom-color: #3b82f6;
-            color: #3b82f6;
-        }
-        .progress-details {
-            background: #f8fafc;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-top: 1rem;
-        }
-        .current-tasks {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-        .task-badge {
-            background: #e2e8f0;
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.875rem;
-        }
-        .tree-container {
-            max-height: 600px;
-            overflow: auto;
-            padding: 2rem;
-            border: 1px solid #e2e8f0;
-            border-radius: 0.5rem;
-            background: #fafafa;
-        }
-        .tree-node {
-            padding-left: 2rem;
-            position: relative;
-            margin: 0.5rem 0;
-            transition: all 0.3s ease;
-        }
-        .tree-node::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 50%;
-            width: 2rem;
-            height: 2px;
-            background: #3b82f6;
-            transform-origin: left;
-            animation: growLine 0.5s ease forwards;
-        }
-        .node-content {
-            display: inline-flex;
-            align-items: center;
-            padding: 0.5rem 1rem;
-            background: white;
-            border: 2px solid #3b82f6;
-            border-radius: 1rem;
-            font-size: 0.9rem;
-            position: relative;
-            opacity: 0;
-            transform: translateX(-10px);
-            animation: fadeInNode 0.5s ease forwards;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        .node-content:hover {
-            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
-            transform: translateY(-2px);
-        }
-        .node-content.loading::after {
-            content: '';
-            position: absolute;
-            right: -1.5rem;
-            top: 50%;
-            width: 0.5rem;
-            height: 0.5rem;
-            background: #3b82f6;
-            border-radius: 50%;
-            transform: translateY(-50%);
-            animation: pulse 1s infinite;
-        }
-        .node-content.error {
-            border-color: #ef4444;
-            color: #ef4444;
-        }
-        .node-content.success {
-            border-color: #10b981;
-            color: #10b981;
-        }
-        .node-icon {
-            width: 1.2rem;
-            height: 1.2rem;
-            margin-right: 0.5rem;
-            opacity: 0.7;
-        }
-        @keyframes growLine {
-            from { transform: scaleX(0); }
-            to { transform: scaleX(1); }
-        }
-        @keyframes fadeInNode {
-            from { 
-                opacity: 0;
-                transform: translateX(-10px);
-            }
-            to { 
-                opacity: 1;
-                transform: translateX(0);
-            }
-        }
-        @keyframes pulse {
-            0% { transform: translateY(-50%) scale(1); opacity: 1; }
-            50% { transform: translateY(-50%) scale(1.5); opacity: 0.5; }
-            100% { transform: translateY(-50%) scale(1); opacity: 1; }
-        }
-        .crawler-path {
-            position: absolute;
-            width: 10px;
-            height: 10px;
-            background: #3b82f6;
-            border-radius: 50%;
-            pointer-events: none;
-            transition: all 0.3s ease;
-            z-index: 10;
-            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
-        }
-        .link-card {
-            background: white;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border: 1px solid #e5e7eb;
-            transition: all 0.2s;
-        }
-        .link-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .link-title {
-            font-weight: 600;
-            color: #1a56db;
-            margin-bottom: 0.5rem;
-        }
-        .link-url {
-            color: #6b7280;
-            font-size: 0.875rem;
-            word-break: break-all;
-        }
-        .doc-breadcrumb {
-            display: flex;
-            align-items: center;
-            padding: 0.5rem 0;
-            margin-bottom: 1rem;
-            font-size: 0.875rem;
-            color: #6b7280;
-        }
-        .doc-breadcrumb span {
-            margin: 0 0.5rem;
-        }
-    </style>
-</head>
-<body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8">
-        <!-- Header -->
-        <div class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">lib2docScrape</h1>
-            <p class="text-gray-600">Python Package Documentation Crawler</p>
-        </div>
+{% extends "base.html" %}
 
-        <!-- Input Form -->
-        <div class="bg-white rounded-lg shadow-md p-6 mb-8">
-            <div class="flex flex-col md:flex-row gap-4">
-                <textarea id="urlInput" placeholder="Enter package names or URLs (one per line)" 
-                       class="flex-1 p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                       style="min-height: 100px; white-space: pre; overflow-wrap: normal; overflow-x: scroll;"></textarea>
-                <div class="flex flex-col justify-center">
-                    <button id="crawlButton" class="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition-colors">
-                        Start Crawling
-                    </button>
-                    <div id="connectionStatus" class="text-sm text-gray-500 mt-2 text-center">Disconnected</div>
-                </div>
-            </div>
-        </div>
+{% block title %}Home - Lib2DocScrape{% endblock %}
 
-        <!-- Progress Container -->
-        <div id="progressContainer" class="hidden bg-white rounded-lg shadow-md p-6 mb-8">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-xl font-semibold">Crawling Progress</h2>
-                <div class="text-sm text-gray-600">
-                    Pages: <span id="pageCount">0</span> | 
-                    Time: <span id="elapsedTime">0:00</span>
-                </div>
-            </div>
-            <div class="progress-details">
-                <h3 class="text-lg font-medium mb-2">Current Activity</h3>
-                <div class="current-tasks" id="currentTasks">
-                    <!-- Task badges will be added here -->
-                </div>
-            </div>
-            <div class="tree-container mt-4">
-                <div id="crawlTree">
-                    <!-- Tree visualization will be added here -->
-                </div>
-            </div>
-            <div class="progress-bar" style="width: 0%" id="progressBar"></div>
-            <div id="progressText">0%</div>
-        </div>
+{% block extra_css %}
+<style>
+    .feature-card {
+        transition: transform 0.3s ease-in-out;
+    }
+    .feature-card:hover {
+        transform: translateY(-5px);
+    }
+</style>
+{% endblock %}
 
-        <!-- Results Container -->
-        <div id="results" class="space-y-6">
-            <!-- Package cards will be added here -->
-        </div>
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-4">Welcome to Lib2DocScrape</h1>
+        <p class="lead">A powerful tool for scraping and analyzing library documentation.</p>
+    </div>
+</div>
 
-        <!-- Loading Indicator -->
-        <div id="loadingIndicator" class="hidden">
-            <div class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 flex items-center justify-center z-50">
-                <div class="bg-white p-6 rounded-lg shadow-lg text-center">
-                    <div class="loader border-4 border-gray-200 rounded-full w-12 h-12 mb-4 mx-auto"></div>
-                    <p id="loadingText" class="text-gray-700">Processing...</p>
-                </div>
+<div class="row g-4">
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 feature-card">
+            <div class="card-body">
+                <h5 class="card-title">Test Dashboard</h5>
+                <p class="card-text">Monitor and manage your documentation scraping tests with real-time updates.</p>
+                <a href="/test-dashboard" class="btn btn-primary">Go to Dashboard</a>
             </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/2.1.3/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/prism.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-python.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-javascript.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.24.1/components/prism-bash.min.js"></script>
-    <script>
-        let ws = null;
-        let reconnectAttempts = 0;
-        const maxReconnectAttempts = 5;
-        const baseDelay = 1000;
-        let crawlInProgress = false;
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 feature-card">
+            <div class="card-body">
+                <h5 class="card-title">Library Management</h5>
+                <p class="card-text">Install, update, and manage your Python libraries with ease.</p>
+                <a href="/libraries" class="btn btn-primary">Manage Libraries</a>
+            </div>
+        </div>
+    </div>
 
-        function showLoading(message) {
-            document.getElementById('loadingIndicator').classList.remove('hidden');
-            document.getElementById('loadingText').textContent = message;
-        }
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 feature-card">
+            <div class="card-body">
+                <h5 class="card-title">Configuration</h5>
+                <p class="card-text">Customize your scraping settings and application preferences.</p>
+                <a href="/config" class="btn btn-primary">Configure</a>
+            </div>
+        </div>
+    </div>
 
-        function hideLoading() {
-            document.getElementById('loadingIndicator').classList.add('hidden');
-        }
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 feature-card">
+            <div class="card-body">
+                <h5 class="card-title">Results</h5>
+                <p class="card-text">View and analyze your documentation scraping results.</p>
+                <a href="/results" class="btn btn-primary">View Results</a>
+            </div>
+        </div>
+    </div>
 
-        function updateConnectionStatus(status, isError = false) {
-            const statusEl = document.getElementById('connectionStatus');
-            statusEl.textContent = status;
-            statusEl.className = `text-sm mt-2 text-center ${isError ? 'text-red-500' : 'text-gray-500'}`;
-        }
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 feature-card">
+            <div class="card-body">
+                <h5 class="card-title">Quick Start</h5>
+                <p class="card-text">New to Lib2DocScrape? Learn how to get started with our quick guide.</p>
+                <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#quickStartModal">Learn More</a>
+            </div>
+        </div>
+    </div>
+</div>
 
-        function createPackageCard(data, url) {
-            const card = document.createElement('div');
-            card.className = 'bg-white rounded-lg shadow-md p-6 package-card';
-            
-            const metadata = data.metadata || {};
-            
-            // Create tabs
-            const tabsHtml = `
-                <div class="doc-tabs mb-4">
-                    <div class="doc-tab active" data-tab="content">Documentation</div>
-                    <div class="doc-tab" data-tab="metadata">Metadata</div>
-                    <div class="doc-tab" data-tab="links">Links</div>
-                </div>
-            `;
-            
-            // Create content sections
-            const contentHtml = `
-                <div class="tab-content" id="content-tab">
-                    <div class="doc-content prose">
-                        ${data.content || 'No content available'}
-                    </div>
-                </div>
-                <div class="tab-content hidden" id="metadata-tab">
-                    <div class="space-y-2">
-                        ${Object.entries(metadata).map(([key, value]) => `
-                            <div class="flex">
-                                <span class="font-medium w-32">${key}:</span>
-                                <span>${value}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-                <div class="tab-content hidden" id="links-tab">
-                    <div class="space-y-2">
-                        ${(data.links || []).map(link => `
-                            <a href="${link}" class="block text-blue-600 hover:underline" target="_blank">
-                                ${link}
-                            </a>
-                        `).join('')}
-                    </div>
-                </div>
-            `;
-            
-            card.innerHTML = tabsHtml + contentHtml;
-            
-            // Add tab switching functionality
-            card.querySelectorAll('.doc-tab').forEach(tab => {
-                tab.addEventListener('click', () => {
-                    const tabName = tab.dataset.tab;
-                    card.querySelectorAll('.doc-tab').forEach(t => t.classList.remove('active'));
-                    card.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-                    tab.classList.add('active');
-                    card.querySelector(`#${tabName}-tab`).classList.remove('hidden');
-                });
-            });
-            
-            return card;
-        }
+<!-- Quick Start Modal -->
+<div class="modal fade" id="quickStartModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Quick Start Guide</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6>1. Configure Your Environment</h6>
+                <p>Start by visiting the Configuration page to set up your scraping preferences.</p>
 
-        function handleMessage(event) {
-            const data = JSON.parse(event.data);
-            
-            if (data.type === 'progress') {
-                updateProgress(data);
-            } else if (data.type === 'result') {
-                const resultsDiv = document.getElementById('results');
-                const card = createPackageCard(data.data, data.url);
-                resultsDiv.appendChild(card);
-            } else if (data.type === 'tree_update') {
-                updateCrawlTree(data.nodes);
-            } else if (data.type === 'success') {
-                const resultsContainer = document.getElementById('results');
-                const card = createPackageCard(data.data, data.url);
-                resultsContainer.insertBefore(card, resultsContainer.firstChild);
-            } else if (data.type === 'error') {
-                console.error('Error:', data.message);
-                const errorCard = document.createElement('div');
-                errorCard.className = 'bg-red-50 border-l-4 border-red-500 p-4 mb-4';
-                errorCard.innerHTML = `
-                    <div class="flex justify-between">
-                        <div>
-                            <h3 class="text-red-800 font-medium">Error processing: ${data.url}</h3>
-                            <p class="text-red-700 mt-1">${data.message}</p>
-                        </div>
-                        <button onclick="this.closest('div').remove()" class="text-red-400 hover:text-red-600">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                            </svg>
-                        </button>
-                    </div>
-                `;
-                document.getElementById('results').insertBefore(errorCard, document.getElementById('results').firstChild);
-            } else if (data.type === 'status') {
-                showLoading(data.message);
-            } else if (data.type === 'complete') {
-                hideLoading();
-                crawlInProgress = false;
-                document.getElementById('crawlButton').disabled = false;
-            } else if (data.type === 'content_update') {
-                const contentArea = document.getElementById('content-area');
-                contentArea.innerHTML = marked(data.content);
-                
-                // Highlight any code blocks that weren't caught by marked
-                contentArea.querySelectorAll('pre code').forEach((block) => {
-                    Prism.highlightElement(block);
-                });
-                
-                // Update breadcrumb
-                const breadcrumb = document.querySelector('.doc-breadcrumb');
-                if (data.path) {
-                    breadcrumb.innerHTML = data.path.split('/').map(part => 
-                        `<span class="breadcrumb-item">${part}</span>`
-                    ).join('<span>/</span>');
-                }
-                
-                // Update links with enhanced cards
-                const linksArea = document.getElementById('links-area');
-                linksArea.innerHTML = '';
-                
-                if (data.links && data.links.length > 0) {
-                    data.links.forEach(link => {
-                        const linkCard = document.createElement('div');
-                        linkCard.className = 'link-card';
-                        linkCard.innerHTML = `
-                            <div class="link-title">${link.text || 'Link'}</div>
-                            <a href="${link.url}" target="_blank" class="link-url">${link.url}</a>
-                            ${link.description ? `<div class="mt-2 text-sm text-gray-600">${link.description}</div>` : ''}
-                        `;
-                        linksArea.appendChild(linkCard);
-                    });
-                } else {
-                    linksArea.innerHTML = '<div class="text-gray-500">No links found in this section</div>';
-                }
-            }
-        }
-        
-        function updateProgress(data) {
-            const progressContainer = document.getElementById('progressContainer');
-            progressContainer.classList.remove('hidden');
-            
-            document.getElementById('pageCount').textContent = data.pages_crawled;
-            document.getElementById('elapsedTime').textContent = data.elapsed_time;
-            
-            const tasksContainer = document.getElementById('currentTasks');
-            tasksContainer.innerHTML = data.current_tasks.map(task => `
-                <div class="task-badge">
-                    ${task}
-                </div>
-            `).join('');
-            
-            const progressBar = document.getElementById('progressBar');
-            const progressText = document.getElementById('progressText');
-            if (progressBar && progressText) {
-                progressBar.style.width = `${data.progress}%`;
-                progressBar.classList.add('crawl-progress');
-                progressText.textContent = `${data.progress}%`;
-                if (data.progress === 100) {
-                    progressBar.classList.remove('crawl-progress');
-                }
-            }
-        }
-        
-        function updateCrawlTree(nodes) {
-            const treeContainer = document.getElementById('crawlTree');
-            treeContainer.innerHTML = renderTreeNode(nodes);
-        }
-        
-        function renderTreeNode(node) {
-            if (!node) return '';
-            
-            const nodeStatus = node.error ? 'error' : (node.completed ? 'success' : 'loading');
-            const nodeIcon = node.error ? '❌' : (node.completed ? '✅' : '🔄');
-            
-            let html = `
-                <div class="tree-node">
-                    <div class="node-content ${nodeStatus}" title="${node.url}">
-                        <span class="node-icon">${nodeIcon}</span>
-                        ${node.title || node.url}
-                    </div>
-            `;
-            
-            if (node.children && node.children.length > 0) {
-                html += `
-                    <div class="children">
-                        ${node.children.map(child => renderTreeNode(child)).join('')}
-                    </div>
-                `;
-            }
-            
-            html += '</div>';
-            return html;
-        }
+                <h6>2. Install Required Libraries</h6>
+                <p>Use the Library Management page to install any necessary Python packages.</p>
 
-        function animateCrawler(fromNode, toNode) {
-            const crawler = document.createElement('div');
-            crawler.className = 'crawler-path';
-            document.body.appendChild(crawler);
+                <h6>3. Run Your First Test</h6>
+                <p>Head to the Test Dashboard to start your first documentation scraping test.</p>
 
-            const fromRect = fromNode.getBoundingClientRect();
-            const toRect = toNode.getBoundingClientRect();
-
-            crawler.style.left = `${fromRect.right}px`;
-            crawler.style.top = `${fromRect.top + fromRect.height / 2}px`;
-
-            requestAnimationFrame(() => {
-                crawler.style.left = `${toRect.left}px`;
-                crawler.style.top = `${toRect.top + toRect.height / 2}px`;
-            });
-
-            setTimeout(() => crawler.remove(), 300);
-        }
-
-        function connectWebSocket() {
-            if (ws && ws.readyState === WebSocket.OPEN) return;
-
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-            
-            console.log('Connecting to WebSocket:', wsUrl);
-            ws = new WebSocket(wsUrl);
-
-            ws.onopen = () => {
-                console.log('WebSocket connected');
-                updateConnectionStatus('Connected');
-                reconnectAttempts = 0;
-                document.getElementById('crawlButton').disabled = false;
-            };
-
-            ws.onclose = () => {
-                console.log('WebSocket closed');
-                updateConnectionStatus('Disconnected', true);
-                document.getElementById('crawlButton').disabled = true;
-
-                if (reconnectAttempts < maxReconnectAttempts) {
-                    const delay = Math.min(baseDelay * Math.pow(2, reconnectAttempts), 10000);
-                    console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
-                    setTimeout(connectWebSocket, delay);
-                    reconnectAttempts++;
-                } else {
-                    updateConnectionStatus('Connection failed. Please refresh the page.', true);
-                }
-            };
-
-            ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-                updateConnectionStatus('Connection error', true);
-            };
-
-            ws.onmessage = handleMessage;
-        }
-
-        document.getElementById('urlInput').addEventListener('paste', (e) => {
-            e.preventDefault();
-            const pastedText = e.clipboardData.getData('text');
-            const lines = pastedText
-                .split(/[\n,]+/)
-                .map(line => line.trim())
-                .filter(line => line);
-            
-            const input = e.target;
-            const start = input.selectionStart;
-            const end = input.selectionEnd;
-            
-            const currentValue = input.value;
-            const beforeCursor = currentValue.substring(0, start);
-            const afterCursor = currentValue.substring(end);
-            
-            const formattedText = lines.join('\n');
-            input.value = beforeCursor + formattedText + afterCursor;
-            
-            // Set cursor position after the pasted text
-            const newCursorPos = start + formattedText.length;
-            input.setSelectionRange(newCursorPos, newCursorPos);
-        });
-
-        document.getElementById('urlInput').addEventListener('keydown', (e) => {
-            if (e.key === ',') {
-                e.preventDefault();
-                const input = e.target;
-                const cursorPos = input.selectionStart;
-                input.value = input.value.slice(0, cursorPos) + '\n' + input.value.slice(input.selectionEnd);
-                input.setSelectionRange(cursorPos + 1, cursorPos + 1);
-            }
-        });
-
-        document.getElementById('crawlButton').addEventListener('click', () => {
-            if (crawlInProgress) return;
-
-            const urlInput = document.getElementById('urlInput');
-            const urls = urlInput.value.split('\n').map(url => url.trim()).filter(url => url);
-
-            if (urls.length === 0) {
-                alert('Please enter at least one package name or URL');
-                return;
-            }
-
-            if (!ws || ws.readyState !== WebSocket.OPEN) {
-                alert('WebSocket connection is not open. Please wait for reconnection or refresh the page.');
-                return;
-            }
-
-            crawlInProgress = true;
-            document.getElementById('crawlButton').disabled = true;
-            document.getElementById('results').innerHTML = ''; // Clear previous results
-            
-            // Join URLs with spaces for the backend
-            ws.send(JSON.stringify({
-                type: 'crawl',
-                urls: urls.join(' ')
-            }));
-        });
-
-        // Initial connection
-        connectWebSocket();
-        
-        // Configure marked for better code highlighting
-        marked.setOptions({
-            highlight: function(code, lang) {
-                if (Prism.languages[lang]) {
-                    return Prism.highlight(code, Prism.languages[lang], lang);
-                }
-                return code;
-            }
-        });
-    </script>
-</body>
-</html>
+                <h6>4. View Results</h6>
+                <p>Check the Results page to analyze the scraped documentation.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <a href="/config" class="btn btn-primary">Start Configuration</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

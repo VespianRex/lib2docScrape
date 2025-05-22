@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/nlp/topic_modeling.py
+# hypothesis_version: 6.131.20
+
+[0.0, 0.8, 10000, 'Model not trained', '[^\\w\\s]', '\\d+', '\\s+', 'a', 'about', 'am', 'an', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'being', 'both', 'but', 'by', 'could', 'did', 'do', 'does', 'doing', 'during', 'english', 'for', 'from', 'had', 'has', 'have', 'having', 'he', 'her', 'hers', 'him', 'his', 'i', 'if', 'in', 'is', 'it', 'its', 'just', 'me', 'metadata', 'mine', 'model', 'my', 'no', 'nor', 'not', 'num_documents', 'num_topics', 'of', 'on', 'online', 'or', 'ought', 'our', 'ours', 'rb', 'she', 'should', 'so', 'such', 'text', 'than', 'that', 'the', 'their', 'theirs', 'them', 'then', 'these', 'they', 'this', 'those', 'through', 'to', 'topics', 'us', 'vectorizer', 'was', 'wb', 'we', 'were', 'what', 'which', 'while', 'with', 'without', 'would', 'you', 'your', 'yours']

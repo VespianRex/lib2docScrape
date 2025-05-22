@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/ui/visualizations.py
+# hypothesis_version: 6.131.20
+
+[-100, 100, 400, 403, 500, 800, 'Data Table', 'Graphs are disabled', 'Invalid data format', 'Network Graph', 'Tables are disabled', 'X Axis', 'Y Axis', 'animationDuration', 'area', 'bar', 'bordered', 'bottom', 'category10', 'charge', 'colorScheme', 'columns', 'data', 'enabled', 'field', 'filtering', 'graph', 'grid', 'heatmap', 'height', 'hover', 'id', 'legend', 'line', 'linkDistance', 'linkWidth', 'links', 'nodeSize', 'nodes', 'options', 'pageSize', 'pagination', 'pie', 'position', 'responsive', 'scatter', 'sorting', 'source', 'striped', 'subtitle', 'table', 'target', 'title', 'tooltip', 'type', 'width', 'xAxis', 'yAxis']

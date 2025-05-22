@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/organizers/library_version_tracker.py
+# hypothesis_version: 6.131.20
+
+[0.5, 0.8, 1.0, 300, 500, '-', '---', '.', '0', 'LibraryRegistry', 'api', 'base_url', 'break', 'breaking', 'color', 'content', 'deprecated', 'deprecation', 'description', 'diff', 'diffs', 'doc_paths', 'docs', 'documentation', 'documentation_url', 'explicit_breaking', 'formatted_content', 'gray', 'green', 'is_latest', 'label', 'libraries', 'lightblue', 'line', 'name', 'off', 'orange', 'r', 'red', 'reference', 'release_date', 'removed_api', 'removed_page', 'tight', 'timestamp', 'title', 'title1', 'title2', 'type', 'url', 'v', 'v?(\\d+\\.\\d+\\.\\d+)', 'version', 'version_pattern', 'versions', 'w']

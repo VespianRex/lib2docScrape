@@ -14,8 +14,9 @@ from src.utils.helpers import (
     generate_checksum,
     setup_logging
 )
-from src.utils.url import URLInfo, URLType # Corrected import path
-from src.organizers.doc_organizer import DocumentContent
+from src.utils.url import URLType # Keep URLType import
+from src.utils.url.factory import create_url_info # Import the factory function
+# Removed: URLInfo import
 
 # test_url_processor removed as the tested class URLProcessor was removed from helpers.py
 # URL processing is now handled by URLInfo in src/utils/url_info.py and tested in test_url_handling.py
@@ -221,107 +222,75 @@ def test_logging_setup(tmp_path):
         mock_file_handler.assert_called_once_with(str(log_file))
 
 
-# Test helper functions
-def create_test_content(url, title, content, metadata=None):
-    """
-    Helper to create test document content that can be used in tests.
-    
-    This returns a DocumentContent object that wraps the dictionary and provides
-    attribute-style access to match test expectations.
-    
-    Args:
-        url: Document URL
-        title: Document title
-        content: Document content (text or dictionary)
-        metadata: Optional metadata dictionary
-        
-    Returns:
-        DocumentContent: Object with content attribute
-    """
-    data = {
-        "url": url,
-        "title": title,
-        "content": content
-    }
-    
-    if metadata:
-        data.update(metadata)
-        
-    return DocumentContent(data)
-
-def create_mock_response(status_code=200, content=None, url="https://example.com", 
+def create_mock_response(status_code=200, content=None, url="https://example.com",
                          headers=None, content_type="text/html"):
     """
     Create a mock HTTP response object for testing.
-    
+
     Args:
         status_code: HTTP status code (default: 200)
         content: Response content (default: empty HTML)
         url: Response URL (default: example.com)
         headers: Response headers (default: basic headers)
         content_type: Content type (default: text/html)
-        
+
     Returns:
         MagicMock: Mocked response object with appropriate attributes
     """
     if content is None:
         content = "<html><body>Test content</body></html>"
-        
+
     if headers is None:
         headers = {'Content-Type': content_type}
-    
+
     mock_response = MagicMock()
     mock_response.status_code = status_code
     mock_response.content = content.encode('utf-8') if isinstance(content, str) else content
     mock_response.text = content if isinstance(content, str) else content.decode('utf-8')
     mock_response.url = url
     mock_response.headers = headers
-    
+
     # Add common response methods
     mock_response.json.return_value = {} if content in (None, "") else {"data": "mock json data"}
     mock_response.raise_for_status.side_effect = None if status_code < 400 else Exception(f"HTTP Error: {status_code}")
-    
+
     return mock_response
 
-def create_test_url_info(url, url_type=URLType.INTERNAL, domain=None, path=None):
+def create_test_url_info(url, url_type=URLType.INTERNAL, base_url=None):
     """
-    Create a URLInfo object for testing.
-    
+    Create a URLInfo object for testing using the factory function.
+
     Args:
         url: The URL string
-        url_type: The URLType enum value (default: DOCUMENTATION)
-        domain: Optional domain override
-        path: Optional path override
-        
+        url_type: The expected URLType enum value (for assertion, not creation)
+        base_url: Optional base URL string
+
     Returns:
-        URLInfo: Configured URLInfo object
+        URLInfo: Configured URLInfo object created by the factory
     """
-    parsed = urlparse(url)
-    url_info = URLInfo(url)
-    url_info.url_type = url_type
-    
-    if domain:
-        url_info.domain = domain
-    else:
-        url_info.domain = parsed.netloc
-    
-    if path:
-        url_info.path = path
-    else:
-        url_info.path = parsed.path
-        
+    # Use the factory function to create the URLInfo instance
+    url_info = create_url_info(url, base_url=base_url)
+
+    # The factory determines url_type, domain, and path.
+    # We can add assertions here if needed to verify the factory's output
+    # based on the test inputs, but we don't manually set them anymore.
+
+    # Example assertion (optional, depending on test structure):
+    # assert url_info.url_type == url_type
+
     return url_info
 
-def async_test(coro):
-    """
-    Decorator for running async tests without pytest.mark.asyncio.
-    
-    Args:
-        coro: The coroutine function to test
-        
-    Returns:
-        function: Wrapped test function
-    """
-    def wrapper(*args, **kwargs):
-        return asyncio.run(coro(*args, **kwargs))
-    return wrapper
+# Removed the unused async_test decorator as pytest-asyncio is used
+# def async_test(coro):
+#     """
+#     Decorator for running async tests without pytest.mark.asyncio.
+#
+#     Args:
+#         coro: The coroutine function to test
+#
+#     Returns:
+#         function: Wrapped test function
+#     """
+#     def wrapper(*args, **kwargs):
+#         return asyncio.run(coro(*args, **kwargs))
+#     return wrapper

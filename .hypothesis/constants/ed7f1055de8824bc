@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/backends/crawl4ai_backend.py
+# hypothesis_version: 6.131.20
+
+[0.0, 1.0, 2.0, 30.0, 60.0, 200, 300, 304, 400, 403, 500, 503, 'Circuit breaker open', 'URL already crawled', 'User-Agent', 'a', 'assets', 'cached', 'circuit_breaker', 'content', 'content-type', 'content_type', 'crawl4ai', 'error', 'failure_recorded', 'headers', 'headings', 'href', 'html', 'html.parser', 'links', 'meta', 'metadata', 'name', 'open', 'property', 'status', 'text', 'title', 'url', 'www.']

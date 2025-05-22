@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/backends/scrapy_backend.py
+# hypothesis_version: 6.131.20
+
+[0.0, 1.0, 2.0, 30.0, 100, 200, 400, 500, 'Completed', 'CrawlerConfig', 'Started', 'Unknown', 'User-Agent', 'cached_pages', 'end_time', 'failed_requests', 'headers', 'html', 'pages_crawled', 'processed_html', 'raw_url', 'scrapy', 'scrapy_backend', 'start_time', 'success_rate', 'successful_requests', 'total_crawl_time', 'total_pages']

@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block title %}Documentation Scraping Dashboard - Lib2DocScrape{% endblock %}
+
+{% block extra_css %}
+<link href="{{ url_for('static', path='/css/scraping_dashboard.css') }}" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- URL Input and Configuration -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Documentation Source</h5>
+                <form id="scrapingForm" class="mb-3">
+                    <div class="mb-3">
+                        <label for="docUrl" class="form-label">Documentation URL</label>
+                        <div class="input-group">
+                            <input type="url" class="form-control" id="docUrl" required
+                                   placeholder="https://docs.example.com"
+                                   data-bs-toggle="tooltip"
+                                   data-bs-placement="top"
+                                   title="Enter the root URL of the documentation you want to scrape">
+                            <button class="btn btn-outline-secondary" type="button" id="helpBtn"
+                                    data-bs-toggle="modal" data-bs-target="#helpModal">
+                                <i class="bi bi-question-circle"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="backend" class="form-label">Backend Selection</label>
+                                <select class="form-select" id="backend" required
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="top"
+                                        title="Choose the most appropriate method for your documentation source">
+                                    <option value="crawl4ai">Crawl4AI (Smart Crawler)</option>
+                                    <option value="file">File Backend</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="maxDepth" class="form-label">Max Crawl Depth</label>
+                                <input type="number" class="form-control" id="maxDepth"
+                                       value="10" min="1" max="100"
+                                       data-bs-toggle="tooltip"
+                                       data-bs-placement="top"
+                                       title="Set how deep the crawler should navigate through links">
+                            </div>
+                        </div>
+                    </div>
+                    <h6>Scraping Configuration</h6>
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-primary">
+                            Start Scraping
+                        </button>
+                        <button type="button" id="stopBtn" class="btn btn-danger" disabled>
+                            Stop
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scraping Progress -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Scraping Status</h5>
+                <div class="progress mb-3" style="height: 25px;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%">
+                        0%
+                    </div>
+                </div>
+                <div class="d-flex justify-content-around text-center">
+                    <div>
+                        <h6>Pages Scraped</h6>
+                        <span class="badge bg-success" id="pages-count">0</span>
+                    </div>
+                    <div>
+                        <h6>Current Depth</h6>
+                        <span class="badge bg-info" id="depth-count">0</span>
+                    </div>
+                    <div>
+                        <h6>Success Rate</h6>
+                        <span class="badge bg-primary" id="success-rate">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Real-time Metrics -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Metrics</h5>
+                <div id="metrics-display">
+                    <div class="mb-3">
+                        <label class="fw-bold">Duration:</label>
+                        <span id="duration">00:00:00</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Pages/Second:</label>
+                        <span id="pages-per-second">0</span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="fw-bold">Memory Usage:</label>
+                        <span id="memory-usage">0 MB</span>
+                    </div>
+                    <div>
+                        <label class="fw-bold">CPU Usage:</label>
+                        <span id="cpu-usage">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Log Viewer -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title">Scraping Logs</h5>
+                    <div class="btn-group">
+                        <button class="btn btn-outline-secondary btn-sm log-level active" data-level="ALL">
+                            All
+                        </button>
+                        <button class="btn btn-outline-info btn-sm log-level" data-level="INFO">
+                            Info
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm log-level" data-level="WARNING">
+                            Warning
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm log-level" data-level="ERROR">
+                            Error
+                        </button>
+                    </div>
+                </div>
+                <div id="log-viewer" class="bg-dark text-light p-3" style="height: 400px; overflow-y: auto;">
+                    <pre><code></code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Help Modal -->
+<div class="modal fade" id="helpModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Quick Start Guide</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-4">
+                    <h6>1. Enter Documentation URL</h6>
+                    <p>Start by entering the root URL of the documentation you want to scrape. For example:</p>
+                    <ul>
+                        <li>https://docs.example.com/</li>
+                        <li>https://example.com/documentation/</li>
+                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h6>2. Choose Scraping Method</h6>
+                    <p>Select the appropriate backend based on your needs:</p>
+                    <ul>
+                        <li><strong>Crawl4AI:</strong> Best for most documentation sites</li>
+                        <li><strong>File Backend:</strong> For local documentation files</li>
+                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h6>3. Configure Depth</h6>
+                    <p>Set how deep the crawler should go:</p>
+                    <ul>
+                        <li>Lower values (1-3): Quick, shallow scrapes</li>
+                        <li>Higher values (4+): Deep, comprehensive scrapes</li>
+                    </ul>
+                </div>
+                <div class="mb-4">
+                    <h6>4. Monitor Progress</h6>
+                    <p>Use the dashboard to:</p>
+                    <ul>
+                        <li>Track scraping progress</li>
+                        <li>View real-time metrics</li>
+                        <li>Monitor logs for issues</li>
+                    </ul>
+                </div>
+                <div>
+                    <h6>5. Download Results</h6>
+                    <p>When scraping completes, choose your preferred format:</p>
+                    <ul>
+                        <li>JSON: Raw data for processing</li>
+                        <li>Markdown: Human-readable documentation</li>
+                        <li>HTML: Web-ready format</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Download Options Modal -->
+<div class="modal fade" id="downloadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Download Scraped Documentation</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="list-group">
+                    <button type="button" class="list-group-item list-group-item-action" id="downloadJson">
+                        Download as JSON
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action" id="downloadMarkdown">
+                        Download as Markdown
+                    </button>
+                    <button type="button" class="list-group-item list-group-item-action" id="downloadHtml">
+                        Download as HTML
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{{ super() }}
+<script>
+    let downloadModal, helpModal;
+    const ws = new WebSocketManager('/ws/scraping');
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+
+        // Initialize modals
+        downloadModal = new bootstrap.Modal(document.getElementById('downloadModal'));
+        helpModal = new bootstrap.Modal(document.getElementById('helpModal'));
+
+        // Show help modal on first visit
+        if (!localStorage.getItem('helpShown')) {
+            helpModal.show();
+            localStorage.setItem('helpShown', 'true');
+        }
+        
+        // Initialize form handling
+        initializeScrapingForm();
+        initializeLogLevelFiltering();
+        initializeDownloadHandlers();
+    });
+
+    function initializeScrapingForm() {
+        const form = document.getElementById('scrapingForm');
+        const stopBtn = document.getElementById('stopBtn');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = {
+                url: document.getElementById('docUrl').value,
+                backend: document.getElementById('backend').value,
+                maxDepth: parseInt(document.getElementById('maxDepth').value)
+            };
+
+            try {
+                const response = await fetch('/api/scraping/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    form.querySelector('button[type="submit"]').disabled = true;
+                    stopBtn.disabled = false;
+                } else {
+                    const error = await response.json();
+                    alert(`Error: ${error.detail || 'Failed to start scraping'}`);
+                }
+            } catch (error) {
+                alert('Error starting scraping process');
+                console.error(error);
+            }
+        });
+
+        stopBtn.addEventListener('click', async () => {
+            if (confirm('Are you sure you want to stop the scraping process?')) {
+                try {
+                    await fetch('/api/scraping/stop', { method: 'POST' });
+                    form.querySelector('button[type="submit"]').disabled = false;
+                    stopBtn.disabled = true;
+                } catch (error) {
+                    alert('Error stopping scraping process');
+                    console.error(error);
+                }
+            }
+        });
+    }
+
+    function initializeLogLevelFiltering() {
+        document.querySelectorAll('.log-level').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('.log-level').forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+                ws.send({
+                    type: 'log_filter',
+                    level: button.getAttribute('data-level')
+                });
+            });
+        });
+    }
+
+    function initializeDownloadHandlers() {
+        ['Json', 'Markdown', 'Html'].forEach(format => {
+            document.getElementById(`download${format}`).addEventListener('click', () => {
+                downloadResults(format.toLowerCase());
+            });
+        });
+    }
+
+    async function downloadResults(format) {
+        try {
+            const response = await fetch(`/api/scraping/download/${format}`);
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `documentation.${format}`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } else {
+                alert('Error downloading results');
+            }
+        } catch (error) {
+            alert('Error downloading results');
+            console.error(error);
+        }
+    }
+    
+    // WebSocket Event Handlers
+    ws.on('scraping_progress', data => {
+        const { completed, total } = data;
+        const percentage = Math.round((completed / total) * 100) || 0;
+        document.querySelector('.progress-bar').style.width = `${percentage}%`;
+        document.querySelector('.progress-bar').textContent = `${percentage}%`;
+    });
+
+    ws.on('metrics', data => {
+        Object.entries(data).forEach(([key, value]) => {
+            const element = document.getElementById(key.replace(/_/g, '-'));
+            if (element) {
+                element.textContent = value;
+            }
+        });
+    });
+
+    ws.on('log', data => {
+        const logViewer = document.querySelector('#log-viewer code');
+        const logEntry = `<span class="log-${data.level}">[${data.timestamp}] [${data.level}] ${data.message}</span>\n`;
+        logViewer.innerHTML += logEntry;
+        logViewer.parentElement.scrollTop = logViewer.parentElement.scrollHeight;
+    });
+
+    ws.on('scraping_complete', () => {
+        document.getElementById('scrapingForm').querySelector('button[type="submit"]').disabled = false;
+        document.getElementById('stopBtn').disabled = true;
+        downloadModal.show();
+    });
+</script>
+{% endblock %}

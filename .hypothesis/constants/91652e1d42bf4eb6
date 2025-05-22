@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/versioning/version_manager.py
+# hypothesis_version: 6.131.20
+
+['%Y%m%d%H%M%S', '(\\d+\\.\\d+\\.\\d+)', '+', '+++', '-', '---', '@@', 'VersionManager', '^\\d+\\.\\d+\\.\\d+', '_get_content', '_load_versions', '_save_versions', '_store_content', 'added', 'changes', 'content_hash', 'context', 'doc_id', 'html', 'json', 'line', 'metadata', 'modified', 'new_version', 'old_version', 'r', 'removed', 'storage_dir', 'timestamp', 'type', 'unchanged', 'unified', 'version', 'version_history', 'version_index.json', 'w']

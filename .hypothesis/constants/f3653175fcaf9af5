@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/config/config_manager.py
+# hypothesis_version: 6.131.20
+
+['ConfigManager', 'T', 'config_path', 'default', 'errors', 'format', 'get_config', 'javascript', 'json', 'load_config', 'main', 'minimal', 'performance', 'presets', 'quality', 'r', 'save_config', 'section', 'toml', 'validate_config', 'w', 'yaml']

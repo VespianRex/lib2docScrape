@@ -6,6 +6,7 @@ import ssl
 from typing import Dict # Import Dict
 from tests.test_crawl4ai_extended import MockResponse, MockClientSession
 from src.backends.base import CrawlResult
+from src.utils.url.factory import create_url_info # Import factory
 from src.utils.helpers import URLInfo
 
 @pytest.fixture
@@ -27,12 +28,13 @@ def backend_selector():
 async def test_crawl_basic(crawl4ai_backend):
     # Test basic crawling functionality
     url = "https://example.com"
-    result = await crawl4ai_backend.crawl(url)
-    
+    url_info = create_url_info(url) # Create URLInfo
+    result = await crawl4ai_backend.crawl(url_info) # Pass URLInfo
+
     assert result is not None
     # Assert against the expected *normalized* URL
-    assert result.url == "https://example.com/"  # Normalized URL with trailing slash
-    assert result.status in [200, 404, 500]  # Accept common status codes
+    assert result.url == "https://example.com"  # Normalization removes trailing slash for root
+    assert result.status == 200  # Expect 200 for successful crawl
     assert isinstance(result.content, dict)
     assert isinstance(result.metadata, dict)
 
@@ -43,7 +45,7 @@ async def test_crawl_with_rate_limit(crawl4ai_backend):
     start_time = asyncio.get_event_loop().time()
     
     results = await asyncio.gather(*[
-        crawl4ai_backend.crawl(url) for url in urls
+        crawl4ai_backend.crawl(create_url_info(url)) for url in urls # Create and pass URLInfo
     ])
     
     end_time = asyncio.get_event_loop().time()
@@ -57,7 +59,8 @@ async def test_crawl_with_rate_limit(crawl4ai_backend):
 async def test_validate_content(crawl4ai_backend):
     # Test content validation
     url = "https://example.com"
-    result = await crawl4ai_backend.crawl(url)
+    url_info = create_url_info(url) # Create URLInfo
+    result = await crawl4ai_backend.crawl(url_info) # Pass URLInfo
     is_valid = await crawl4ai_backend.validate(result)
     
     assert isinstance(is_valid, bool)
@@ -66,7 +69,8 @@ async def test_validate_content(crawl4ai_backend):
 async def test_process_content(crawl4ai_backend):
     # Test content processing
     url = "https://example.com"
-    result = await crawl4ai_backend.crawl(url)
+    url_info = create_url_info(url) # Create URLInfo
+    result = await crawl4ai_backend.crawl(url_info) # Pass URLInfo
     processed = await crawl4ai_backend.process(result)
     
     assert isinstance(processed, dict)
@@ -74,19 +78,37 @@ async def test_process_content(crawl4ai_backend):
 
 @pytest.mark.asyncio
 async def test_backend_selection(backend_selector):
-    # Test backend selection with crawl4ai
+    # Test backend selection using MockCrawlerBackend
+    # We'll create a mock backend instance for testing
+    from tests.test_base import MockCrawlerBackend
+    
+    # Create and register a mock backend
+    backend_instance = MockCrawlerBackend(name="test_crawler")
+    backend_selector.register_backend(
+        "test_crawler",
+        backend_instance,
+        BackendCriteria(
+            priority=10,
+            content_types=["text/html", "text/*"],
+            url_patterns=["*example.com*"]
+        )
+    )
+    
+    # Now test the backend selection
     url = "https://example.com"
-    backend = await backend_selector.select_backend(url)
+    backend = await backend_selector.get_backend(url)
     
     assert backend is not None
-    assert isinstance(backend, Crawl4AIBackend)
+    assert backend == backend_instance
+    assert isinstance(backend, MockCrawlerBackend)
 
 @pytest.mark.asyncio
 async def test_metrics(crawl4ai_backend):
     # Test metrics tracking
     url = "https://example.com"
-    await crawl4ai_backend.crawl(url)
-    
+    url_info = create_url_info(url) # Create URLInfo
+    await crawl4ai_backend.crawl(url_info) # Pass URLInfo
+
     metrics = crawl4ai_backend.get_metrics()
     assert isinstance(metrics, dict)
     assert "pages_crawled" in metrics
@@ -97,10 +119,12 @@ async def test_metrics(crawl4ai_backend):
 async def test_error_handling(crawl4ai_backend):
     # Test error handling with invalid URL
     url = "https://invalid-url-that-does-not-exist.com"
-    result = await crawl4ai_backend.crawl(url)
-    
+    url_info = create_url_info(url) # Create URLInfo
+    result = await crawl4ai_backend.crawl(url_info) # Pass URLInfo
+
     assert result.error is not None
-    assert result.status == 0 # Expect 0 for network/DNS errors after retries
+    # Expect 0 for network/DNS errors after retries fail (Reverted)
+    assert result.status == 0
 
 @pytest.mark.asyncio
 async def test_concurrent_requests(crawl4ai_backend):
@@ -112,7 +136,7 @@ async def test_concurrent_requests(crawl4ai_backend):
     ]
     
     results = await asyncio.gather(*[
-        crawl4ai_backend.crawl(url) for url in urls
+        crawl4ai_backend.crawl(create_url_info(url)) for url in urls # Create and pass URLInfo
     ])
     
     assert len(results) == len(urls)
@@ -122,7 +146,8 @@ async def test_concurrent_requests(crawl4ai_backend):
 async def test_cleanup(crawl4ai_backend):
     # Test resource cleanup
     url = "https://example.com"
-    await crawl4ai_backend.crawl(url)
+    url_info = create_url_info(url) # Create URLInfo
+    await crawl4ai_backend.crawl(url_info) # Pass URLInfo
     await crawl4ai_backend.close()
     
     # Session should be closed
@@ -203,13 +228,15 @@ async def test_domain_filtering(crawl4ai_backend):
     backend = Crawl4AIBackend(config=config)
     
     # Test allowed domain
-    result = await backend.crawl("https://example.com/page")
+    url_info_allowed = create_url_info("https://example.com/page")
+    result = await backend.crawl(url_info_allowed) # Pass URLInfo
     assert result.status != 403
     
     # Test disallowed domain
-    result = await backend.crawl("https://other-domain.com/page")
-    assert result.status == 403
-    assert "Domain not allowed" in result.error
+    url_info_disallowed = create_url_info("https://other-domain.com/page")
+    result = await backend.crawl(url_info_disallowed) # Pass URLInfo
+    assert result.status == 403 # Status 403 is correct
+    assert result.error is not None and "Domain not allowed" in result.error # Check error message
     
     await backend.close()
 
@@ -221,7 +248,8 @@ async def test_url_queue_management(crawl4ai_backend, monkeypatch): # Add monkey
     # Test queue processing order
     results = []
     for url in urls:
-        result = await crawl4ai_backend.crawl(url)
+        url_info = create_url_info(url) # Create URLInfo
+        result = await crawl4ai_backend.crawl(url_info) # Pass URLInfo
         results.append(result)
     
     # Verify order and uniqueness
@@ -252,7 +280,8 @@ async def test_url_queue_management(crawl4ai_backend, monkeypatch): # Add monkey
     results_limited = []
     for url in urls:
         # Use the specifically configured backend
-        result = await backend_limited.crawl(url)
+        url_info = create_url_info(url) # Create URLInfo
+        result = await backend_limited.crawl(url_info) # Pass URLInfo
         results_limited.append(result)
 
     # Filter for results that were actually successful (status 200)

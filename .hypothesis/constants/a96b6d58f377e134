@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/ui/dashboard.py
+# hypothesis_version: 6.131.20
+
+['/', '/admin', '/api/config', '/api/status', '/static', '/ws', '1.0.0', 'INFO', 'admin.html', 'admin_password', 'custom_css', 'custom_js', 'dashboard.html', 'data', 'description', 'enable_admin', 'enable_charts', 'enable_export', 'enable_filters', 'enable_notifications', 'enable_search', 'enable_sorting', 'info', 'level', 'light', 'message', 'notification', 'ok', 'received', 'request', 'static', 'status', 'templates', 'theme', 'timestamp', 'title', 'type', 'update', 'version']

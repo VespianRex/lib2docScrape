@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/storage/compressed/storage.py
+# hypothesis_version: 6.131.20
+
+[1024, 'bz2', 'gzip', 'lzma', 'none', 'r', 'rb', 'utf-8', 'w', 'wb', 'zlib']

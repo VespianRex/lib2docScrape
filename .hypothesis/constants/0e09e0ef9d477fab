@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/url/domain_parser.py
+# hypothesis_version: 6.131.20
+
+['.', 'domain', 'localhost', 'registered_domain', 'subdomain', 'suffix']

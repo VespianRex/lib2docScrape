@@ -1,0 +1,115 @@
+# Performance-optimized configuration preset for lib2docScrape
+# This preset is optimized for high-performance crawling
+
+# Crawler configuration
+crawler:
+  max_depth: 5
+  max_pages: 1000
+  follow_external_links: false
+  respect_robots_txt: true
+  delay_between_requests: 0.1  # Minimal delay
+  timeout: 15.0  # Shorter timeout
+  max_retries: 2
+  user_agent: "lib2docScrape/1.0 Documentation Crawler"
+  concurrent_requests: 20  # High concurrency
+  max_request_rate: 50  # requests per second
+
+# Backend selector configuration
+backend_selector:
+  default_backend: "http"  # Use HTTP backend for speed
+  javascript_backend: "lightpanda"
+  static_backend: "http"
+
+# Crawl4AI backend configuration
+crawl4ai:
+  max_retries: 2
+  timeout: 15.0  # Shorter timeout
+  follow_redirects: true
+  verify_ssl: true
+  max_depth: 5
+  rate_limit: 10.0  # Higher rate limit
+  concurrent_requests: 20  # High concurrency
+  extract_links: true
+  extract_images: false  # Disable for performance
+  extract_metadata: true
+  extract_code_blocks: false  # Disable for performance
+  circuit_breaker_threshold: 10
+  circuit_breaker_reset_timeout: 30.0
+  javascript_enabled: false
+
+# Lightpanda backend configuration
+lightpanda:
+  executable_path: "lightpanda"
+  host: "127.0.0.1"
+  port: 9222
+  timeout: 15.0  # Shorter timeout
+  max_retries: 2
+  wait_for_load: true
+  wait_time: 1.0  # Shorter wait time
+  javascript_enabled: true
+  user_agent: "lib2docScrape/1.0 (Lightpanda) Documentation Crawler"
+  viewport_width: 1024
+  viewport_height: 768
+  circuit_breaker_threshold: 10
+  circuit_breaker_reset_timeout: 30.0
+  rate_limit: 5.0  # Higher rate limit
+  concurrent_requests: 10  # High concurrency
+  extract_links: true
+  extract_images: false  # Disable for performance
+  extract_metadata: true
+  extract_code_blocks: false  # Disable for performance
+  screenshots: false  # Disable for performance
+
+# Content processor configuration
+content_processor:
+  max_content_length: 500000  # Smaller content size for performance
+  min_content_length: 10
+  extract_metadata: true
+  extract_assets: false  # Disable for performance
+  extract_code_blocks: false  # Disable for performance
+  extract_comments: false
+  max_heading_level: 3  # Limit heading levels for performance
+  sanitize_content: true
+  preserve_whitespace: false
+  code_languages:
+    - python
+    - javascript
+    - html
+    - css
+
+# Quality checker configuration
+quality_checker:
+  min_content_length: 50
+  max_broken_links: 0
+  max_missing_images: 0
+  check_spelling: false  # Disable for performance
+  check_grammar: false
+  check_code_blocks: false  # Disable for performance
+  check_headings: true
+  check_links: false  # Disable for performance
+  check_images: false  # Disable for performance
+  check_metadata: true
+
+# Document organizer configuration
+document_organizer:
+  output_format: "markdown"
+  create_index: true
+  create_toc: false  # Disable for performance
+  group_by_topic: false  # Disable for performance
+  include_metadata: true
+  include_assets: false  # Disable for performance
+  include_code_blocks: false  # Disable for performance
+  output_dir: "docs"
+  template_dir: "templates"
+
+# Distributed crawling configuration
+distributed:
+  enabled: true  # Enable distributed crawling for performance
+  worker_count: 8  # More workers
+  queue_backend: "redis"
+  redis_host: "localhost"
+  redis_port: 6379
+  redis_db: 0
+  task_timeout: 60  # Shorter timeout
+  heartbeat_interval: 5
+  max_queue_size: 5000  # Larger queue

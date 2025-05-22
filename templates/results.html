@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+
+{% block title %}Results - Lib2DocScrape{% endblock %}
+
+{% block extra_css %}
+<style>
+    .results-card {
+        transition: transform 0.2s;
+    }
+    .results-card:hover {
+        transform: translateY(-2px);
+    }
+    .filter-section {
+        background: #f8f9fa;
+        border-radius: 0.25rem;
+        padding: 1rem;
+    }
+    .result-badge {
+        font-size: 0.8rem;
+    }
+    .detail-section {
+        border-left: 3px solid #0d6efd;
+        padding-left: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>Test Results</h1>
+        <p class="lead">View and analyze documentation scraping results</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body filter-section">
+                <h3 class="card-title h5">Filters</h3>
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Date Range</label>
+                        <select class="form-select" id="dateFilter">
+                            <option value="all">All Time</option>
+                            <option value="today">Today</option>
+                            <option value="week">Last 7 Days</option>
+                            <option value="month">Last 30 Days</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Backend</label>
+                        <select class="form-select" id="backendFilter">
+                            <option value="all">All Backends</option>
+                            <option value="crawl4ai">Crawl4AI</option>
+                            <option value="file">File</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Status</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="all">All Status</option>
+                            <option value="success">Success</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">Sort By</label>
+                        <select class="form-select" id="sortBy">
+                            <option value="date_desc">Date (Newest)</option>
+                            <option value="date_asc">Date (Oldest)</option>
+                            <option value="duration_desc">Duration (Longest)</option>
+                            <option value="duration_asc">Duration (Shortest)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results List -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h3 class="card-title h5 mb-4">Results</h3>
+                <div class="table-responsive">
+                    <table class="table table-hover" id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Test ID</th>
+                                <th>Backend</th>
+                                <th>Duration</th>
+                                <th>Pages</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="resultsBody">
+                            <!-- Results will be populated dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <nav aria-label="Results pagination" class="mt-4">
+                    <ul class="pagination justify-content-center" id="pagination">
+                        <!-- Pagination will be populated dynamically -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Result Details Modal -->
+<div class="modal fade" id="resultDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Test Result Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Overview Section -->
+                <div class="detail-section mb-4">
+                    <h6>Overview</h6>
+                    <div class="row g-3" id="resultOverview">
+                        <!-- Overview details will be populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Metrics Section -->
+                <div class="detail-section mb-4">
+                    <h6>Metrics</h6>
+                    <div class="row g-3" id="resultMetrics">
+                        <!-- Metrics will be populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Content Section -->
+                <div class="detail-section">
+                    <h6>Scraped Content</h6>
+                    <div id="scrapedContent">
+                        <!-- Content will be populated dynamically -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="exportResult()">Export</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // State management
+    let currentPage = 1;
+    let resultsPerPage = parseInt(localStorage.getItem('appConfig'))?.resultsPerPage || 25;
+    let filteredResults = [];
+    
+    // Initialize filters
+    const filters = {
+        dateRange: 'all',
+        backend: 'all',
+        status: 'all',
+        sortBy: 'date_desc'
+    };
+
+    // Filter change handlers
+    document.getElementById('dateFilter').addEventListener('change', (e) => {
+        filters.dateRange = e.target.value;
+        currentPage = 1;
+        loadResults();
+    });
+
+    document.getElementById('backendFilter').addEventListener('change', (e) => {
+        filters.backend = e.target.value;
+        currentPage = 1;
+        loadResults();
+    });
+
+    document.getElementById('statusFilter').addEventListener('change', (e) => {
+        filters.status = e.target.value;
+        currentPage = 1;
+        loadResults();
+    });
+
+    document.getElementById('sortBy').addEventListener('change', (e) => {
+        filters.sortBy = e.target.value;
+        loadResults();
+    });
+
+    // Load and filter results
+    async function loadResults() {
+        showLoading();
+        try {
+            const response = await fetch('/api/test-results');
+            if (!response.ok) throw new Error('Failed to fetch results');
+            
+            let results = await response.json();
+            
+            // Apply filters
+            filteredResults = results.filter(result => {
+                if (filters.backend !== 'all' && result.backend !== filters.backend) return false;
+                if (filters.status !== 'all' && result.status !== filters.status) return false;
+                
+                const resultDate = new Date(result.timestamp);
+                const now = new Date();
+                
+                switch (filters.dateRange) {
+                    case 'today':
+                        return resultDate.toDateString() === now.toDateString();
+                    case 'week':
+                        return (now - resultDate) <= 7 * 24 * 60 * 60 * 1000;
+                    case 'month':
+                        return (now - resultDate) <= 30 * 24 * 60 * 60 * 1000;
+                    default:
+                        return true;
+                }
+            });
+
+            // Apply sorting
+            filteredResults.sort((a, b) => {
+                switch (filters.sortBy) {
+                    case 'date_desc':
+                        return new Date(b.timestamp) - new Date(a.timestamp);
+                    case 'date_asc':
+                        return new Date(a.timestamp) - new Date(b.timestamp);
+                    case 'duration_desc':
+                        return b.duration - a.duration;
+                    case 'duration_asc':
+                        return a.duration - b.duration;
+                }
+            });
+
+            displayResults();
+            updatePagination();
+        } catch (error) {
+            console.error('Error loading results:', error);
+        }
+        hideLoading();
+    }
+
+    function displayResults() {
+        const startIndex = (currentPage - 1) * resultsPerPage;
+        const endIndex = startIndex + resultsPerPage;
+        const pageResults = filteredResults.slice(startIndex, endIndex);
+
+        const tbody = document.getElementById('resultsBody');
+        tbody.innerHTML = '';
+
+        pageResults.forEach(result => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${new Date(result.timestamp).toLocaleString()}</td>
+                <td>${result.test_id}</td>
+                <td>${result.backend}</td>
+                <td>${result.duration}s</td>
+                <td>${result.pages_processed}</td>
+                <td>
+                    <span class="badge bg-${result.status === 'success' ? 'success' : 'danger'}">
+                        ${result.status}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="showDetails('${result.test_id}')">
+                        View Details
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function updatePagination() {
+        const totalPages = Math.ceil(filteredResults.length / resultsPerPage);
+        const pagination = document.getElementById('pagination');
+        pagination.innerHTML = '';
+
+        // Previous button
+        pagination.innerHTML += `
+            <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Previous</a>
+            </li>
+        `;
+
+        // Page numbers
+        for (let i = 1; i <= totalPages; i++) {
+            pagination.innerHTML += `
+                <li class="page-item ${currentPage === i ? 'active' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+                </li>
+            `;
+        }
+
+        // Next button
+        pagination.innerHTML += `
+            <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+                <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Next</a>
+            </li>
+        `;
+    }
+
+    function changePage(page) {
+        if (page < 1 || page > Math.ceil(filteredResults.length / resultsPerPage)) return;
+        currentPage = page;
+        displayResults();
+        updatePagination();
+    }
+
+    async function showDetails(testId) {
+        showLoading();
+        try {
+            const response = await fetch(`/api/test-results/${testId}`);
+            if (!response.ok) throw new Error('Failed to fetch result details');
+            
+            const result = await response.json();
+            
+            // Populate overview
+            document.getElementById('resultOverview').innerHTML = `
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>Test ID:</strong> ${result.test_id}</p>
+                    <p class="mb-1"><strong>Date:</strong> ${new Date(result.timestamp).toLocaleString()}</p>
+                    <p class="mb-1"><strong>Backend:</strong> ${result.backend}</p>
+                </div>
+                <div class="col-md-6">
+                    <p class="mb-1"><strong>Duration:</strong> ${result.duration}s</p>
+                    <p class="mb-1"><strong>Status:</strong> 
+                        <span class="badge bg-${result.status === 'success' ? 'success' : 'danger'}">
+                            ${result.status}
+                        </span>
+                    </p>
+                </div>
+            `;
+
+            // Populate metrics
+            document.getElementById('resultMetrics').innerHTML = `
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h3 class="mb-0">${result.pages_processed}</h3>
+                            <small>Pages Processed</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h3 class="mb-0">${result.success_rate}%</h3>
+                            <small>Success Rate</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h3 class="mb-0">${result.avg_time_per_page}s</h3>
+                            <small>Avg Time/Page</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <h3 class="mb-0">${result.max_depth}</h3>
+                            <small>Max Depth</small>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Populate content
+            document.getElementById('scrapedContent').innerHTML = `
+                <div class="accordion" id="contentAccordion">
+                    ${result.contents.map((content, index) => `
+                        <div class="accordion-item">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" 
+                                        data-bs-toggle="collapse" 
+                                        data-bs-target="#content${index}">
+                                    ${content.url}
+                                </button>
+                            </h2>
+                            <div id="content${index}" class="accordion-collapse collapse" 
+                                 data-bs-parent="#contentAccordion">
+                                <div class="accordion-body">
+                                    <pre class="border rounded p-3 bg-light">${content.text}</pre>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+
+            new bootstrap.Modal(document.getElementById('resultDetailsModal')).show();
+        } catch (error) {
+            console.error('Error loading result details:', error);
+            alert('Failed to load result details');
+        }
+        hideLoading();
+    }
+
+    function exportResult() {
+        // TODO: Implement export functionality
+        alert('Export functionality coming soon!');
+    }
+
+    // Initial load
+    loadResults();
+
+    // Auto-refresh if enabled
+    const appConfig = JSON.parse(localStorage.getItem('appConfig') || '{}');
+    if (appConfig.autoRefresh) {
+        const interval = (appConfig.refreshInterval || 10) * 1000;
+        setInterval(loadResults, interval);
+    }
+</script>
+{% endblock %}

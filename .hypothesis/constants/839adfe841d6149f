@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/crawler/distributed/models.py
+# hypothesis_version: 6.131.20
+
+[0.0, 1.0, 100, 300, 512, 1000, 'INFO', 'busy', 'canceled', 'completed', 'error', 'failed', 'http://', 'https://', 'idle', 'offline', 'pending', 'running', 'url']

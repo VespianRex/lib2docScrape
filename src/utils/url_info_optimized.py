@@ -1,5 +1,7 @@
+import copy
 import functools
 import idna
+import types
 import re
 import ipaddress
 import posixpath
@@ -23,8 +25,8 @@ class URLSecurityConfig:
     PATH_SAFE_CHARS = "/:@-._~!$&'()*+,;="  # RFC 3986 + common allowed chars
     
     # Pre-compile all regex patterns for better performance
-    INVALID_CHARS: Pattern = re.compile(r'[<>"\'\'\']')
-    INVALID_PATH_TRAVERSAL: Pattern = re.compile(r'(?:^|/)\.\.\.(?:/|$)')  # Detects /../ or ../
+    INVALID_CHARS: Pattern = re.compile(r'[<>"\'\'\'\']')
+    INVALID_PATH_TRAVERSAL: Pattern = re.compile(r'(?:^|/)\.\.\.(\?|/|$)')  # Detects /../ or ../
     XSS_PATTERNS: Pattern = re.compile(
         r'<script|javascript:|vbscript:|data:text/html|onerror=|onload=|onmouseover=|onclick=|alert\(|eval\(|Function\(|setTimeout\(|setInterval\(|document\.|window\.|fromCharCode|String\.fromCodePoint|base64',
         re.IGNORECASE
@@ -386,13 +388,28 @@ class URLInfo:
             # Encode query params correctly. No safe chars needed for standard encoding.
             query_norm = urlencode(query_params, doseq=True)
 
-            # Ensure path is explicitly "/" if empty after normalization, before unparse
+            # Handle empty paths based on original URL structure
             if not path_norm or path_norm == ".":
-                path_norm = "/"
+                # For URLs with netloc (e.g. http://example.com), respect original trailing slash
+                if self._parsed.netloc:
+                    # If original had trailing slash, keep it, otherwise use empty path
+                    path_norm = "/" if self._original_path_had_trailing_slash else ""
+                else:
+                    # For URLs without netloc, always use / for empty paths
+                    path_norm = "/"
 
             # Reconstruct normalized URL using urlunparse
             self._normalized_parsed = ParseResult(scheme, netloc_norm, path_norm, p.params, query_norm, '')
-            self._normalized_url = urlunparse(self._normalized_parsed)
+            temp_normalized_url = urlunparse(self._normalized_parsed)
+
+            # Post-processing fix for urlunparse potentially adding an unwanted slash
+            # This occurs when the normalized path is empty, a netloc exists, 
+            # the original URL didn't end with a slash, but urlunparse adds one.
+            if self._parsed.netloc and not path_norm and not self._original_path_had_trailing_slash and temp_normalized_url.endswith('/'):
+                 # If the conditions match, simply remove the trailing slash added by urlunparse.
+                 self._normalized_url = temp_normalized_url.rstrip('/')
+            else:
+                 self._normalized_url = temp_normalized_url
 
         except Exception as e:
             self.is_valid = False
@@ -403,7 +420,8 @@ class URLInfo:
     def _normalize_path(self, path: str) -> str:
         """Normalizes path: unquotes, resolves ., .., handles slashes, re-encodes."""
         if not path:
-            return "/"
+            # Return empty string for empty paths, trailing slash will be handled in _normalize
+            return ""
 
         original_had_trailing_slash = self._original_path_had_trailing_slash
         is_absolute = path.startswith('/')
@@ -445,8 +463,8 @@ class URLInfo:
         else:
             normalized = '/'.join(result) if result else '.'
         
-        # Preserve trailing slash if original had one
-        if original_had_trailing_slash and not normalized.endswith('/') and normalized != '/':
+        # Only preserve trailing slash for directory-like paths
+        if original_had_trailing_slash and not normalized.endswith('/') and normalized != '/' and '.' not in normalized.split('/')[-1]:
             normalized += '/'
         
         # Re-quote the path with appropriate safe characters
@@ -509,7 +527,7 @@ class URLInfo:
     def port(self) -> Optional[int]:
         return self._parsed.port if self.is_valid and self._parsed else None
 
-    @functools.cached_property
+    @property # Changed from cached_property to ensure deepcopy on each access
     def query_params(self) -> Dict[str, List[str]]:
         """Returns parsed query parameters as a dictionary of lists."""
         if not self.is_valid or not self._normalized_parsed or not self._normalized_parsed.query:
@@ -521,7 +539,8 @@ class URLInfo:
                 result[key].append(value)
             else:
                 result[key] = [value]
-        return result
+        # Return an immutable proxy of a deep copy
+        return types.MappingProxyType(copy.deepcopy(result))
 
     @property
     def username(self) -> str:
@@ -594,26 +613,5 @@ class URLInfo:
                 else:
                     return f"{parts[-2]}.{parts[-1]}"
             else:
-                # Regular domain like example.com
                 return f"{parts[-2]}.{parts[-1]}"
-        
         return domain
-
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, URLInfo):
-            return False
-        return self.normalized_url == other.normalized_url
-
-    def __hash__(self) -> int:
-        return hash(self.normalized_url)
-
-    def __str__(self) -> str:
-        return self.normalized_url
-
-    def __repr__(self) -> str:
-        return f"URLInfo('{self.normalized_url}')"
-
-    def __setattr__(self, name, value):
-        if name != "_initialized" and getattr(self, "_initialized", False):
-            raise AttributeError(f"Cannot modify immutable URLInfo: {name}")
-        super().__setattr__(name, value)

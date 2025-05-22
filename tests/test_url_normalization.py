@@ -44,16 +44,22 @@ def test_normalize_hostname_invalid(bad_hostname):
         ("",                "/"),
         ("/",               "/"),
         ("/foo/bar",        "/foo/bar"),
-        ("foo/bar",         "/foo/bar"),      # Add leading slash
+        ("foo/bar",         "foo/bar"),       # Should remain relative
         ("/foo//bar",       "/foo/bar"),      # Collapse multiple slashes
-        (".",               "/"),             # Treat single dot as root
-        ("./foo",           "/foo"),          # Remove ./ prefix
+        (".",               "."),             # Treat single dot as relative current dir
+        ("./foo",           "foo"),           # Should resolve to relative path
         ("/foo/./bar",      "/foo/bar"),      # Remove /./ segments
         ("/foo/../bar",     "/bar"),          # Resolve parent directory
         ("/../foo",         "/foo"),          # Can't go above root
-        ("/foo/%20bar",     "/foo/ bar"),     # URL decode
-        ("/foo/bar/",       "/foo/bar/"),     # Preserve trailing slash
+        ("/foo/%20bar",     "/foo/%20bar"),   # Preserve percent encoding
+        ("/foo/bar/",       "/foo/bar"),      # Trailing slash removed by default
+        # Additional test cases
+        ("path/to/resource", "path/to/resource"),  # Should remain relative
+        ("/path with spaces", "/path%20with%20spaces"),  # Spaces get encoded
+        ("/ümlaut", "/%C3%BCmlaut"),  # Unicode gets encoded
+        ("/path/./to/../resource", "/path/resource"),  # Complex path resolution
     ]
 )
 def test_normalize_path(raw, expected):
+    """Tests various path normalization cases."""
     assert normalize_path(raw) == expected

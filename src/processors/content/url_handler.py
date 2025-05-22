@@ -113,7 +113,7 @@ def sanitize_and_join_url(url: str, base_url: str = None) -> str:
 
     # Check for dangerous protocols *before* joining
     if any(url.lower().startswith(proto) for proto in [
-        'javascript:', 'data:', 'vbscript:', 'file:', 'about:', 'blob:'
+        'javascript:', 'data:', 'vbscript:', 'about:', 'blob:' # Removed 'file:'
     ]):
         return ''
 
@@ -133,7 +133,7 @@ def sanitize_and_join_url(url: str, base_url: str = None) -> str:
 
         # Check for dangerous protocols *after* potential join
         if any(processed_url.lower().startswith(proto) for proto in [
-            'javascript:', 'data:', 'vbscript:', 'file:', 'about:', 'blob:'
+            'javascript:', 'data:', 'vbscript:', 'about:', 'blob:' # Removed 'file:'
         ]):
              return ''
 
@@ -141,7 +141,7 @@ def sanitize_and_join_url(url: str, base_url: str = None) -> str:
         parsed = urlparse(processed_url)
 
         # Validate scheme: allow relative paths (no scheme) or specific absolute schemes
-        if parsed.scheme and parsed.scheme not in ['http', 'https', 'ftp', 'mailto']:
+        if parsed.scheme and parsed.scheme not in ['http', 'https', 'ftp', 'mailto', 'file']: # Added 'file'
              # If a scheme exists, it must be one of the allowed ones
              return ''
         # Allow URLs with no scheme (relative paths) or allowed schemes

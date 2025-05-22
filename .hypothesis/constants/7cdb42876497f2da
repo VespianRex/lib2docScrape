@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/backends/file_backend.py
+# hypothesis_version: 6.131.20
+
+[200, 404, 500, '.css', '.js', 'CrawlerConfig', 'Unknown URL', 'content-type', 'content_type', 'file', 'file_backend', 'headers', 'html', 'metadata', 'r', 'status', 'text/css', 'text/html', 'url', 'utf-8']

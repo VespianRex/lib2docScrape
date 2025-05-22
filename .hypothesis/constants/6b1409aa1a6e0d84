@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/crawler/__init__.py
+# hypothesis_version: 6.131.20
+
+['CrawlConfig', 'CrawlResult', 'CrawlStats', 'CrawlTarget', 'Crawler', 'CrawlerConfig', 'DocumentationCrawler', 'QualityIssue']

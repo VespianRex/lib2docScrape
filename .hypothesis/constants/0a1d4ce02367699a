@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/content/models.py
+# hypothesis_version: 6.131.20
+
+[100, 1000, 1000000, 'Untitled Document', 'a', 'article:', 'bash', 'blockquote', 'book:', 'c', 'code', 'cpp', 'csharp', 'css', 'custom_elements', 'dc.', 'em', 'formatted_content', 'go', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'headings', 'html', 'images', 'img', 'java', 'javascript', 'kotlin', 'li', 'media', 'og:', 'ol', 'p', 'perl', 'php', 'powershell', 'pre', 'python', 'r', 'ruby', 'rust', 'scala', 'scripts', 'sections', 'shell', 'sql', 'strong', 'stylesheets', 'swift', 'table', 'td', 'th', 'tr', 'twitter:', 'typescript', 'ul']

@@ -1,6 +1,7 @@
 """Data models for content processing."""
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
+from datetime import datetime  # add import
 
 @dataclass
 class ProcessorConfig:
@@ -45,6 +46,11 @@ class ProcessorConfig:
 class ProcessedContent:
     """Result of content processing."""
     url: str = ""
+    content_type: str = ""
+    raw: str = ""
+    text: str = ""
+    markdown: str = ""
+    timestamp: datetime = field(default_factory=datetime.utcnow)
 
     content: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -129,3 +135,6 @@ class ProcessedContent:
     def is_valid(self) -> bool:
         """Check if the processed content is valid."""
         return bool(self.title and self.content and self.metadata)
+
+# Alias for backward compatibility with code expecting ProcessingConfig
+ProcessingConfig = ProcessorConfig

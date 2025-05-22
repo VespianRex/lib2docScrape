@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/url/security.py
+# hypothesis_version: 6.131.20
+
+[443, 2048, '(?:^|/)\\.\\.(?:/|$)', "/:@!$&'()*+,;=", "/:@!$'()*+,;=?", '127.0.0.1', '169.254.169.254', '[;|`$\\(\\)\\{\\}]', '[\\n\\t\\r\\f\\v]', '\\x00', 'a', 'c', 'data', 'e', 'file', 'ftp', 'ftps', 'http', 'https', 'i', 'javascript', 'localhost', 'o', 'smb', 'vbscript', 'а', 'е', 'о', 'с', 'і']

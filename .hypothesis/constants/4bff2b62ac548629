@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/package_manager.py
+# hypothesis_version: 6.131.20
+
+['--cache-dir', '--extra-index-url', '--index-url', '--trusted-host', '--verbose', '-y', 'install', 'pip', 'pip3', 'uninstall', 'uv', 'uv not found in PATH']

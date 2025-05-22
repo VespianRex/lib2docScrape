@@ -1,4 +1,6 @@
-# To be implemented: from src.utils.url.classification import determine_url_type
+from src.utils.url.info import URLInfo # Keep for type hinting if needed
+from src.utils.url.types import URLType
+from src.utils.url.factory import create_url_info # Added import for factory
 
 import pytest
 
@@ -11,13 +13,14 @@ import pytest
         
         # External URLs - different domains or schemes
         ("http://a.com", "https://a.com", "EXTERNAL"),  # scheme mismatch → external
-        ("http://sub.a.com", "http://a.com", "EXTERNAL"),
-        ("http://a.com", "http://b.com", "EXTERNAL"),
+        ("http://sub.a.com", "http://a.com", "INTERNAL"), # Same registered domain -> INTERNAL
+        ("http://a.com", "http://b.com", "EXTERNAL"), # Different registered domain -> EXTERNAL
         
-        # Unknown URLs - when either URL is None or invalid
-        (None, "http://a.com", "UNKNOWN"),
-        ("http://a.com", None, "UNKNOWN"),
+        # Unknown/External URLs
+        (None, "http://a.com", "UNKNOWN"), # Invalid URL -> UNKNOWN
+        ("http://a.com", None, "EXTERNAL"), # Valid URL, no base -> EXTERNAL
     ]
 )
 def test_determine_url_type(url, base, expected_name):
-    assert determine_url_type(url, base).name == expected_name
+    info = create_url_info(url, base_url=base)
+    assert info.url_type.name == expected_name

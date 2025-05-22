@@ -1,0 +1,133 @@
+# JavaScript-optimized configuration preset for lib2docScrape
+# This preset is optimized for JavaScript-heavy documentation sites
+
+# Crawler configuration
+crawler:
+  max_depth: 5
+  max_pages: 100
+  follow_external_links: false
+  respect_robots_txt: true
+  delay_between_requests: 1.0
+  timeout: 60.0  # Longer timeout for JS rendering
+  max_retries: 3
+  user_agent: "lib2docScrape/1.0 Documentation Crawler"
+  concurrent_requests: 3  # Lower concurrency for JS-heavy sites
+  max_request_rate: 5  # requests per second
+
+# Backend selector configuration
+backend_selector:
+  default_backend: "lightpanda"  # Use Lightpanda as default for JS support
+  javascript_backend: "lightpanda"
+  static_backend: "http"
+
+# Lightpanda backend configuration
+lightpanda:
+  executable_path: "lightpanda"
+  host: "127.0.0.1"
+  port: 9222
+  timeout: 60.0  # Longer timeout for JS rendering
+  max_retries: 3
+  wait_for_load: true
+  wait_time: 5.0  # Longer wait time for JS to execute
+  javascript_enabled: true
+  user_agent: "lib2docScrape/1.0 (Lightpanda) Documentation Crawler"
+  viewport_width: 1280
+  viewport_height: 800
+  circuit_breaker_threshold: 5
+  circuit_breaker_reset_timeout: 60.0
+  rate_limit: 1.0  # Lower rate limit for JS-heavy sites
+  concurrent_requests: 3
+  extract_links: true
+  extract_images: true
+  extract_metadata: true
+  extract_code_blocks: true
+  screenshots: true  # Enable screenshots for debugging
+  screenshot_path: "screenshots"
+
+# Playwright backend configuration
+playwright:
+  browser_type: "chromium"
+  headless: true
+  timeout: 60.0  # Longer timeout for JS rendering
+  max_retries: 3
+  wait_for_load: true
+  wait_until: "networkidle"  # Wait for network to be idle
+  wait_time: 5.0  # Longer wait time for JS to execute
+  javascript_enabled: true
+  user_agent: "lib2docScrape/1.0 (Playwright) Documentation Crawler"
+  viewport_width: 1280
+  viewport_height: 800
+  ignore_https_errors: false
+  circuit_breaker_threshold: 5
+  circuit_breaker_reset_timeout: 60.0
+  rate_limit: 1.0  # Lower rate limit for JS-heavy sites
+  concurrent_requests: 3
+  extract_links: true
+  extract_images: true
+  extract_metadata: true
+  extract_code_blocks: true
+  screenshots: true  # Enable screenshots for debugging
+  screenshot_path: "screenshots"
+
+# Content processor configuration
+content_processor:
+  max_content_length: 2000000  # Larger content size for JS-generated content
+  min_content_length: 10
+  extract_metadata: true
+  extract_assets: true
+  extract_code_blocks: true
+  extract_comments: false
+  max_heading_level: 6
+  sanitize_content: true
+  preserve_whitespace: true  # Preserve whitespace for code blocks
+  code_languages:
+    - javascript
+    - typescript
+    - jsx
+    - tsx
+    - html
+    - css
+    - json
+    - python
+    - java
+    - cpp
+    - c
+    - csharp
+    - go
+    - rust
+    - swift
+    - kotlin
+    - php
+    - ruby
+    - scala
+    - perl
+    - r
+    - sql
+    - shell
+    - bash
+    - powershell
+
+# Quality checker configuration
+quality_checker:
+  min_content_length: 100
+  max_broken_links: 10
+  max_missing_images: 5
+  check_spelling: true
+  check_grammar: false
+  check_code_blocks: true
+  check_headings: true
+  check_links: true
+  check_images: true
+  check_metadata: true
+
+# Document organizer configuration
+document_organizer:
+  output_format: "markdown"
+  create_index: true
+  create_toc: true
+  group_by_topic: true
+  include_metadata: true
+  include_assets: true
+  include_code_blocks: true
+  output_dir: "docs"
+  template_dir: "templates"

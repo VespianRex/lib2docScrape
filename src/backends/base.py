@@ -1,16 +1,18 @@
 """Base components for the documentation crawler backends."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union, TYPE_CHECKING # Added TYPE_CHECKING
-from pydantic import BaseModel, field_validator, Field # Added Field
+from typing import Any, Dict, Optional, Union, TYPE_CHECKING, Type # Added Type
+from pydantic import BaseModel, field_validator, Field
 from datetime import datetime
+import logging # Added import for logger
 
-from ..utils.url import URLInfo # Corrected import path for modular URLInfo
+from ..utils.url import URLInfo
 
 # Forward reference for type hinting
 if TYPE_CHECKING:
     from ..crawler import CrawlerConfig
 
+logger = logging.getLogger(__name__) # Define logger for use in this module
 
 class CrawlResult(BaseModel):
     """Model for storing crawl results."""
@@ -19,6 +21,8 @@ class CrawlResult(BaseModel):
     metadata: Dict[str, Any]
     status: int
     error: Optional[str] = None
+    content_type: Optional[str] = None  # Added content_type field
+    documents: Optional[list] = None  # Added documents field
     timestamp: datetime = Field(default_factory=datetime.utcnow) # Use default_factory
 
     model_config = {
@@ -28,15 +32,19 @@ class CrawlResult(BaseModel):
     @field_validator('url')
     def validate_url(cls, v: Union[str, URLInfo]) -> str:
         """Convert URLInfo to string if needed."""
+        logger = logging.getLogger(__name__) # Get logger
+        logger.debug(f"CrawlResult URL validator received: type={type(v)}, value='{v}'")
         if isinstance(v, URLInfo):
             # Return normalized_url if valid, otherwise raw_url
-            # For root URLs, ensure we don't add trailing slashes to match test expectations
             if v.is_valid and v.normalized_url:
-                # Remove trailing slash from root URLs (e.g., https://example.com/)
-                if v.normalized_url.endswith('/') and v.normalized_url.count('/') == 3:
-                    return v.normalized_url.rstrip('/')
-                return v.normalized_url
-            return v.raw_url
+                # Special handling for root path was removed as normalization handles it
+                result_str = v.normalized_url
+                logger.debug(f"CrawlResult URL validator returning (from URLInfo): '{result_str}'")
+                return result_str
+            result_str = v.raw_url
+            logger.debug(f"CrawlResult URL validator returning (from invalid URLInfo): '{result_str}'")
+            return result_str
+        logger.debug(f"CrawlResult URL validator returning (from str): '{v}'")
         return v
 
     def is_success(self) -> bool:
@@ -155,3 +163,21 @@ class CrawlerBackend(ABC):
     async def close(self) -> None:
         """Optional cleanup method for backend resources (e.g., sessions)."""
         pass # Default implementation does nothing
+
+# Moved from selector.py to base.py to resolve circular import
+_registered_backends: Dict[str, Type[CrawlerBackend]] = {}
+
+def register_backend(name: str, backend_class: Type[CrawlerBackend]):
+    """Register a backend class."""
+    if not issubclass(backend_class, CrawlerBackend):
+        raise TypeError(f"{backend_class.__name__} must be a subclass of CrawlerBackend")
+    _registered_backends[name] = backend_class
+    logger.info(f"Backend '{name}' registered with class {backend_class.__name__}")
+
+def get_backend_class(name: str) -> Optional[Type[CrawlerBackend]]:
+    """Get a registered backend class by name."""
+    return _registered_backends.get(name)
+
+def get_all_backend_names() -> list[str]:
+    """Get names of all registered backends."""
+    return list(_registered_backends.keys())

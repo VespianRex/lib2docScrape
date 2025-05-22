@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/performance.py
+# hypothesis_version: 6.131.20
+
+[0.0, 1.0, 30.0, 300.0, 128, 'F', 'T', 'cache_clear', 'cache_info', 'fifo', 'lifo', 'lru', 'ttl']

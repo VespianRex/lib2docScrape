@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/helpers.py
+# hypothesis_version: 6.131.20
+
+[0.0, 1.0, 2.0, 60.0, '#', '.css', '.gif', '.ico', '.jpeg', '.jpg', '.js', '.pdf', '.png', '.svg', 'INFO', 'Operation', 'Timer', 'http', 'https', 'sha256', 'utf-8']

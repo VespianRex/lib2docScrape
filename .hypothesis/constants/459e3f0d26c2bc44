@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/crawler/distributed/runner.py
+# hypothesis_version: 6.131.20
+
+['All tasks completed', 'Starting manager', 'content_types', 'exclude_patterns', 'follow_external']

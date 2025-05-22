@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/backends/http_backend.py
+# hypothesis_version: 6.131.20
+
+[30.0, 200, 500, 503, 504, 'CrawlerConfig', 'Request timed out', 'User-Agent', 'content-type', 'content_type', 'headers', 'html', 'http_backend', 'metadata', 'request_timeout', 'status', 'url']

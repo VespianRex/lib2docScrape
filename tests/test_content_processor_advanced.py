@@ -1,4 +1,5 @@
-from src.utils.url import URLInfo # Corrected import path
+from src.utils.url.factory import create_url_info # Import the factory function
+from src.utils.url import URLInfo # Keep URLInfo import for type hinting if needed elsewhere
 
 def test_url_processor_port_handling():
     """Test URLInfo port handling during initialization."""
@@ -17,6 +18,11 @@ def test_url_processor_port_handling():
     }
 
     for url, expected in port_urls.items():
-        # Instantiate URLInfo directly
-        url_info = URLInfo(url) # base_url is not needed for these tests
-        assert url_info.normalized_url == expected, f"URL '{url}' normalized incorrectly. Expected: '{expected}', Got: '{url_info.normalized_url}'"
+        # Use the factory function to create the URLInfo instance
+        url_info = create_url_info(url) # base_url is not needed for these tests
+        # For invalid URLs where expected is None, check if is_valid is False
+        if expected is None:
+            assert not url_info.is_valid, f"URL '{url}' should be invalid."
+        else:
+            assert url_info.is_valid, f"URL '{url}' should be valid."
+            assert url_info.normalized_url == expected, f"URL '{url}' normalized incorrectly. Expected: '{expected}', Got: '{url_info.normalized_url}'"

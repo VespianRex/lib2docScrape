@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/backends/base.py
+# hypothesis_version: 6.131.20
+
+[0.0, 200, 300, 'CrawlerConfig', 'inf', 'max_response_time', 'min_response_time', 'pages_crawled', 'success_rate', 'total_crawl_time', 'url']

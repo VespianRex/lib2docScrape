@@ -3,8 +3,9 @@
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from starlette.websockets import WebSocketState
-from starlette.responses import HTMLResponse, JSONResponse, FileResponse, StreamingResponse
+from starlette.responses import HTMLResponse, JSONResponse, FileResponse, StreamingResponse, Response
 from starlette.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 import uvicorn
 from pathlib import Path
@@ -14,7 +15,7 @@ import asyncio
 from src.backends.crawl4ai import Crawl4AIBackend as Crawler, Crawl4AIConfig as Config, CrawlResult
 from src.backends.selector import BackendSelector
 from src.backends.crawl4ai import Crawl4AIConfig, Crawl4AIBackend
-from src.utils.helpers import normalize_url
+from src.utils.url.factory import create_url_info
 import base64
 from urllib.parse import unquote, urlparse
 import socket
@@ -111,12 +112,17 @@ def get_domain_config(url: str) -> Optional[DomainConfig]:
 
 def normalize_url(url: str) -> str:
     """Normalize URLs with domain-specific handling."""
-    # Add scheme if missing
-    if not url.startswith(('http://', 'https://')):
-        url = 'https://' + url
+    # Create URLInfo using the factory
+    url_info = create_url_info(url)
     
+    # If URL is invalid, return original
+    if not url_info.is_valid:
+        logger.error(f"Invalid URL {url}: {url_info.error_message}")
+        return url
+        
+    # Apply domain-specific handling
     try:
-        parsed = urlparse(url)
+        parsed = urlparse(url_info.normalized_url)
         domain = parsed.netloc
         path = parsed.path.rstrip('/')
         
@@ -126,7 +132,7 @@ def normalize_url(url: str) -> str:
             # Check if URL matches any domain-specific patterns
             for pattern in config.content_patterns:
                 if re.search(pattern + '$', path):
-                    return url
+                    return url_info.normalized_url
             
             # Apply domain-specific normalization
             if domain == 'promptfoo.dev' and path == '/docs':
@@ -138,9 +144,9 @@ def normalize_url(url: str) -> str:
             elif domain == 'react.dev' and path == '':
                 return 'https://react.dev/learn'
     except Exception as e:
-        logger.error(f"Error normalizing URL {url}: {str(e)}")
+        logger.error(f"Error in domain-specific normalization for URL {url}: {str(e)}")
     
-    return url
+    return url_info.normalized_url
 
 def clean_and_convert_html(html: str, url: str) -> str:
     """Clean HTML with domain-specific handling."""
@@ -410,16 +416,301 @@ async def get_package_docs(package_name: str) -> Dict[str, Any]:
         }
 
 app = FastAPI()
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # For development only
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # Global variables for WebSocket management
 active_websockets: set[WebSocket] = set()
 socket_lock = asyncio.Lock()
+scraping_results = {}
+active_scraping_websockets: set[WebSocket] = set()
+scraping_results = {}
+
+@app.websocket("/ws/scraping")
+async def scraping_websocket(websocket: WebSocket):
+    """Handle WebSocket connections for scraping updates."""
+    try:
+        await websocket.accept()
+        logger.info("Scraping WebSocket connection accepted")
+        
+        async with socket_lock:
+            active_scraping_websockets.add(websocket)
+        
+        try:
+            while True:
+                data = await websocket.receive_json()
+                logger.info(f"Received scraping WebSocket message: {data}")
+                
+                if data.get('type') == 'start_scraping':
+                    urls = data.get('urls', [])
+                    if not urls:
+                        await websocket.send_json({
+                            "type": "error",
+                            "message": "No URLs provided"
+                        })
+                    else:
+                        await handle_scraping(websocket, urls)
+                else:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": "Unknown message type"
+                    })
+                    
+        except WebSocketDisconnect:
+            logger.info("Scraping WebSocket disconnected")
+            raise
+            
+    except Exception as e:
+        logger.error(f"Error in scraping websocket: {str(e)}")
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.send_json({
+                "type": "error",
+                "message": str(e)
+            })
+    
+    finally:
+        async with socket_lock:
+            if websocket in active_scraping_websockets:
+                active_scraping_websockets.remove(websocket)
+        logger.info("Scraping WebSocket connection cleaned up")
+
+@app.get("/api/libraries")
+async def get_libraries():
+    """Get list of available libraries."""
+    logger.info("Getting libraries list")
+    try:
+        # TODO: Implement actual library fetching
+        libraries = []
+        return JSONResponse({
+            "status": "success",
+            "libraries": libraries
+        })
+    except Exception as e:
+        logger.error(f"Error getting libraries: {str(e)}")
+        return JSONResponse({
+            "status": "error",
+            "message": str(e)
+        }, status_code=500)
+
+@app.get("/api/test-config")
+async def get_test_config():
+    """Get test configuration."""
+    logger.info("Getting test configuration")
+    try:
+        # TODO: Implement actual config fetching
+        config = {
+            "max_pages": 10,
+            "follow_links": True,
+            "concurrent_requests": 5
+        }
+        return JSONResponse({
+            "status": "success",
+            "config": config
+        })
+    except Exception as e:
+        logger.error(f"Error getting test config: {str(e)}")
+        return JSONResponse({
+            "status": "error",
+            "message": str(e)
+        }, status_code=500)
+
+@app.get("/api/test-results")
+async def get_test_results():
+    """Get test results."""
+    logger.info("Getting test results")
+    try:
+        results = list(scraping_results.items())
+        return JSONResponse({
+            "status": "success",
+            "results": results
+        })
+    except Exception as e:
+        logger.error(f"Error getting test results: {str(e)}")
+        return JSONResponse({
+            "status": "error",
+            "message": str(e)
+        }, status_code=500)
+
+@app.post("/api/scraping/start")
+async def start_scraping(request: Request):
+    """Start the scraping process."""
+    try:
+        data = await request.json()
+        logger.info(f"Received scraping request with data: {data}")
+        
+        # Extract URLs from request data
+        urls = []
+        if isinstance(data, dict):
+            # Handle 'urls' field
+            if 'urls' in data:
+                if isinstance(data['urls'], list):
+                    urls = data['urls']
+                elif isinstance(data['urls'], str):
+                    urls = [data['urls']]
+            # Handle 'url' field
+            elif 'url' in data:
+                urls = [data['url']]
+        elif isinstance(data, list):
+            urls = data
+        elif isinstance(data, str):
+            urls = [data]
+        
+        # Validate we have URLs to process
+        if not urls:
+            logger.warning("No URLs provided in request")
+            return JSONResponse({
+                "status": "error",
+                "message": "No URLs provided"
+            }, status_code=400)
+        
+        # Validate URLs
+        valid_urls = []
+        for url in urls:
+            url_info = create_url_info(url)
+            if url_info.is_valid:
+                valid_urls.append(url_info.normalized_url)
+            else:
+                logger.warning(f"Invalid URL skipped: {url} - {url_info.error_message}")
+        
+        if not valid_urls:
+            return JSONResponse({
+                "status": "error",
+                "message": "No valid URLs provided"
+            }, status_code=400)
+        
+        # Create and track the scraping task
+        task_id = str(hash(tuple(valid_urls)))
+        task = asyncio.create_task(handle_scraping_background(valid_urls))
+        active_scraping_tasks[task_id] = task
+        
+        return JSONResponse({
+            "status": "success",
+            "message": f"Scraping started for {len(valid_urls)} URLs",
+            "urls": valid_urls,
+            "task_id": task_id
+        })
+        
+    except ValueError as ve:
+        logger.error(f"Validation error in start_scraping: {str(ve)}")
+        return JSONResponse({
+            "status": "error",
+            "message": str(ve)
+        }, status_code=400)
+    except Exception as e:
+        logger.error(f"Error in start_scraping: {str(e)}")
+        return JSONResponse({
+            "status": "error",
+            "message": f"Internal server error: {str(e)}"
+        }, status_code=500)
+
+# Global variable to track active scraping tasks
+active_scraping_tasks: Dict[str, asyncio.Task] = {}
+
+@app.post("/api/scraping/stop")
+async def stop_scraping(request: Request):
+    """Stop any ongoing scraping processes."""
+    try:
+        data = await request.json()
+        task_id = data.get('task_id')
+        
+        if task_id and task_id in active_scraping_tasks:
+            # Cancel the specific task
+            task = active_scraping_tasks[task_id]
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            del active_scraping_tasks[task_id]
+            return JSONResponse({
+                "status": "success",
+                "message": f"Scraping task {task_id} stopped"
+            })
+        elif not task_id:
+            # Stop all tasks
+            tasks_stopped = 0
+            for task_id, task in active_scraping_tasks.items():
+                if not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                    tasks_stopped += 1
+            active_scraping_tasks.clear()
+            return JSONResponse({
+                "status": "success",
+                "message": f"Stopped {tasks_stopped} scraping tasks"
+            })
+        else:
+            return JSONResponse({
+                "status": "error",
+                "message": f"Task {task_id} not found"
+            }, status_code=404)
+            
+    except Exception as e:
+        logger.error(f"Error in stop_scraping: {str(e)}")
+        return JSONResponse({
+            "status": "error",
+            "message": f"Internal server error: {str(e)}"
+        }, status_code=500)
+
+async def handle_scraping_background(urls: List[str], websocket: Optional[WebSocket] = None):
+    """Handle scraping in background."""
+    config = Config(
+        max_pages=10,
+        follow_links=True,
+        concurrent_requests=5
+    )
+    crawler = Crawler(config)
+    
+    for url in urls:
+        try:
+            logger.info(f"Starting scraping for URL: {url}")
+            result = await crawler.crawl(url)
+            if result.error:
+                logger.error(f"Error scraping {url}: {result.error}")
+            else:
+                scraping_results[url] = result.content
+        except Exception as e:
+            logger.error(f"Error scraping URL {url}: {str(e)}")
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
+    """Render the home page."""
     return templates.TemplateResponse("index.html", {"request": request})
+
+@app.get("/test-dashboard", response_class=HTMLResponse)
+async def test_dashboard(request: Request):
+    """Render the test dashboard page."""
+    return templates.TemplateResponse("scraping_dashboard.html", {"request": request})
+
+@app.get("/libraries", response_class=HTMLResponse)
+async def libraries(request: Request):
+    """Render the libraries page."""
+    return templates.TemplateResponse("libraries.html", {"request": request})
+
+@app.get("/config", response_class=HTMLResponse)
+async def config(request: Request):
+    """Render the configuration page."""
+    return templates.TemplateResponse("config.html", {"request": request})
+
+@app.get("/results", response_class=HTMLResponse)
+async def results(request: Request):
+    """Render the results page."""
+    return templates.TemplateResponse("results.html", {"request": request})
 
 @app.post("/crawl")
 async def crawl(request: Request):
@@ -692,9 +983,6 @@ async def start_crawl(request: Request):
             'message': str(e)
         }, status_code=500)
 
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """Handle WebSocket connections."""
     try:
         await websocket.accept()
         logger.info("WebSocket connection accepted")
@@ -750,8 +1038,135 @@ async def websocket_endpoint(websocket: WebSocket):
                 active_websockets.remove(websocket)
         logger.info("WebSocket connection closed and cleaned up")
 
-async def handle_crawl(websocket: WebSocket, urls: List[str]):
-    """Handle crawling of URLs with real-time updates."""
+async def handle_scraping(websocket: WebSocket, urls: List[str]):
+    """Handle scraping of URLs with real-time updates."""
+    try:
+        # Initialize crawler with configuration
+        config = Config(
+            max_pages=10,
+            follow_links=True,
+            concurrent_requests=5,
+            extract_metadata=True,
+            timeout=30.0,
+            verify_ssl=False
+        )
+        crawler = Crawler(config)
+        
+        total_urls = len(urls)
+        results = []
+        
+        # Process URLs
+        for idx, url in enumerate(urls, 1):
+            try:
+                # Send progress update
+                await websocket.send_json({
+                    "type": "progress",
+                    "message": f"Processing URL {idx}/{total_urls}",
+                    "url": url,
+                    "progress": (idx / total_urls) * 100
+                })
+                
+                # Validate URL
+                url_info = create_url_info(url)
+                if not url_info.is_valid:
+                    logger.warning(f"Invalid URL skipped: {url} - {url_info.error_message}")
+                    results.append({
+                        "url": url,
+                        "status": "error",
+                        "message": f"Invalid URL: {url_info.error_message}"
+                    })
+                    continue
+                
+                # Normalize URL
+                normalized_url = normalize_url(url)
+                logger.info(f"Processing normalized URL: {normalized_url}")
+                
+                # Crawl URL with timeout and retries
+                try:
+                    result = await asyncio.wait_for(
+                        crawler.crawl(normalized_url),
+                        timeout=30.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.error(f"Timeout crawling URL: {url}")
+                    results.append({
+                        "url": url,
+                        "status": "error",
+                        "message": "Request timed out"
+                    })
+                    continue
+                
+                # Process result
+                if result.error:
+                    logger.error(f"Crawl error for {url}: {result.error}")
+                    results.append({
+                        "url": url,
+                        "status": "error",
+                        "message": result.error
+                    })
+                else:
+                    try:
+                        # Clean and convert content
+                        content = clean_and_convert_html(result.content, url)
+                        
+                        # Store results
+                        results.append({
+                            "url": url,
+                            "status": "success",
+                            "content": content,
+                            "metadata": result.metadata
+                        })
+                        scraping_results[url] = content
+                        
+                        # Send success update
+                        await websocket.send_json({
+                            "type": "success",
+                            "url": url,
+                            "message": "Processing completed"
+                        })
+                        
+                    except Exception as e:
+                        logger.error(f"Error processing content for {url}: {str(e)}")
+                        results.append({
+                            "url": url,
+                            "status": "error",
+                            "message": f"Content processing error: {str(e)}"
+                        })
+                
+            except Exception as e:
+                logger.error(f"Error processing URL {url}: {str(e)}")
+                results.append({
+                    "url": url,
+                    "status": "error",
+                    "message": str(e)
+                })
+                
+            # Send progress update
+            if websocket.client_state != WebSocketState.DISCONNECTED:
+                await websocket.send_json({
+                    "type": "progress",
+                    "completed": idx,
+                    "total": total_urls,
+                    "progress": (idx / total_urls) * 100
+                })
+        
+        # Send final results
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.send_json({
+                "type": "complete",
+                "total_processed": total_urls,
+                "successful": len([r for r in results if r["status"] == "success"]),
+                "failed": len([r for r in results if r["status"] == "error"]),
+                "results": results
+            })
+            
+    except Exception as e:
+        logger.error(f"Error in handle_scraping: {str(e)}", exc_info=True)
+        if websocket.client_state != WebSocketState.DISCONNECTED:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Server error: {str(e)}"
+            })
     try:
         if websocket.client_state == WebSocketState.DISCONNECTED:
             logger.error("WebSocket disconnected before crawl")

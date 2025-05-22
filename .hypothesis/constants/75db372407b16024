@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/ui/doc_viewer.py
+# hypothesis_version: 6.131.20
+
+[404, '/', '/api/diff', '/api/libraries', '/api/search', '/diff', '/library/{library}', '/search', '/static', '0.1.0', 'DocViewerApp', '_get_document', '_get_libraries', '_get_version_docs', 'content', 'content_format', 'content_type', 'diff.html', 'doc', 'doc_path', 'docs', 'document.html', 'home.html', 'html', 'last_updated', 'libraries', 'library', 'library.html', 'request', 'results', 'search.html', 'static', 'summary', 'templates', 'title', 'topics', 'url', 'version', 'version.html', 'versions']

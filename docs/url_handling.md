@@ -8,10 +8,11 @@ The `URLInfo` class (available via `from src.utils.url import URLInfo`) provides
 
 Key features include:
 - **Comprehensive security validation**: Protection against XSS, SQL injection, path traversal using rules defined in `src.utils.url.security`.
-- **Proper normalization**: IDN handling, path normalization, query parameter handling according to standards, implemented in `src.utils.url.normalization`.
+- **Normalization**: Includes IDN handling, path normalization (resolving `.` and `..`, collapsing slashes), and query parameter sorting, implemented in `src.utils.url.normalization`. Note that full RFC 3986 canonicalization (e.g., percent-decoding unreserved characters) is planned for future releases.
+- **Fragment Preservation**: The original URL fragment identifier (`#...`) is preserved and accessible via the `.fragment` property, but it is not included in the `.normalized_url` and is not subject to normalization rules.
 - **Immutable design**: Thread-safe after initialization.
 - **Enhanced domain parsing**: Accurate subdomain, domain, and TLD extraction (using `tldextract` library if available).
-- **Clear separation of concerns**: Logic is divided into modules (`info`, `validation`, `normalization`, `security`, `types`).
+- **Clear separation of concerns**: Logic is divided into modules (`info`, `validation`, `normalization`, `security`, `types`, `domain_parser`, `resolution`, `type_determiner`, `factory`).
 
 ## Basic Usage
 

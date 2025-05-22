@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/crawler/crawler.py
+# hypothesis_version: 6.131.20
+
+[1.0, 'Example Page', 'Example content', 'content', 'inf', 'links', 'title', 'url']

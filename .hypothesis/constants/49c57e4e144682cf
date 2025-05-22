@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/content/format_detector.py
+# hypothesis_version: 6.131.20
+
+['.', '::\\s*\\n\\s+\\w+', ':\\s+', '[\\}\\]]\\s*$', '^---\\n', '^=+\\s*$', '^[^\\n]+\\n-+\\s*$', '^[^\\n]+\\n=+\\s*$', '^\\.\\. \\[.+\\]', '^\\.\\. \\w+::', '^\\.\\. _\\w+:', '^\\s*[\\{\\[]', 'adoc', 'application/json', 'application/xml', 'application/yaml', 'asciidoc', 'bat', 'c', 'cpp', 'cs', 'css', 'go', 'htm', 'html', 'java', 'js', 'json', 'markdown', 'md', 'php', 'pl', 'ps1', 'py', 'rb', 'rest', 'rst', 'sh', 'text/asciidoc', 'text/css', 'text/html', 'text/markdown', 'text/plain', 'text/x-bat', 'text/x-c', 'text/x-c++', 'text/x-csharp', 'text/x-go', 'text/x-java', 'text/x-perl', 'text/x-php', 'text/x-powershell', 'text/x-python', 'text/x-rst', 'text/x-ruby', 'text/x-shellscript', 'txt', 'xhtml', 'xml', 'yaml', 'yml']

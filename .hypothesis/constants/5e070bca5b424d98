@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/content/metadata_extractor.py
+# hypothesis_version: 6.131.20
+
+['@', '@type', 'Untitled Document', '_', 'application/ld+json', 'content', 'h1', 'http-equiv', 'itemprop', 'meta', 'meta_redirects', 'name', 'property', 'refresh', 'script', 'title', 'url=[\\\'"]*([^\\\'"]+)', 'value']

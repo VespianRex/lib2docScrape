@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/quality_checker.py
+# hypothesis_version: 6.131.20
+
+[100, 1000, 100000, '/', 'code', 'code_block_count', 'code_block_length', 'code_blocks', 'content_length', 'description', 'error', 'formatted_content', 'general', 'heading_count', 'heading_structure', 'headings', 'info', 'internal_link_count', 'level', 'link_count', 'links', 'metadata', 'title', 'url', 'warning']

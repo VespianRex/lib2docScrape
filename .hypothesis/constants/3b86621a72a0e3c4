@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/crawler/distributed/worker.py
+# hypothesis_version: 6.131.20
+
+[0.1, 100.0, 'backends', 'completed', 'cpu_count', 'failed', 'memory_total', 'os', 'python_version', 'results', 'running']

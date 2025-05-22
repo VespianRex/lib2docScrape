@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        
+        .navbar {
+            background-color: #343a40;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .card {
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            transition: transform 0.3s;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .card-header {
+            font-weight: bold;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .stats-card {
+            text-align: center;
+            padding: 15px;
+        }
+        
+        .stats-card .value {
+            font-size: 2rem;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        
+        .stats-card .label {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+        
+        .stats-card .icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .chart-container {
+            height: 300px;
+            width: 100%;
+        }
+        
+        .sidebar {
+            background-color: #343a40;
+            color: #fff;
+            min-height: calc(100vh - 56px);
+            padding-top: 20px;
+        }
+        
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.75);
+            padding: 10px 20px;
+            margin: 5px 0;
+            border-radius: 5px;
+        }
+        
+        .sidebar .nav-link:hover {
+            color: #fff;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .sidebar .nav-link.active {
+            color: #fff;
+            background-color: #007bff;
+        }
+        
+        .sidebar .nav-link i {
+            margin-right: 10px;
+        }
+        
+        .content {
+            padding: 20px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 300px;
+        }
+        
+        /* Dark mode */
+        body.dark-mode {
+            background-color: #222;
+            color: #f8f9fa;
+        }
+        
+        body.dark-mode .card {
+            background-color: #333;
+            color: #f8f9fa;
+        }
+        
+        body.dark-mode .card-header {
+            background-color: #444;
+            border-bottom: 1px solid #555;
+        }
+        
+        body.dark-mode .stats-card .label {
+            color: #adb5bd;
+        }
+        
+        {% if custom_css %}
+        {{ custom_css | safe }}
+        {% endif %}
+    </style>
+</head>
+<body class="{{ 'dark-mode' if theme == 'dark' else '' }}">
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">{{ title }}</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/">Dashboard</a>
+                    </li>
+                    {% if enable_search %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/search">Search</a>
+                    </li>
+                    {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/libraries">Libraries</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/crawls">Crawls</a>
+                    </li>
+                    {% if enable_admin %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin">Admin</a>
+                    </li>
+                    {% endif %}
+                </ul>
+                <div class="d-flex">
+                    <button id="theme-toggle" class="btn btn-outline-light">
+                        <i class="fa fa-moon-o"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/">
+                                <i class="fa fa-dashboard"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/libraries">
+                                <i class="fa fa-book"></i> Libraries
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/crawls">
+                                <i class="fa fa-spider"></i> Crawls
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/documents">
+                                <i class="fa fa-file-text"></i> Documents
+                            </a>
+                        </li>
+                        {% if enable_search %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/search">
+                                <i class="fa fa-search"></i> Search
+                            </a>
+                        </li>
+                        {% endif %}
+                        {% if enable_charts %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/visualizations">
+                                <i class="fa fa-bar-chart"></i> Visualizations
+                            </a>
+                        </li>
+                        {% endif %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/settings">
+                                <i class="fa fa-cog"></i> Settings
+                            </a>
+                        </li>
+                        {% if enable_admin %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin">
+                                <i class="fa fa-lock"></i> Admin
+                            </a>
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+            
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 content">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Dashboard</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle">
+                            <i class="fa fa-calendar"></i> This week
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card stats-card">
+                            <div class="icon text-primary">
+                                <i class="fa fa-book"></i>
+                            </div>
+                            <div class="value" id="libraries-count">0</div>
+                            <div class="label">Libraries</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stats-card">
+                            <div class="icon text-success">
+                                <i class="fa fa-file-text"></i>
+                            </div>
+                            <div class="value" id="documents-count">0</div>
+                            <div class="label">Documents</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stats-card">
+                            <div class="icon text-info">
+                                <i class="fa fa-spider"></i>
+                            </div>
+                            <div class="value" id="crawls-count">0</div>
+                            <div class="label">Crawls</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stats-card">
+                            <div class="icon text-warning">
+                                <i class="fa fa-clock-o"></i>
+                            </div>
+                            <div class="value" id="uptime">0</div>
+                            <div class="label">Uptime (hours)</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                Recent Crawls
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container" id="crawls-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                Document Types
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container" id="document-types-chart"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="row mt-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-header">
+                                Recent Activity
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Time</th>
+                                                <th>Type</th>
+                                                <th>Description</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="activity-table">
+                                            <tr>
+                                                <td colspan="4" class="text-center">No activity yet</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+    
+    <div id="notifications" class="notification"></div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+    <script>
+        // Theme toggle
+        document.getElementById('theme-toggle').addEventListener('click', function() {
+            document.body.classList.toggle('dark-mode');
+            const icon = this.querySelector('i');
+            if (document.body.classList.contains('dark-mode')) {
+                icon.classList.remove('fa-moon-o');
+                icon.classList.add('fa-sun-o');
+            } else {
+                icon.classList.remove('fa-sun-o');
+                icon.classList.add('fa-moon-o');
+            }
+        });
+        
+        // Fetch data
+        async function fetchData() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                // Update stats
+                document.getElementById('libraries-count').textContent = data.libraries || 0;
+                document.getElementById('documents-count').textContent = data.documents || 0;
+                document.getElementById('crawls-count').textContent = data.crawls || 0;
+                document.getElementById('uptime').textContent = Math.floor((data.uptime || 0) / 3600);
+                
+                // Update charts
+                updateCharts(data);
+                
+                // Update activity table
+                updateActivityTable(data.activity || []);
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                showNotification('Error fetching data', 'error');
+            }
+        }
+        
+        // Update charts
+        function updateCharts(data) {
+            // Implement chart updates
+        }
+        
+        // Update activity table
+        function updateActivityTable(activities) {
+            const tableBody = document.getElementById('activity-table');
+            if (activities.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="4" class="text-center">No activity yet</td></tr>';
+                return;
+            }
+            
+            tableBody.innerHTML = '';
+            activities.forEach(activity => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${new Date(activity.timestamp).toLocaleString()}</td>
+                    <td>${activity.type}</td>
+                    <td>${activity.description}</td>
+                    <td><span class="badge bg-${getStatusColor(activity.status)}">${activity.status}</span></td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // Get status color
+        function getStatusColor(status) {
+            switch (status.toLowerCase()) {
+                case 'success': return 'success';
+                case 'error': return 'danger';
+                case 'warning': return 'warning';
+                case 'info': return 'info';
+                default: return 'secondary';
+            }
+        }
+        
+        // Show notification
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('notifications');
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show`;
+            notification.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            container.appendChild(notification);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                notification.classList.remove('show');
+                setTimeout(() => {
+                    container.removeChild(notification);
+                }, 300);
+            }, 5000);
+        }
+        
+        // WebSocket connection
+        {% if enable_websockets %}
+        let socket;
+        
+        function connectWebSocket() {
+            socket = new WebSocket(`ws://${window.location.host}/ws`);
+            
+            socket.onopen = function(e) {
+                console.log('WebSocket connection established');
+            };
+            
+            socket.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.type === 'update') {
+                    // Handle data update
+                    fetchData();
+                } else if (data.type === 'notification') {
+                    // Handle notification
+                    showNotification(data.message, data.level);
+                }
+            };
+            
+            socket.onclose = function(event) {
+                console.log('WebSocket connection closed');
+                // Reconnect after 5 seconds
+                setTimeout(connectWebSocket, 5000);
+            };
+            
+            socket.onerror = function(error) {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        connectWebSocket();
+        {% endif %}
+        
+        // Initial data fetch
+        fetchData();
+        
+        // Refresh data periodically
+        setInterval(fetchData, {{ refresh_interval * 1000 }});
+        
+        {% if custom_js %}
+        {{ custom_js | safe }}
+        {% endif %}
+    </script>
+</body>
+</html>

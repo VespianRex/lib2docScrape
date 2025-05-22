@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/backends/crawl4ai.py
+# hypothesis_version: 6.131.20
+
+[0.0, 1.0, 2.0, 30.0, 100, 200, 400, 403, '#', '/', '; ', 'CrawlerConfig', 'Internal fetch error', 'User-Agent', '__codelineno-', 'cached_pages', 'content', 'crawl4ai', 'crawler.log', 'end_time', 'error', 'failed_requests', 'headers', 'html', 'http://', 'https://', 'name', 'package', 'pages_crawled', 'start_time', 'success_rate', 'successful_requests', 'text', 'title', 'total_crawl_time', 'total_pages', 'type', 'www.']

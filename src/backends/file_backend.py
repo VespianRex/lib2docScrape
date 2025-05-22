@@ -1,13 +1,17 @@
 """Backend for reading local files."""
 
 import logging
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, TYPE_CHECKING
 import aiofiles # Use aiofiles for async file operations
 from urllib.parse import urlparse, unquote
 from pathlib import Path
 
 from .base import CrawlerBackend, CrawlResult
-from ..utils.url import URLInfo # Corrected import path for modular URLInfo
+from ..utils.url.info import URLInfo # Corrected import path for modular URLInfo
+# from ..utils.url.factory import create_url_info # No longer needed here, url_info is passed in
+
+if TYPE_CHECKING:
+    from src.crawler import CrawlerConfig # For type hinting
 
 logger = logging.getLogger(__name__)
 
@@ -19,19 +23,15 @@ class FileBackend(CrawlerBackend):
         super().__init__(name="file_backend")
         # No session needed for file operations
 
-    # Updated signature to match how it's called by DocumentationCrawler
-    async def crawl(self, url: str, config: Optional[Any] = None) -> CrawlResult:
+    # Updated signature to match CrawlerBackend and how DocumentationCrawler calls it
+    async def crawl(self, url_info: URLInfo, config: Optional['CrawlerConfig'] = None) -> CrawlResult:
         """Read content from a local file URL (file://...)."""
-        # Create URLInfo object from the passed URL string
-        try:
-            url_info = URLInfo(url) # Create URLInfo internally
-            if not url_info.is_valid:
-                 raise ValueError(f"Invalid file URL provided: {url}")
-        except Exception as e:
-             logger.error(f"Error parsing file URL {url}: {e}")
-             return CrawlResult(url=url, content={}, metadata={}, status=500, error=f"Invalid file URL: {url}")
+        if not url_info or not url_info.is_valid:
+            err_url = url_info.raw_url if url_info else "Unknown URL"
+            logger.error(f"Invalid or missing URLInfo provided to FileBackend.crawl: {err_url}")
+            return CrawlResult(url=err_url, content={}, metadata={}, status=500, error="Invalid URLInfo provided")
 
-        raw_url = url # Keep original url for error reporting if needed
+        raw_url = url_info.raw_url
         normalized_url = url_info.normalized_url
 
         try:
@@ -42,6 +42,7 @@ class FileBackend(CrawlerBackend):
 
             # Convert file URI path to a system path
             file_path_str = unquote(parsed_url.path)
+            logger.debug(f"FileBackend: raw_url='{raw_url}', normalized_url='{normalized_url}', parsed_path='{parsed_url.path}', unquoted_path='{file_path_str}'")
             # Basic check for absolute path (might need refinement for Windows file URIs if used)
             if not Path(file_path_str).is_absolute():
                  # Handle cases like file:relative/path which urlparse might allow
@@ -53,7 +54,7 @@ class FileBackend(CrawlerBackend):
 
             if not file_path.is_file():
                 error_msg = f"File not found: {file_path}"
-                logger.error(error_msg)
+                logger.error(f"FileBackend: {error_msg} (Resolved from {file_path_str})")
                 # Use raw_url for reporting the original requested URL
                 return CrawlResult(url=raw_url, content={}, metadata={}, status=404, error=error_msg)
 

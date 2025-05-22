@@ -1,30 +1,58 @@
-# Current Task: Fix Test Failures (Phase 1)
+# Current Task: Achieve Full Test Coverage (Three-Phase Plan)
 
-## Objective
-Address the test failures outlined in `docs/TestSolvingPlan.md`, starting with Phase 1: URL Utilities (`src/utils/url/`).
+**Primary Objective:**  
+Execute the comprehensive test coverage improvement plan, working through all subtasks in the following order:
 
-## Current Step
-**Phase 1: URL Utilities (`src/utils/url/`)**
-*   **Task 1.1 (`info.py`): Fix `URLInfo` Initialization & Validation**
-    *   ✅ Subtask 1.1.1: Implement port validation fix (Issue E, Test `test_invalid_url_initialization[http://example.com:99999-Invalid port]`). Catch `ValueError`, set correct error, prevent `UnboundLocalError`.
-    *   ✅ Subtask 1.1.2: Implement scheme validation (Issue B, Tests `test_valid_url_initialization[file:///...]`, `test_invalid_url_initialization[ftp://...]`). Allow `file`, disallow `ftp` with auth.
-    *   ✅ Subtask 1.1.3: Implement security pattern checks (Issue C, J, Tests `test_invalid_url_initialization[...]` for traversal, XSS, private IP, null byte; `test_validate_security_patterns`). Ensure correct error messages.
-    *   ✅ Subtask 1.1.4: Implement invalid label check (Issue D, Test `test_invalid_url_initialization[http://<invalid>...]`). Ensure `normalize_hostname` raises `ValueError`.
-    *   ✅ Subtask 1.1.5: Fix "Missing host" vs "Missing netloc" (Issue G, Test `test_validate_netloc`).
-*   **Task 1.2 (`info.py`): Fix `URLInfo` Normalization**
-    *   ✅ Subtask 1.2.1: Implement trailing slash logic (Issue A, Tests `test_valid_url_initialization[http://example.com]`, `test_valid_url_initialization[http://localhost:8080]`).
-    *   ✅ Subtask 1.2.2: Implement path normalization using `posixpath.normpath` (Issue I, Test `test_valid_url_initialization[http://EXAMPLE.com:80/./path/../other/]`).
-*   **Task 1.3 (`info.py`): Fix `URLInfo` Properties**
-    *   ✅ Subtask 1.3.1: Fix `netloc` property to strip auth (Issue C, Test `test_url_properties`).
-    *   ✅ Subtask 1.3.2: Implement `tldextract` fallbacks for IP/localhost (Issue H, Tests `test_tldextract_properties[...]`).
-*   **Task 1.4 (`normalization.py`): Fix Normalization Functions**
-    *   ✅ Subtask 1.4.1: Fix `normalize_hostname` to raise `ValueError` correctly (Test `test_normalize_hostname`).
-    *   ➡️ **Subtask 1.4.2:** Fix `normalize_path` for empty input (Test `test_normalize_path`).
-*   Task 1.5 (`validation.py`): Fix Validation Functions & Tests
+1. [`cline_docs/test_coverage_plan_phase1_zero_percent.md`](cline_docs/test_coverage_plan_phase1_zero_percent.md) — Phase 1: Files with 0% coverage  
+2. [`cline_docs/test_coverage_plan_phase2_low_coverage.md`](cline_docs/test_coverage_plan_phase2_low_coverage.md) — Phase 2: Files with low (but >0%) coverage  
+3. [`cline_docs/test_coverage_plan_phase3_more_low_coverage.md`](cline_docs/test_coverage_plan_phase3_more_low_coverage.md) — Phase 3: Additional low coverage files
 
-## Next Steps
-1.  Read `src/utils/url/normalization.py`.
-2.  Implement the fix for Subtask 1.4.2 (Fix `normalize_path` for empty input).
-3.  Update `docs/TestSolvingPlan.md` to mark Subtask 1.4.2 as complete.
-4.  Update this file (`currentTask.md`) for the next subtask.
-5.  Run relevant tests to confirm the fixes.
+---
+
+## Workflow & Rules
+
+- **At the start of each subtask:**  
+  - Check the relevant phase plan file for the next incomplete subtask.
+  - Work through the subtasks in order, one at a time.
+- **After completing each subtask:**  
+  - Mark the subtask as complete in the corresponding plan file.
+  - Update this tally/progress section.
+- **Each boomerang task must finish by marking the completed subtask in the coverage plan doc.**
+- **Always check the plan files for the next subtask before proceeding.**
+
+---
+
+## Progress Tally
+
+- **Phase 1:** [`test_coverage_plan_phase1_zero_percent.md`](cline_docs/test_coverage_plan_phase1_zero_percent.md)
+  - [x] `src/base.py` — No testable code remains. Marked complete.
+  - [x] `src/crawler.py` - `CrawlTarget` model tests completed.
+  - [x] `src/crawler.py` - `CrawlStats` model tests completed.
+  - [ ] Remaining: `src/crawler.py` (remaining models and `DocumentationCrawler` class), `src/ui/doc_viewer_complete.py`
+
+- **Phase 2:** [`test_coverage_plan_phase2_low_coverage.md`](cline_docs/test_coverage_plan_phase2_low_coverage.md)
+  - [ ] All subtasks complete
+
+- **Phase 3:** [`test_coverage_plan_phase3_more_low_coverage.md`](cline_docs/test_coverage_plan_phase3_more_low_coverage.md)
+  - [ ] All subtasks complete
+
+---
+
+## TDD Status
+
+- **Current Stage:** 🔴 RED (Write a failing test for the next uncovered path)
+- **Next Step:**  
+  - Identify the next uncovered line/branch/subtask from the phase plan files.
+  - Write a failing test for it.
+  - Implement code to pass the test, then refactor as needed.
+
+---
+
+## Pending Doc Updates
+
+- Update `projectRoadmap.md` and `codebaseSummary.md` as phases or major milestones are completed.
+- Mark completed subtasks in the relevant coverage plan files after each boomerang task.
+
+---
+
+_Last Updated: 2025-05-21 16:35_

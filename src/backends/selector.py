@@ -1,20 +1,17 @@
-from typing import Dict, Optional, Type
+from typing import Any, Dict, Optional, Type
 from urllib.parse import urlparse
-import logging
-
-# Set logging level
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
-
+import logging # Standard logging
+import fnmatch
+import asyncio
+import inspect
 from pydantic import BaseModel, field_validator
 
-from .base import CrawlerBackend
-from .crawl4ai import Crawl4AIBackend, Crawl4AIConfig
-from src.utils.url import URLInfo # Use absolute import path from src root
+logger = logging.getLogger(__name__) # Define logger for this module
+
+from .base import CrawlerBackend # Relative import for CrawlerBackend
 
 
 class BackendCriteria(BaseModel):
-    """Criteria for backend selection."""
     priority: int
     content_types: list[str]
     url_patterns: list[str]
@@ -23,13 +20,13 @@ class BackendCriteria(BaseModel):
     schemes: list[str] = ['http', 'https', 'file']
     netloc_patterns: list[str] = []
     path_patterns: list[str] = []
-    domains: list[str] = []  # List of domain names to match
-    paths: list[str] = []  # List of URL paths to match
+    domains: list[str] = []
+    paths: list[str] = []
 
     @field_validator('url_patterns')
     def validate_url_patterns(cls, v):
-        if not v:
-            return ["*"]
+        if not v:  # Handles None or empty list
+            return []
         return v
 
     @field_validator('schemes')
@@ -38,419 +35,271 @@ class BackendCriteria(BaseModel):
             return ['http', 'https', 'file']
         return v
 
-
 class BackendSelector:
-    """Manages and selects appropriate backends for different crawling tasks."""
+    def __init__(self):
+        self._backends: Dict[str, Type[CrawlerBackend]] = {}
+        self._backend_instances: Dict[str, CrawlerBackend] = {}
+        self.criteria: Dict[str, Any] = {}
+        self._lock = asyncio.Lock()
+        self._initialized_backends = False
 
-    def __init__(self) -> None:
-        # Configure logging
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format='%(name)s - %(levelname)s - %(message)s'
-        )
-        self.logger = logging.getLogger(__name__)
-        
-        self.backends: Dict[str, CrawlerBackend] = {}
-        self.criteria: Dict[str, BackendCriteria] = {}
-        
-        # Initialize crawl4ai backend by default
-        self._init_default_backend()
-    
-    def _init_default_backend(self) -> None:
-        """Initialize the default crawl4ai backend with high priority."""
-        crawl4ai_config = Crawl4AIConfig(
-            max_retries=3,
-            timeout=30.0,
-            headers={
-                "User-Agent": "Crawl4AI/1.0 Documentation Crawler"
-            },
-            follow_redirects=True,
-            verify_ssl=True,
-            max_depth=5
-        )
-        
-        crawl4ai_backend = Crawl4AIBackend(config=crawl4ai_config)
-        crawl4ai_criteria = BackendCriteria(
-            priority=100,  # Highest priority
-            content_types=["text/html", "application/xhtml+xml"],
-            url_patterns=["*"],  # Match all URLs
-            max_load=0.9,  # Higher load tolerance
-            min_success_rate=0.6,  # More lenient success rate
-            schemes=['http', 'https']
-        )
-        
-        self.register_backend(crawl4ai_backend, crawl4ai_criteria)
-    def clear_backends(self) -> None:
-        """Clear all registered backends."""
-        self.backends = {}
-        self.criteria = {}
-
-    def register_backend(
-        self,
-        backend: CrawlerBackend,
-        criteria: BackendCriteria
-    ) -> None:
+    def select_backend_for_url(self, url: str, content_type: Optional[str] = None):
         """
-        Register a crawler backend with selection criteria.
+        Select a backend instance matching the given URL and optional content type.
+        Returns the backend instance or None if no match.
         
-        Args:
-            backend: The crawler backend instance
-            criteria: Selection criteria for the backend
-            
-        Raises:
-            ValueError: If backend name is not set or if criteria is invalid
+        Selection logic:
+        1. First try to find a backend that matches both the URL and content_type exactly
+        2. If no exact match, find backends that match the URL and can handle any content type
+        3. If none found, find a backend with the lowest priority as fallback
         """
-        if not hasattr(backend, 'name') or not backend.name:
-            raise ValueError("Backend must have a name")
+        parsed = urlparse(url)
+        exact_matches = []
+        url_matches = []
+        fallback_backends = []
+
+        logger.debug(f"Selecting backend for URL \'{url}\' with content_type \'{content_type}\'")
+        # Log all available criteria for debugging
+        # for n, c in getattr(self, "criteria", {}).items():
+        #     logger.debug(f"Available criteria for backend \'{n}\': schemes={c.schemes}, domains={c.domains}, paths={c.paths}, url_patterns={c.url_patterns}, content_types={c.content_types}")
+
+        for name, criteria in getattr(self, "criteria", {}).items():
+            url_match = True
             
-        # Set default schemes if not present
-        if not hasattr(backend, 'schemes'):
-            backend.schemes = criteria.schemes
+            if name == "mock_crawler": logger.debug(f"MockCrawler START: url_match={url_match}, criteria_schemes={criteria.schemes}") # DEBUG MOCK
+            if parsed.scheme and criteria.schemes and parsed.scheme not in criteria.schemes:
+                url_match = False
+                if name == "HTTPBackend": logger.debug(f"HTTPBackend: FAILED scheme check. parsed.scheme=\'{parsed.scheme}\', criteria.schemes={criteria.schemes}")
+                if name == "mock_crawler": logger.debug(f"MockCrawler: FAILED scheme check. parsed.scheme=\'{parsed.scheme}\', criteria.schemes={criteria.schemes}") # DEBUG MOCK
             
-        # Validate URL patterns
-        if not criteria.url_patterns:
-            criteria.url_patterns = ["*"]  # Accept all URLs by default
+            if name == "mock_crawler": logger.debug(f"MockCrawler AfterSchemeCheck: url_match={url_match}, criteria_domains={criteria.domains}") # DEBUG MOCK
+            if url_match and criteria.domains and parsed.hostname not in criteria.domains:
+                url_match = False
+                if name == "HTTPBackend": logger.debug(f"HTTPBackend: FAILED domain check. parsed.hostname=\'{parsed.hostname}\', criteria.domains={criteria.domains}")
+                if name == "mock_crawler": logger.debug(f"MockCrawler: FAILED domain check. parsed.hostname=\'{parsed.hostname}\', criteria.domains={criteria.domains}") # DEBUG MOCK
+
+            if name == "mock_crawler": logger.debug(f"MockCrawler AfterDomainCheck: url_match={url_match}, criteria_paths={criteria.paths}") # DEBUG MOCK
+            if url_match and criteria.paths and not any(parsed.path.startswith(p) for p in criteria.paths):
+                url_match = False
+                if name == "HTTPBackend": logger.debug(f"HTTPBackend: FAILED path check. parsed.path=\'{parsed.path}\', criteria.paths={criteria.paths}")
+                if name == "mock_crawler": logger.debug(f"MockCrawler: FAILED path check. parsed.path=\'{parsed.path}\', criteria.paths={criteria.paths}") # DEBUG MOCK
             
-        self.backends[backend.name] = backend
-        self.criteria[backend.name] = criteria
+            if name == "mock_crawler": logger.debug(f"MockCrawler AfterPathCheck: url_match={url_match}, criteria_url_patterns={criteria.url_patterns}") # DEBUG MOCK
+            if url_match and criteria.url_patterns:
+                pattern_matched_for_this_criterion = False
+                for pat_idx, pat in enumerate(criteria.url_patterns):
+                    is_simple_scheme_prefix = pat.endswith("://") and not any(glob_char in pat[:-3] for glob_char in "*?[]")
+                    match_attempted = False
+                    current_pat_match = False
 
-    def _check_url_pattern(self, url: str, patterns: list[str]) -> bool:
-        """
-        Check if URL matches any of the given patterns.
-        """
-        if "*" in patterns:
-            return True
+                    if is_simple_scheme_prefix:
+                        match_attempted = True
+                        if url.startswith(pat):
+                            pattern_matched_for_this_criterion = True
+                            current_pat_match = True
+                            if name == "HTTPBackend": logger.debug(f"HTTPBackend: Matched simple scheme prefix \'{pat}\' for url \'{url}\'")
+                            if name == "mock_crawler": logger.debug(f"MockCrawler: Matched simple scheme prefix \'{pat}\' for url \'{url}\'") # DEBUG MOCK
+                            break
+                    else:
+                        match_attempted = True
+                        if fnmatch.fnmatch(url, pat) or \
+                           (parsed.netloc and fnmatch.fnmatch(parsed.netloc, pat)):
+                            pattern_matched_for_this_criterion = True
+                            current_pat_match = True
+                            if name == "HTTPBackend": logger.debug(f"HTTPBackend: Matched fnmatch pattern \'{pat}\' for url \'{url}\' or netloc \'{parsed.netloc}\'")
+                            if name == "mock_crawler": logger.debug(f"MockCrawler: Matched fnmatch pattern \'{pat}\' for url \'{url}\' or netloc \'{parsed.netloc}\'") # DEBUG MOCK
+                            break
+                    
+                    if name == "HTTPBackend" and match_attempted:
+                         logger.debug(f"HTTPBackend: Pattern \'{pat}\' (idx {pat_idx}, simple_scheme={is_simple_scheme_prefix}) did not match url \'{url}\'. current_pat_match={current_pat_match}")
+                    if name == "mock_crawler" and match_attempted: # DEBUG MOCK
+                         logger.debug(f"MockCrawler: Pattern \'{pat}\' (idx {pat_idx}, simple_scheme={is_simple_scheme_prefix}) did not match url \'{url}\'. current_pat_match={current_pat_match}")
 
-        parsed_url = urlparse(url)
-        domain = parsed_url.netloc.lower()
-        path = parsed_url.path
-        normalized_url = url.rstrip('/').lower()  # Normalize and convert to lowercase
 
-        for pattern in patterns:
-            try:
-                pattern = pattern.lower()  # Case-insensitive matching
-                
-                # Check domain pattern
-                if pattern.startswith('domain:'):
-                    domain_pattern = pattern.split(':', 1)[1]
-                    if domain_pattern in domain:
-                        return True
-                        
-                # Check path pattern
-                elif pattern.startswith('path:'):
-                    path_pattern = pattern.split(':', 1)[1]
-                    if path_pattern in path:
-                        return True
-                        
-                # Check wildcard pattern
-                elif pattern.endswith('*'):
-                    prefix = pattern[:-1]
-                    if normalized_url.startswith(prefix):
-                        return True
-                        
-                # Check substring pattern (new)
-                elif pattern.startswith('contains:'):
-                    substring = pattern.split(':', 1)[1]
-                    if substring in normalized_url:
-                        return True
-                        
-                # Regular URL pattern matching - now includes substring matching
-                else:
-                    pattern_norm = pattern.rstrip('/')
-                    # Exact match
-                    if pattern_norm == normalized_url:
-                        return True
-                    # Substring match
-                    if pattern_norm in normalized_url:
-                        return True
-
-            except Exception as e:
-                self.logger.error(f"_check_url_pattern: Error matching pattern '{pattern}': {str(e)}")
-                # Continue to next pattern on error
-
-        return False
-
-    def _evaluate_backend(
-        self,
-        backend_name: str,
-        content_type: str,
-        url: str
-    ) -> float:
-        """
-        Evaluate how suitable a backend is for the given request.
-        
-        Args:
-            backend_name: Name of the backend to evaluate
-            content_type: Content type of the target
-            url: URL to crawl
+                if not pattern_matched_for_this_criterion:
+                    url_match = False
+                    if name == "HTTPBackend": logger.debug(f"HTTPBackend: FAILED url_patterns check. No pattern in {criteria.url_patterns} matched url \'{url}\'")
+                    if name == "mock_crawler": logger.debug(f"MockCrawler: FAILED url_patterns check. No pattern in {criteria.url_patterns} matched url \'{url}\'") # DEBUG MOCK
             
-        Returns:
-            Float score indicating suitability (0-1)
-        """
-        backend = self.backends[backend_name]
-        criteria = self.criteria[backend_name]
-        self.logger.debug(f"Evaluating backend '{backend_name}' with criteria: {criteria.dict()}")
-        
-        # Start with base score from priority
-        score = float(criteria.priority) / 100  # Priority has more influence
+            if name == "HTTPBackend": 
+                logger.debug(f"HTTPBackend: Final pre-continue url_match state: {url_match} for url \'{url}\'")
+            if name == "mock_crawler": logger.debug(f"MockCrawler: Final pre-continue url_match state: {url_match} for url \'{url}\'") # DEBUG MOCK
 
-        # Identify backend type
-        is_specialized = bool(criteria.domains or criteria.paths or 
-                             criteria.netloc_patterns or criteria.path_patterns)
-        is_type_specific = criteria.content_types != ["*"]
-        # Refined fallback definition
-        is_fallback = (
-            "*" in criteria.url_patterns and
-            not criteria.domains and
-            not criteria.paths and
-            not criteria.netloc_patterns and
-            not criteria.path_patterns and
-            criteria.content_types == ["*"]
-        )
-
-        # Adjust base score based on backend type
-        if is_fallback:
-            score = float(criteria.priority) / 1000  # Very low base score for fallbacks
-        elif is_specialized:
-            score *= 2  # Double score for specialized backends
-
-        # Check content type compatibility
-        if content_type:  # Only check content type if one is provided
-            supports_requested_type = content_type in criteria.content_types
-            supports_wildcard = "*" in criteria.content_types
-            is_html_backend = "text/html" in criteria.content_types
-
-            if supports_requested_type:
-                score += 0.5  # Large bonus for exact match
-            elif supports_wildcard:
-                 score += 0.1 # Small bonus for wildcard support
-            elif is_type_specific:
-                 # Apply penalty, but less harsh for the html 'fallback'
-                 penalty = 0.1 if is_html_backend else 0.5
-                 score -= penalty
-                 self.logger.debug(f"Backend '{backend_name}': Applied penalty {penalty} for content type mismatch (requested: {content_type}, supports: {criteria.content_types})")
-
-        # Handle scoring when no content_type is provided in the request
-        elif not content_type:
-            # Prefer 'text/html' or wildcard '*' as default
-            supports_html = "text/html" in criteria.content_types
-            supports_wildcard = "*" in criteria.content_types
-
-            if supports_html:
-                score += 0.15 # Bonus for supporting default HTML
-            elif supports_wildcard:
-                score += 0.1 # Smaller bonus for wildcard
-            elif is_type_specific:
-                score -= 0.2 # Penalty if backend expects specific types other than html/wildcard
-
-        # Parse URL once
-        parsed_url = urlparse(url)
-        
-        # Check URL pattern match
-        matches_pattern = self._check_url_pattern(url, criteria.url_patterns)
-        if matches_pattern:
-            score += 0.2
-        elif criteria.url_patterns != ["*"]:  # Only penalize if backend has specific patterns
-            score -= 0.1
-        
-        # Check domain match with case insensitivity
-        if criteria.domains:
-            netloc_lower = parsed_url.netloc.lower()
-            if any(domain.lower() in netloc_lower for domain in criteria.domains):
-                score += 0.2
-            elif "*" not in criteria.domains:
-                score -= 0.1
-                
-        # Check path match with improved matching
-        if criteria.paths:
-            if any(parsed_url.path.startswith(p) for p in criteria.paths):
-                score += 0.2
-            elif "*" not in criteria.paths:
-                score -= 0.1
-                
-        # Check netloc pattern match
-        if criteria.netloc_patterns:
-            netloc_lower = parsed_url.netloc.lower()
-            if any(pattern.lower() in netloc_lower for pattern in criteria.netloc_patterns):
-                score += 0.2
-            else:
-                score -= 0.1
-                
-        # Check path pattern match
-        if criteria.path_patterns:
-            if any(pattern in parsed_url.path for pattern in criteria.path_patterns):
-                score += 0.2
-            else:
-                score -= 0.1
-        
-        # Check backend health
-        metrics = backend.get_metrics()
-        if metrics["success_rate"] >= criteria.min_success_rate:
-            score += 0.2
-        
-        # Penalize if backend is under heavy load
-        pages_crawled = metrics["pages_crawled"]
-        if pages_crawled > 0:
-            load_factor = pages_crawled / (pages_crawled + 100)  # Simplified load calculation
-            if load_factor > criteria.max_load:
-                score -= 0.2
-        
-        self.logger.debug(f"Backend '{backend_name}' calculated score: {score}")
-        return max(score, 0) # Ensure score is not negative
-
-    async def select_backend(self, url: str, content_type: Optional[str] = None) -> Optional[CrawlerBackend]:
-        """
-        Select appropriate backend for URL.
-        
-        Args:
-            url: URL to process
-            content_type: Optional content type hint
-            
-        Returns:
-            Selected backend or None if no match
-            
-        Raises:
-            ValueError: If no backends are registered
-        """
-        if not self.backends:
-            raise ValueError("No backends registered")
-            
-        url_info = URLInfo(url)
-        self.logger.debug(f"select_backend: Processing URL '{url}'")
-        
-        if not url_info.is_valid:
-            self.logger.debug(f"select_backend: URL is invalid (error: {url_info.error_message})")
-            return None
-            
-        best_backend: Optional[CrawlerBackend] = None
-        best_score: float = -1.0
-
-        for name, backend in self.backends.items():
-            self.logger.debug(f"Evaluating backend: '{name}'")
-            try:
-                criteria = self.criteria[name]
-                matches = await self._matches_criteria(url_info, criteria)
-                self.logger.debug(f"Backend '{name}': Criteria match result: {matches}")
-
-                if matches:
-                    score = self._evaluate_backend(name, content_type, url)
-                    self.logger.debug(f"Backend '{name}': Score: {score}")
-
-                    if score > best_score:
-                        self.logger.debug(f"Backend '{name}': New best score ({score} > {best_score})")
-                        best_score = score
-                        best_backend = backend
-            except Exception as e:
-                self.logger.error(f"Error evaluating backend {name}: {str(e)}")
+            if not url_match:
                 continue
-
-        if best_backend:
-            self.logger.debug(f"Selected backend: {best_backend.name} with score {best_score}")
-            return best_backend
-        
-        self.logger.debug("No suitable backend found")
-        return None
-
-    def get_all_backends(self) -> Dict[str, CrawlerBackend]:
-        """
-        Get all registered backends.
-        
-        Returns:
-            Dictionary of registered backends
-        """
-        return self.backends.copy()
-
-    def get_backend_status(self) -> Dict[str, Dict]:
-        """
-        Get status of all backends including their metrics and criteria.
-        
-        Returns:
-            Dictionary containing status of all backends
-        """
-        return {
-            name: {
-                "metrics": backend.get_metrics(),
-                "criteria": self.criteria[name].dict()
-            }
-            for name, backend in self.backends.items()
-        }
-
-    async def _matches_criteria(self, url_info: URLInfo, criteria: BackendCriteria) -> bool:
-        """
-        Check if URL matches backend criteria.
-
-        Args:
-            url_info: Normalized URL info
-            criteria: Backend selection criteria
-
-        Returns:
-            True if URL matches criteria, False otherwise
-        """
-        try:
-            # Check if URL is valid
-            if not url_info.is_valid:
-                return False
-
-            # Always allow fallback backends (those with wildcards and no specific restrictions)
-            is_fallback = (
-                "*" in criteria.url_patterns and
-                not criteria.domains and
-                not criteria.paths and
-                not criteria.netloc_patterns and
-                not criteria.path_patterns and
-                criteria.content_types == ["*"]
-            )
-            if is_fallback:
-                return True
-
-            # Check scheme
-            if criteria.schemes and url_info.scheme not in criteria.schemes:
-                return False
-
-            # Check URL patterns - if not wildcard
-            if "*" not in criteria.url_patterns:
-                pattern_match = self._check_url_pattern(url_info.normalized_url, criteria.url_patterns)
-                if not pattern_match:
-                    return False
-
-            # Check domain match
-            if criteria.domains:
-                domain_match = any(
-                    domain.lower() in url_info.netloc.lower()
-                    for domain in criteria.domains
-                )
-                if not domain_match:
-                    return False
-
-            # Check path match
-            if criteria.paths:
-                path_match = any(
-                    url_info.path.startswith(p)
-                    for p in criteria.paths
-                )
-                if not path_match:
-                    return False
-
-            # Check netloc patterns
-            if criteria.netloc_patterns:
-                netloc_match = any(
-                    pattern.lower() in url_info.netloc.lower()
-                    for pattern in criteria.netloc_patterns
-                )
-                if not netloc_match:
-                    return False
-
-            # Check path patterns
-            if criteria.path_patterns:
-                path_match = any(
-                    pattern in url_info.path
-                    for pattern in criteria.path_patterns
-                )
-                if not path_match:
-                    return False
-
-            return True
             
-        except Exception as e:
-            self.logger.error(f"Error checking URL criteria: {str(e)}")
-            return False
+            fallback_backends.append((criteria.priority, name))
+            if name == "HTTPBackend": logger.debug(f"HTTPBackend: Added to fallback_backends. Current fallback_backends: {fallback_backends}")
+            if name == "mock_crawler": logger.debug(f"MockCrawler: Added to fallback_backends. Current fallback_backends: {fallback_backends}") # DEBUG MOCK
+
+
+            if name == "HTTPBackend": 
+                logger.debug(f"HTTPBackend check 2: content_type=\'{content_type}\', criteria.content_types={criteria.content_types}, exact_matches_len={len(exact_matches)}, url_matches_len={len(url_matches)}, fallback_backends_len={len(fallback_backends)}")
+            if name == "mock_crawler": # DEBUG MOCK
+                logger.debug(f"MockCrawler check 2: content_type=\'{content_type}\', criteria.content_types={criteria.content_types}, exact_matches_len={len(exact_matches)}, url_matches_len={len(url_matches)}, fallback_backends_len={len(fallback_backends)}")
+
+            if content_type and criteria.content_types:
+                if content_type in criteria.content_types:
+                    exact_matches.append((criteria.priority, name))
+                    logger.debug(f"Exact match found for backend \'{name}\' (priority {criteria.priority})")
+                    if name == "HTTPBackend": logger.debug(f"HTTPBackend: Added to exact_matches (specific content_type). Current exact_matches: {exact_matches}")
+                    if name == "mock_crawler": logger.debug(f"MockCrawler: Added to exact_matches (specific content_type). Current exact_matches: {exact_matches}") # DEBUG MOCK
+            elif not content_type: 
+                if criteria.content_types and 'text/html' in criteria.content_types: # Added criteria.content_types check
+                    exact_matches.append((criteria.priority, name))
+                    logger.debug(f"Selected HTML handler backend \'{name}\' (priority {criteria.priority}) for unknown content type")
+                    if name == "HTTPBackend": logger.debug(f"HTTPBackend: Added to exact_matches (HTML for unknown content_type). Current exact_matches: {exact_matches}")
+                    if name == "mock_crawler": logger.debug(f"MockCrawler: Added to exact_matches (HTML for unknown content_type). Current exact_matches: {exact_matches}") # DEBUG MOCK
+                else: 
+                    url_matches.append((criteria.priority, name))
+                    if name == "HTTPBackend": logger.debug(f"HTTPBackend: Added to url_matches (no content_type, not HTML handler). Current url_matches: {url_matches}")
+                    if name == "mock_crawler": logger.debug(f"MockCrawler: Added to url_matches (no content_type, not HTML handler). Current url_matches: {url_matches}") # DEBUG MOCK
+            else: 
+                url_matches.append((criteria.priority, name))
+                if name == "HTTPBackend": logger.debug(f"HTTPBackend: Added to url_matches (content_type mismatch). Current url_matches: {url_matches}")
+                if name == "mock_crawler": logger.debug(f"MockCrawler: Added to url_matches (content_type mismatch). Current url_matches: {url_matches}") # DEBUG MOCK
+        
+        # Log final lists before selection
+        logger.debug(f"Final selection lists: exact_matches={exact_matches}, url_matches={url_matches}, fallback_backends={fallback_backends}")
+
+        if exact_matches:
+            best_match = max(exact_matches, key=lambda x: x[0])
+            logger.info(f"Selected backend '{best_match[1]}' as exact match")
+            return self._backend_instances.get(best_match[1])
+
+        # Use URL matches ordered by priority; for unknown content type apply HTML preference only when content_type is None
+        if url_matches:
+            if content_type:
+                # Choose by priority only
+                best_match = max(url_matches, key=lambda x: x[0])
+            else:
+                best_match = max(url_matches, key=lambda x: (
+                    x[0],  # Priority first
+                    'text/html' in self.criteria[x[1]].content_types  # HTML capability second
+                ))
+            logger.info(f"Selected backend '{best_match[1]}' with priority {best_match[0]}")
+            return self._backend_instances.get(best_match[1])
+        
+        # If no exact or URL matches, try to use a fallback backend
+        if fallback_backends:
+            best_match = max(fallback_backends, key=lambda x: x[0])
+            logger.info(f"Selected fallback backend '{best_match[1]}' with priority {best_match[0]}")
+            return self._backend_instances.get(best_match[1])
+        logger.info(f"Selected backend '{best_match[1]}' with priority {best_match[0]}")
+        return self._backend_instances.get(best_match[1])
+
+    # Support both (name, backend_class) and (name, backend_instance, criteria)
+    def register_backend(self, name: str, backend, criteria: 'BackendCriteria' = None):
+        """
+        Register a backend by name.
+        - For production: pass (name: str, backend_class: Type[CrawlerBackend])
+        - For tests: pass (name: str, backend_instance: CrawlerBackend, criteria: BackendCriteria)
+        """
+        if not hasattr(self, "criteria"):
+            self.criteria = {}
+        if inspect.isclass(backend):
+            # Production/class registration
+            if name in self._backends:
+                logger.warning(f"Backend '{name}' is already registered. Overwriting.")
+            self._backends[name] = backend
+            logger.info(f"Backend class '{name}' registered: {backend}")
+        else:
+            # Test/mock instance registration
+            if name in self._backend_instances:
+                logger.warning(f"Backend instance '{name}' is already registered. Overwriting.")
+            self._backend_instances[name] = backend
+            self._backends[name] = backend  # Ensure test instance is also in _backends for test assertions
+            logger.info(f"Backend instance '{name}' registered: {backend}")
+            if criteria is not None:
+                self.criteria[name] = criteria
+                logger.info(f"Criteria for backend '{name}' registered: {criteria}")
+
+    async def unregister_backend(self, name: str):
+        async with self._lock:
+            if name in self._backends:
+                del self._backends[name]
+                logger.info(f"Backend class '{name}' unregistered.")
+            if name in self._backend_instances:
+                backend_instance = self._backend_instances.pop(name)
+                try:
+                    await backend_instance.close()
+                    logger.info(f"Instance of backend '{name}' closed and unregistered.")
+                except Exception as e:
+                    logger.error(f"Error closing backend instance '{name}': {e}")
+            elif name not in self._backends and name not in self._backend_instances:
+                logger.warning(f"Backend '{name}' not found for unregistration.")
+
+    def _initialize_known_backends(self):
+        if not self._initialized_backends:
+            logger.debug("Initializing known backends...")
+            try:
+                from .scrapy_backend import ScrapyBackend # Relative import
+            except ImportError as e:
+                logger.warning(f"ScrapyBackend not available or failed to import: {e}")
+            try:
+                from .playwright_backend import PlaywrightBackend # Relative import
+            except ImportError as e:
+                logger.info(f"PlaywrightBackend not available: {e}")
+            try:
+                from .crawl4ai_backend import Crawl4AIBackend # Relative import
+            except ImportError as e:
+                logger.info(f"Crawl4AIBackend not available: {e}")
+            
+            self._initialized_backends = True
+            logger.info("Known backends initialization process completed.")
+
+    async def get_backend(self, url: str, content_type: Optional[str] = None) -> Optional[CrawlerBackend]:
+        """Get backend for URL by first checking existing instances, then creating new if needed."""
+        self._initialize_known_backends()
+
+        async with self._lock:
+            # Try existing backend instances first
+            selected_backend = self.select_backend_for_url(url)
+            if selected_backend:
+                return selected_backend
+
+            # No existing instance - try to find matching backend class
+            parsed = urlparse(url)
+            for name, criteria in self.criteria.items():
+                if (name in self._backends and
+                    (parsed.scheme in criteria.schemes) and
+                    any(fnmatch.fnmatch(url, pattern) for pattern in criteria.url_patterns)):
+                    
+                    # Found a matching backend class - instantiate it
+                    backend_class = self._backends[name]
+                    try:
+                        logger.debug(f"Instantiating backend '{name}' for URL '{url}'")
+                        if config and 'config' in inspect.signature(backend_class.__init__).parameters:
+                            instance = backend_class(config=config)
+                        else:
+                            instance = backend_class()
+                        
+                        self._backend_instances[name] = instance
+                        logger.info(f"Created backend instance '{name}'")
+                        return instance
+                    except Exception as e:
+                        logger.error(f"Error initializing backend '{name}': {e}", exc_info=True)
+                        continue
+            
+            logger.error(f"No backend found for URL '{url}'. Available: {list(self._backends.keys())}")
+            return None
+
+    async def get_all_backends(self) -> Dict[str, CrawlerBackend]:
+        return self._backend_instances.copy()
+
+    async def close_all_backends(self):
+        logging.info("Closing all backend instances...")
+        for backend, criteria in list(self._backends.items()): # Iterate over items
+            try:
+                if hasattr(backend, 'close') and asyncio.iscoroutinefunction(backend.close): # Check backend
+                    logging.info(f"Closing backend instance '{backend}'...")
+                    await backend.close() # Call close on backend
+                else:
+                    logging.info(f"Backend instance '{backend}' does not have an async close method or close is not a coroutine.")
+            except Exception as e:
+                logging.error(f"Error closing backend instance '{backend}': {e}", exc_info=True) # Log backend and exc_info
+        self._backends.clear()
+        logging.info("All backend instances closed and cleared.")
+
+global_backend_selector = BackendSelector()
+logger.info(f"Global BackendSelector instance created: {global_backend_selector}")

@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/feature_flags/manager.py
+# hypothesis_version: 6.131.20
+
+['description', 'enabled', 'feature_flags']

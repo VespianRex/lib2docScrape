@@ -41,3 +41,6 @@ htmlcov/
 *.swp
 *.swo
 .qodo
+
+# Cline Docs
+clinedocs/

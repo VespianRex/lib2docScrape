@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block title %}Configuration - Lib2DocScrape{% endblock %}
+
+{% block extra_css %}
+<style>
+    .config-section {
+        transition: all 0.3s ease;
+    }
+    .config-card {
+        height: 100%;
+    }
+    .form-label {
+        font-weight: 500;
+    }
+    .config-help {
+        font-size: 0.875rem;
+        color: #6c757d;
+    }
+    .save-indicator {
+        display: none;
+        animation: fadeInOut 2s ease-in-out;
+    }
+    @keyframes fadeInOut {
+        0% { opacity: 0; }
+        15% { opacity: 1; }
+        85% { opacity: 1; }
+        100% { opacity: 0; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1>Configuration</h1>
+        <p class="lead">Manage application settings and preferences</p>
+    </div>
+</div>
+
+<!-- Test Configuration -->
+<div class="row mb-4 config-section">
+    <div class="col-md-6">
+        <div class="card config-card">
+            <div class="card-body">
+                <h3 class="card-title">Test Settings</h3>
+                <form id="testConfigForm" class="mt-4">
+                    <div class="mb-3">
+                        <label for="maxRetries" class="form-label">Maximum Retries</label>
+                        <input type="number" class="form-control" id="maxRetries" 
+                               min="0" max="10" required>
+                        <div class="config-help">Number of times to retry failed requests</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="timeout" class="form-label">Request Timeout (seconds)</label>
+                        <input type="number" class="form-control" id="timeout" 
+                               min="1" max="120" step="0.5" required>
+                        <div class="config-help">Maximum time to wait for each request</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="maxPages" class="form-label">Maximum Pages</label>
+                        <input type="number" class="form-control" id="maxPages" 
+                               min="1" max="10000" required>
+                        <div class="config-help">Maximum number of pages to process per test</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="maxDepth" class="form-label">Maximum Depth</label>
+                        <input type="number" class="form-control" id="maxDepth" 
+                               min="1" max="20" required>
+                        <div class="config-help">Maximum crawl depth from the starting URL</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Save Test Settings</button>
+                    <span class="save-indicator text-success ms-2">
+                        Settings saved successfully!
+                    </span>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card config-card">
+            <div class="card-body">
+                <h3 class="card-title">Backend Configuration</h3>
+                <form id="backendConfigForm" class="mt-4">
+                    <div class="mb-3">
+                        <label class="form-label">Default Backend</label>
+                        <select class="form-select" id="defaultBackend" required>
+                            <option value="crawl4ai">Crawl4AI Backend</option>
+                            <option value="file">File Backend</option>
+                        </select>
+                        <div class="config-help">Backend to use by default for new tests</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="verifySSL" class="form-check-label">SSL Verification</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="verifySSL">
+                            <span class="config-help">Enable SSL certificate verification</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="userAgent" class="form-label">User Agent</label>
+                        <input type="text" class="form-control" id="userAgent">
+                        <div class="config-help">Custom user agent string for requests</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Save Backend Settings</button>
+                    <span class="save-indicator text-success ms-2">
+                        Settings saved successfully!
+                    </span>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Application Settings -->
+<div class="row config-section">
+    <div class="col-md-6">
+        <div class="card config-card">
+            <div class="card-body">
+                <h3 class="card-title">Application Settings</h3>
+                <form id="appConfigForm" class="mt-4">
+                    <div class="mb-3">
+                        <label for="resultsPerPage" class="form-label">Results Per Page</label>
+                        <select class="form-select" id="resultsPerPage">
+                            <option value="10">10</option>
+                            <option value="25">25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                        <div class="config-help">Number of results to display per page</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="autoRefresh" class="form-check-label">Auto Refresh</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="autoRefresh">
+                            <span class="config-help">Automatically refresh test results</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="refreshInterval" class="form-label">Refresh Interval (seconds)</label>
+                        <input type="number" class="form-control" id="refreshInterval" 
+                               min="5" max="60" value="10">
+                        <div class="config-help">How often to refresh test results</div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Save App Settings</button>
+                    <span class="save-indicator text-success ms-2">
+                        Settings saved successfully!
+                    </span>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card config-card">
+            <div class="card-body">
+                <h3 class="card-title">Export/Import Settings</h3>
+                <div class="mb-4">
+                    <button class="btn btn-secondary" onclick="exportSettings()">
+                        Export All Settings
+                    </button>
+                    <div class="config-help mt-2">Download all settings as a JSON file</div>
+                </div>
+
+                <div>
+                    <label for="importFile" class="form-label">Import Settings</label>
+                    <input type="file" class="form-control" id="importFile" accept=".json">
+                    <div class="config-help mt-2">Import settings from a JSON file</div>
+                    <button class="btn btn-secondary mt-2" onclick="importSettings()">
+                        Import Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Load initial configuration
+    async function loadConfig() {
+        showLoading();
+        try {
+            // Load test config
+            const testConfigResponse = await fetch('/api/test-config');
+            if (testConfigResponse.ok) {
+                const testConfig = await testConfigResponse.json();
+                document.getElementById('maxRetries').value = testConfig.max_retries;
+                document.getElementById('timeout').value = testConfig.timeout;
+                document.getElementById('maxPages').value = testConfig.max_pages;
+                document.getElementById('maxDepth').value = testConfig.max_depth;
+            }
+
+            // Load other settings from localStorage
+            const appConfig = JSON.parse(localStorage.getItem('appConfig') || '{}');
+            document.getElementById('resultsPerPage').value = appConfig.resultsPerPage || '25';
+            document.getElementById('autoRefresh').checked = appConfig.autoRefresh || false;
+            document.getElementById('refreshInterval').value = appConfig.refreshInterval || 10;
+            
+            const backendConfig = JSON.parse(localStorage.getItem('backendConfig') || '{}');
+            document.getElementById('defaultBackend').value = backendConfig.defaultBackend || 'crawl4ai';
+            document.getElementById('verifySSL').checked = backendConfig.verifySSL || true;
+            document.getElementById('userAgent').value = backendConfig.userAgent || '';
+        } catch (error) {
+            console.error('Error loading configuration:', error);
+            alert('Failed to load configuration');
+        }
+        hideLoading();
+    }
+
+    // Save configurations
+    document.getElementById('testConfigForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        showLoading();
+        
+        const config = {
+            max_retries: parseInt(document.getElementById('maxRetries').value),
+            timeout: parseFloat(document.getElementById('timeout').value),
+            max_pages: parseInt(document.getElementById('maxPages').value),
+            max_depth: parseInt(document.getElementById('maxDepth').value)
+        };
+
+        try {
+            const response = await fetch('/api/test-config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            });
+
+            if (!response.ok) throw new Error('Failed to save test configuration');
+            
+            showSaveIndicator(e.target);
+        } catch (error) {
+            console.error('Error:', error);
+            alert('Failed to save test configuration');
+        }
+        hideLoading();
+    });
+
+    document.getElementById('backendConfigForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const config = {
+            defaultBackend: document.getElementById('defaultBackend').value,
+            verifySSL: document.getElementById('verifySSL').checked,
+            userAgent: document.getElementById('userAgent').value
+        };
+
+        localStorage.setItem('backendConfig', JSON.stringify(config));
+        showSaveIndicator(e.target);
+    });
+
+    document.getElementById('appConfigForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const config = {
+            resultsPerPage: document.getElementById('resultsPerPage').value,
+            autoRefresh: document.getElementById('autoRefresh').checked,
+            refreshInterval: document.getElementById('refreshInterval').value
+        };
+
+        localStorage.setItem('appConfig', JSON.stringify(config));
+        showSaveIndicator(e.target);
+    });
+
+    function showSaveIndicator(form) {
+        const indicator = form.querySelector('.save-indicator');
+        indicator.style.display = 'inline';
+        setTimeout(() => {
+            indicator.style.display = 'none';
+        }, 2000);
+    }
+
+    // Export/Import functionality
+    function exportSettings() {
+        const settings = {
+            testConfig: {
+                max_retries: parseInt(document.getElementById('maxRetries').value),
+                timeout: parseFloat(document.getElementById('timeout').value),
+                max_pages: parseInt(document.getElementById('maxPages').value),
+                max_depth: parseInt(document.getElementById('maxDepth').value)
+            },
+            backendConfig: JSON.parse(localStorage.getItem('backendConfig') || '{}'),
+            appConfig: JSON.parse(localStorage.getItem('appConfig') || '{}')
+        };
+
+        const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'lib2docscrape-settings.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    async function importSettings() {
+        const fileInput = document.getElementById('importFile');
+        const file = fileInput.files[0];
+        if (!file) return;
+
+        try {
+            const text = await file.text();
+            const settings = JSON.parse(text);
+
+            // Update test config
+            if (settings.testConfig) {
+                const response = await fetch('/api/test-config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings.testConfig)
+                });
+                if (!response.ok) throw new Error('Failed to update test configuration');
+            }
+
+            // Update other settings
+            if (settings.backendConfig) {
+                localStorage.setItem('backendConfig', JSON.stringify(settings.backendConfig));
+            }
+            if (settings.appConfig) {
+                localStorage.setItem('appConfig', JSON.stringify(settings.appConfig));
+            }
+
+            // Reload page to reflect changes
+            location.reload();
+        } catch (error) {
+            console.error('Error importing settings:', error);
+            alert('Failed to import settings: ' + error.message);
+        }
+    }
+
+    // Initial load
+    loadConfig();
+</script>
+{% endblock %}

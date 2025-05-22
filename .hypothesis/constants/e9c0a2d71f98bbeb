@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/error_handler.py
+# hypothesis_version: 6.131.20
+
+['access', 'attribute', 'auth', 'authentication', 'authorization', 'category', 'component', 'config', 'configuration', 'connection', 'context', 'credential', 'critical', 'deadline', 'debug', 'disk', 'dns', 'error', 'error_message', 'external', 'file', 'forbidden', 'http', 'info', 'internal', 'level', 'login', 'memory', 'message', 'network', 'operation', 'option', 'parse', 'parsing', 'permission', 'resource', 'schema', 'setting', 'socket', 'syntax', 'timeout', 'traceback', 'type', 'unknown', 'url', 'valid', 'validation', 'value', 'warning']

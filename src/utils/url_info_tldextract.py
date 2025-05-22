@@ -178,9 +178,22 @@ class URLInfo:
                 netloc = netloc.split('@', 1)[1]
             self._parsed = parsed_temp._replace(netloc=netloc)
             
-            # Parse with tldextract if we have a hostname
+            # Parse with tldextract only if we have a hostname that is NOT an IP or localhost
             if self._parsed.netloc:
-                self._tld_extract_result = tldextract.extract(self._parsed.netloc)
+                hostname = self._parsed.hostname.lower() if self._parsed.hostname else None
+                is_ip = False
+                if hostname:
+                    try:
+                        ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                        ipaddress.ip_address(ip_check_host)
+                        is_ip = True
+                    except ValueError:
+                        pass # Not an IP
+                
+                if hostname and hostname != 'localhost' and not is_ip:
+                    self._tld_extract_result = tldextract.extract(self._parsed.netloc)
+                else:
+                    self._tld_extract_result = None # Explicitly set to None for IP/localhost
             
         except ValueError as e:
             self.error_message = f"Parsing failed: {e}"
@@ -412,34 +425,45 @@ class URLInfo:
             netloc_norm = ""
             
             if hostname:
-                # Use tldextract result for normalizing the hostname
-                extract_result = self._tld_extract_result or tldextract.extract(hostname)
-                
-                # Build normalized netloc 
-                hostname_parts = []
-                
-                # Add subdomain if present
-                if extract_result.subdomain:
-                    hostname_parts.append(extract_result.subdomain)
-                
-                # Add domain
-                hostname_parts.append(extract_result.domain)
-                
-                # Add suffix
-                if extract_result.suffix:
-                    hostname_parts.append(extract_result.suffix)
-                
-                # Join to form hostname    
-                hostname_lower = '.'.join(hostname_parts).lower()
-                
-                # Apply IDNA encoding if needed (check if non-ASCII chars exist)
-                if not all(ord(c) < 128 for c in hostname_lower):
-                    try:
-                        netloc_norm = idna.encode(hostname_lower).decode('ascii')
-                    except idna.IDNAError as e:
-                        self.logger.warning(f"IDNA encoding failed for {hostname_lower}: {e}. Falling back.")
-                        netloc_norm = hostname_lower
+                hostname_lower = hostname.lower()
+                is_ip = False
+                try:
+                    ip_check_host = hostname_lower.strip('[]') if hostname_lower.startswith('[') and hostname_lower.endswith(']') else hostname_lower
+                    ipaddress.ip_address(ip_check_host)
+                    is_ip = True
+                except ValueError:
+                    pass # Not an IP
+
+                # If it's an IP or localhost, use the hostname directly (lowercase)
+                if is_ip or hostname_lower == 'localhost':
+                    netloc_norm = hostname_lower
+                # Otherwise, use tldextract result for normalizing the domain name
+                elif self._tld_extract_result:
+                    extract_result = self._tld_extract_result
+                    # Build normalized netloc from tldextract parts
+                    hostname_parts = []
+                    if extract_result.subdomain:
+                        hostname_parts.append(extract_result.subdomain)
+                    if extract_result.domain: # Ensure domain part exists
+                        hostname_parts.append(extract_result.domain)
+                    if extract_result.suffix:
+                        hostname_parts.append(extract_result.suffix)
+                    
+                    # Join to form hostname, handle cases where parts might be missing
+                    hostname_norm_from_tld = '.'.join(filter(None, hostname_parts)).lower()
+                    
+                    # Apply IDNA encoding if needed (check if non-ASCII chars exist)
+                    if not all(ord(c) < 128 for c in hostname_norm_from_tld):
+                        try:
+                            netloc_norm = idna.encode(hostname_norm_from_tld).decode('ascii')
+                        except idna.IDNAError as e:
+                            self.logger.warning(f"IDNA encoding failed for {hostname_norm_from_tld}: {e}. Falling back.")
+                            netloc_norm = hostname_norm_from_tld
+                    else:
+                        netloc_norm = hostname_norm_from_tld
                 else:
+                    # Fallback if tldextract wasn't run (shouldn't happen for valid domains)
+                    self.logger.warning(f"Missing tldextract result for non-IP/localhost hostname: {hostname_lower}. Using raw lowercase.")
                     netloc_norm = hostname_lower
             
             # Add port if it's not the default for the scheme
@@ -563,48 +587,109 @@ class URLInfo:
     # --- TLDExtract specific properties ---
     @property
     def domain(self) -> str:
-        """Returns the full domain (includes subdomains and suffix)."""
-        if not self.is_valid or not self._tld_extract_result:
+        """Returns the domain part (e.g., 'example' in 'www.example.com').
+           For IPs/localhost, returns the hostname itself.
+        """
+        if not self.is_valid:
             return ""
-        # Use the original domain form, not the punycode version
-        extract_result = self._tld_extract_result
-        
-        domain_parts = []
-        if extract_result.domain:
-            if extract_result.subdomain:
-                domain_parts.append(extract_result.subdomain)
-            domain_parts.append(extract_result.domain)
-            if extract_result.suffix:
-                domain_parts.append(extract_result.suffix)
+        # Handle IP/localhost case where tldextract wasn't run or is None
+        hostname = self._parsed.hostname.lower() if self._parsed and self._parsed.hostname else None
+        if hostname:
+            is_ip = False
+            try:
+                ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                ipaddress.ip_address(ip_check_host)
+                is_ip = True
+            except ValueError:
+                pass # Not an IP
             
-            return '.'.join(domain_parts)
-        return ""
+            if is_ip or hostname == 'localhost':
+                 return hostname # Return the IP/localhost itself as the 'domain'
+
+        # Proceed with tldextract result if available
+        if self._tld_extract_result:
+            return self._tld_extract_result.domain
+            
+        return "" # Fallback
 
     @property
     def registered_domain(self) -> str:
-        """Returns the registered domain (domain + suffix without subdomains)."""
-        if not self.is_valid or not self._tld_extract_result:
+        """Returns the registered domain (e.g., 'example.com').
+           For IPs/localhost, returns the hostname itself.
+        """
+        if not self.is_valid:
             return ""
-        extract_result = self._tld_extract_result
-        if extract_result.domain:
-            if extract_result.suffix:
-                return f"{extract_result.domain}.{extract_result.suffix}"
-            return extract_result.domain
-        return ""
+        # Handle IP/localhost case
+        hostname = self._parsed.hostname.lower() if self._parsed and self._parsed.hostname else None
+        if hostname:
+            is_ip = False
+            try:
+                ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                ipaddress.ip_address(ip_check_host)
+                is_ip = True
+            except ValueError:
+                pass # Not an IP
+            
+            if is_ip or hostname == 'localhost':
+                return hostname # Return the IP/localhost itself
+
+        # Proceed with tldextract result if available
+        if self._tld_extract_result:
+            return self._tld_extract_result.registered_domain
+            
+        return "" # Fallback
 
     @property
-    def subdomain(self) -> str:
-        """Returns the subdomain part of the URL."""
-        if not self.is_valid or not self._tld_extract_result:
-            return ""
-        return self._tld_extract_result.subdomain
+    def subdomain(self) -> Optional[str]:
+        """Returns the subdomain part of the URL, or None for IP/localhost."""
+        if not self.is_valid:
+            return None
+        # Handle IP/localhost case
+        hostname = self._parsed.hostname.lower() if self._parsed and self._parsed.hostname else None
+        if hostname:
+            is_ip = False
+            try:
+                ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                ipaddress.ip_address(ip_check_host)
+                is_ip = True
+            except ValueError:
+                pass # Not an IP
+            
+            if is_ip or hostname == 'localhost':
+                return None # No subdomain for IP/localhost
+
+        # Proceed with tldextract result if available
+        if self._tld_extract_result:
+            return self._tld_extract_result.subdomain
+            
+        return None # Fallback
 
     @property
-    def suffix(self) -> str:
-        """Returns the TLD suffix of the domain."""
-        if not self.is_valid or not self._tld_extract_result:
-            return ""
-        return self._tld_extract_result.suffix
+    def suffix(self) -> Optional[str]:
+        """Returns the TLD suffix of the domain.
+           Returns None for IPs/localhost.
+        """
+        if not self.is_valid:
+             return None
+        # Handle IP/localhost case
+        hostname = self._parsed.hostname.lower() if self._parsed and self._parsed.hostname else None
+        if hostname:
+            is_ip = False
+            try:
+                ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                ipaddress.ip_address(ip_check_host)
+                is_ip = True
+            except ValueError:
+                pass # Not an IP
+            
+            if is_ip or hostname == 'localhost':
+                return None # No suffix for IP/localhost
+
+        # Proceed with tldextract result if available
+        if self._tld_extract_result:
+            return self._tld_extract_result.suffix
+            
+        return None # Fallback
 
     @property
     def root_domain(self) -> str:

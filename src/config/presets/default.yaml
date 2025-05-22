@@ -1,0 +1,175 @@
+# Default configuration preset for lib2docScrape
+# This preset provides a balanced configuration for most use cases
+
+# Crawler configuration
+crawler:
+  max_depth: 5
+  max_pages: 100
+  follow_external_links: false
+  respect_robots_txt: true
+  delay_between_requests: 1.0
+  timeout: 30.0
+  max_retries: 3
+  user_agent: "lib2docScrape/1.0 Documentation Crawler"
+  concurrent_requests: 5
+  max_request_rate: 10  # requests per second
+
+# Backend selector configuration
+backend_selector:
+  default_backend: "crawl4ai"
+  javascript_backend: "lightpanda"
+  static_backend: "http"
+
+# Crawl4AI backend configuration
+crawl4ai:
+  max_retries: 3
+  timeout: 30.0
+  follow_redirects: true
+  verify_ssl: true
+  max_depth: 5
+  rate_limit: 2.0
+  concurrent_requests: 10
+  extract_links: true
+  extract_images: true
+  extract_metadata: true
+  extract_code_blocks: true
+  circuit_breaker_threshold: 5
+  circuit_breaker_reset_timeout: 60.0
+  javascript_enabled: false
+
+# Lightpanda backend configuration
+lightpanda:
+  executable_path: "lightpanda"
+  host: "127.0.0.1"
+  port: 9222
+  timeout: 30.0
+  max_retries: 3
+  wait_for_load: true
+  wait_time: 2.0
+  javascript_enabled: true
+  user_agent: "lib2docScrape/1.0 (Lightpanda) Documentation Crawler"
+  viewport_width: 1280
+  viewport_height: 800
+  circuit_breaker_threshold: 5
+  circuit_breaker_reset_timeout: 60.0
+  rate_limit: 2.0
+  concurrent_requests: 5
+  extract_links: true
+  extract_images: true
+  extract_metadata: true
+  extract_code_blocks: true
+  screenshots: false
+  screenshot_path: "screenshots"
+
+# Playwright backend configuration
+playwright:
+  browser_type: "chromium"
+  headless: true
+  timeout: 30.0
+  max_retries: 3
+  wait_for_load: true
+  wait_until: "networkidle"
+  wait_time: 2.0
+  javascript_enabled: true
+  user_agent: "lib2docScrape/1.0 (Playwright) Documentation Crawler"
+  viewport_width: 1280
+  viewport_height: 800
+  ignore_https_errors: false
+  circuit_breaker_threshold: 5
+  circuit_breaker_reset_timeout: 60.0
+  rate_limit: 2.0
+  concurrent_requests: 5
+  extract_links: true
+  extract_images: true
+  extract_metadata: true
+  extract_code_blocks: true
+  screenshots: false
+  screenshot_path: "screenshots"
+
+# Content processor configuration
+content_processor:
+  max_content_length: 1000000
+  min_content_length: 10
+  extract_metadata: true
+  extract_assets: true
+  extract_code_blocks: true
+  extract_comments: false
+  max_heading_level: 6
+  sanitize_content: true
+  preserve_whitespace: false
+  code_languages:
+    - python
+    - javascript
+    - typescript
+    - java
+    - cpp
+    - c
+    - csharp
+    - go
+    - rust
+    - swift
+    - kotlin
+    - php
+    - ruby
+    - scala
+    - perl
+    - r
+    - html
+    - css
+    - sql
+    - shell
+    - bash
+    - powershell
+
+# Quality checker configuration
+quality_checker:
+  min_content_length: 100
+  max_broken_links: 10
+  max_missing_images: 5
+  check_spelling: true
+  check_grammar: false
+  check_code_blocks: true
+  check_headings: true
+  check_links: true
+  check_images: true
+  check_metadata: true
+
+# Document organizer configuration
+document_organizer:
+  output_format: "markdown"
+  create_index: true
+  create_toc: true
+  group_by_topic: true
+  include_metadata: true
+  include_assets: true
+  include_code_blocks: true
+  output_dir: "docs"
+  template_dir: "templates"
+
+# Library version tracker configuration
+library_version_tracker:
+  track_versions: true
+  version_history_limit: 10
+  diff_algorithm: "unified"
+  store_full_content: false
+  storage_dir: "version_history"
+
+# Package manager configuration
+package_manager:
+  package_manager: "pip"
+  use_virtual_env: true
+  install_dependencies: true
+  update_dependencies: false
+  requirements_file: "requirements.txt"
+
+# Distributed crawling configuration
+distributed:
+  enabled: false
+  worker_count: 4
+  queue_backend: "redis"
+  redis_host: "localhost"
+  redis_port: 6379
+  redis_db: 0
+  task_timeout: 300
+  heartbeat_interval: 10
+  max_queue_size: 1000

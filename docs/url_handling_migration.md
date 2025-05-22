@@ -1,6 +1,6 @@
 # URL Handling Migration Guide
 
-This guide provides examples for migrating from older URL handling implementations (like the previous monolithic `URLInfo` class) to the current modular implementation located in `src/utils/url/`.
+This guide provides examples for migrating to the current modular URL handling implementation located in `src/utils/url/`, from older implementations (like the previous monolithic `URLInfo` class).
 
 ## Import Statement
 
@@ -147,6 +147,10 @@ if not url_info.is_valid:
     print(f"Rejected URL: {url_info.error_message}") # Same API for checking validity
 ```
 *Key Change: Update the import path.*
+
+## Architecture Diagram
+
+A Mermaid diagram illustrating the architecture of the modular URL handling system is planned for this section. The content for this diagram was expected from `cline_docs/nextSteps.md` (lines 42-69) but was not found in that location.
 
 ## Advanced Use Cases
 

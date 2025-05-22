@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/benchmarking/backend_benchmark.py
+# hypothesis_version: 6.131.20
+
+[0.0, '## Success Rate\n\n', '.md', 'Backend', 'Content Size (bytes)', 'Crawl Time (s)', 'Error', 'Memory Usage (MB)', 'Size (bytes)', 'Status Code', 'Success', 'Success Rate', 'Time (seconds)', 'URL', 'bar', 'html', 'max', 'mean', 'min', 'std', 'w']

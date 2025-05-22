@@ -431,7 +431,7 @@ class Document:
         return {
             "id": self.id,
             "metadata": self.metadata.to_dict(),
-            "versions": [v.dict() for v in self.versions]
+            "versions": [v.model_dump() for v in self.versions]
         }
 
     @classmethod

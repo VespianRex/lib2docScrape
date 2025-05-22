@@ -1,15 +1,13 @@
 import pytest
-import asyncio # Import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock # Import AsyncMock
+import asyncio
+from unittest.mock import MagicMock, patch, AsyncMock
 from pathlib import Path
 from fastapi.testclient import TestClient
 
-from src.gui.app import app, ConnectionManager, CrawlRequest
-from src.processors.quality_checker import QualityIssue, IssueType, IssueLevel # Import needed types
+from src.main import app, ConnectionManager, LibraryOperation
+from src.processors.quality_checker import QualityIssue, IssueType, IssueLevel
 from src.processors.content_processor import ProcessedContent
-from src.backends.base import CrawlResult # Import CrawlResult
-# Assume CrawlerThread and ResultsViewer are part of a separate GUI implementation
-# from src.gui.main_window import CrawlerThread, ResultsViewer # Commented out
+from src.backends.base import CrawlResult
 
 @pytest.fixture
 def client():
@@ -30,23 +28,17 @@ def test_home_page(client):
 def test_crawl_request(client):
     """Test crawl request endpoint."""
     test_url = "https://example.com"
-    # Mock the backend crawl method used within the endpoint
-    # Use AsyncMock for the patch target as it's an async method
-    with patch('src.gui.app.Crawl4AIBackend.crawl', new_callable=AsyncMock) as mock_crawl:
-        # Create an actual CrawlResult instance for the mock return value
+    with patch('src.main.Crawl4AIBackend.crawl', new_callable=AsyncMock) as mock_crawl:
         mock_result_obj = CrawlResult(
             url=test_url,
             content={"text": "Mocked content", "title": "Mock Title"},
-            metadata={}, # Add empty metadata dict
+            metadata={},
             status=200
         )
 
-        # Define an async side_effect function
         async def mock_side_effect(*args, **kwargs):
-            # Simulate some async operation if needed, e.g., await asyncio.sleep(0)
-            return [mock_result_obj] # Return a list containing the CrawlResult instance
+            return [mock_result_obj]
 
-        # Set the side_effect of the AsyncMock
         mock_crawl.side_effect = mock_side_effect
 
         response = client.post("/crawl", json={"url": test_url})
@@ -60,117 +52,109 @@ def test_crawl_request(client):
 def test_connection_manager():
     """Test connection manager functionality."""
     manager = ConnectionManager()
-    assert manager.crawl_metrics["pages_crawled"] == 0
-    assert manager.crawl_metrics["current_depth"] == 0
-    assert manager.crawl_metrics["successful_requests"] == 0
-    assert manager.crawl_metrics["failed_requests"] == 0
+    assert manager.scraping_metrics["pages_scraped"] == 0
+    assert manager.scraping_metrics["current_depth"] == 0
+    assert manager.scraping_metrics["successful_requests"] == 0
+    assert manager.scraping_metrics["failed_requests"] == 0
 
-# Commenting out tests related to PyQt GUI for now
-# def test_crawler_thread():
-#     """Test crawler thread functionality."""
-#     mock_crawler = MagicMock()
-#     # Corrected ProcessedContent instantiation
-#     mock_processed_content = ProcessedContent(
-#         title="Mock Title",
-#         content={'formatted_content': 'processed content'},
-#         metadata={'type': 'documentation'},
-#         assets={},
-#         structure=[],
-#         errors=[]
-#     )
-#     # Corrected QualityIssue instantiation (if needed)
-#     mock_quality_issue = QualityIssue(
-#         type=IssueType.CONTENT, # Use valid IssueType
-#         message='Test issue',
-#         level=IssueLevel.WARNING # Use valid IssueLevel
-#     )
-#     mock_crawler.crawl.return_value = {
-#         'content': mock_processed_content,
-#         'quality_issues': [mock_quality_issue]
-#     }
-#
-#     # Assuming CrawlerThread is defined elsewhere and takes these args
-#     # thread = CrawlerThread(
-#     #     crawler=mock_crawler,
-#     #     url='https://example.com',
-#     #     depth=2
-#     # )
-#
-#     # Test signals (requires CrawlerThread to be defined and imported)
-#     # with patch.object(thread, 'finished') as mock_finished:
-#     #     with patch.object(thread, 'error') as mock_error:
-#     #         thread.run()
-#     #         mock_finished.emit.assert_called_once()
-#     #         mock_error.emit.assert_not_called()
-#     pass # Placeholder if CrawlerThread part is commented out
+def test_get_available_backends(client):
+    """Test retrieving available backend types."""
+    response = client.get("/api/scraping/backends")
+    assert response.status_code == 200
+    backends = response.json()
+    assert isinstance(backends, list)
+    assert "crawl4ai" in backends
+    assert "file" in backends
 
-# def test_results_viewer():
-#     """Test results viewer functionality."""
-#     # Assuming ResultsViewer is defined elsewhere
-#     # viewer = ResultsViewer()
-#
-#     # Test content display
-#     content = ProcessedContent(
-#         title="Test Title", # Use valid args
-#         content={'formatted_content': 'processed content'},
-#         metadata={'type': 'documentation'},
-#         assets={},
-#         structure=[],
-#         errors=[]
-#     )
-#     # viewer.display_content(content) # Requires viewer instance
-#
-#     # Test quality issues display
-#     # issues = [
-#     #     QualityIssue(
-#     #         type=IssueType.CONTENT, # Use valid IssueType
-#     #         message='Test issue 1',
-#     #         level=IssueLevel.WARNING # Use valid IssueLevel
-#     #     ),
-#     #     QualityIssue(
-#     #         type=IssueType.STRUCTURE, # Use valid IssueType
-#     #         message='Test issue 2',
-#     #         level=IssueLevel.ERROR # Use valid IssueLevel
-#     #     )
-#     # ]
-#     # viewer.display_quality_issues(issues) # Requires viewer instance
-#     pass # Placeholder
+def test_get_scraping_status(client):
+    """Test retrieving scraping status."""
+    response = client.get("/api/scraping/status")
+    assert response.status_code == 200
+    status = response.json()
+    assert isinstance(status, dict)
+    assert "is_running" in status
+    assert "current_url" in status
+    assert "progress" in status
 
-# def test_save_results(tmp_path):
-#     """Test saving results functionality."""
-#     output_dir = tmp_path / 'output'
-#     output_dir.mkdir()
-#
-#     mock_content = ProcessedContent(
-#         title="Test Title", # Use valid args
-#         content={'formatted_content': 'processed content'},
-#         metadata={'type': 'documentation'},
-#         assets={},
-#         structure=[],
-#         errors=[]
-#     )
-#
-#     # Test saving (Requires main_window or similar instance)
-#     # with patch('PyQt6.QtWidgets.QFileDialog.getExistingDirectory') as mock_dialog:
-#     #     mock_dialog.return_value = str(output_dir)
-#     #     # main_window._save_results(mock_content, []) # Example call
-#     #
-#     #     # Check if files were created (adjust based on actual save logic)
-#     #     assert (output_dir / 'content.json').exists()
-#     #     assert (output_dir / 'quality_report.json').exists()
-#     pass # Placeholder
+@pytest.mark.asyncio
+async def test_websocket_scraping_updates():
+    """Test WebSocket updates for scraping."""
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws/scraping") as websocket:
+            # Test connection establishment
+            data = websocket.receive_json()
+            assert "type" in data
+            assert data["type"] == "connection_established"
 
-# def test_error_handling():
-#     """Test error handling in GUI."""
-#     error_msg = "Test error message"
-#
-#     # Test error display (Requires main_window or similar instance)
-#     # with patch('PyQt6.QtWidgets.QMessageBox.critical') as mock_critical:
-#     #     # main_window._handle_error(error_msg)
-#     #     # mock_critical.assert_called_once()
-#     #     pass # Placeholder
-#
-#     # Test status bar update (Requires main_window or similar instance)
-#     # main_window._update_status("Test status")
-#     # assert main_window.status_bar.currentMessage() == "Test status"
-#     pass # Placeholder
+            # Test status update
+            test_update = {
+                "type": "scraping_progress",
+                "data": {
+                    "is_running": True,
+                    "current_url": "https://example.com",
+                    "progress": 50
+                }
+            }
+            websocket.send_json(test_update)
+            response = websocket.receive_json()
+            assert response["type"] == "scraping_progress"
+            assert response["data"]["progress"] == 50
+
+def test_store_scraping_results(client):
+    """Test storing and retrieving scraping results."""
+    scraping_results = {
+        "scraping_id": "scrape123",
+        "timestamp": "2025-05-14T15:30:00",
+        "results": [
+            {
+                "url": "https://example.com",
+                "content": "Test content",
+                "status": 200
+            }
+        ]
+    }
+    
+    # Store results
+    response = client.post("/api/scraping/results", json=scraping_results)
+    assert response.status_code == 200
+    assert response.json()["status"] == "success"
+    
+    # Retrieve results
+    response = client.get("/api/scraping/results/scrape123")
+    assert response.status_code == 200
+    stored_results = response.json()
+    assert stored_results["scraping_id"] == "scrape123"
+    assert len(stored_results["results"]) == 1
+    assert stored_results["results"][0]["status"] == 200
+
+def test_scraping_dashboard_template(client):
+    """Test the scraping dashboard HTML template."""
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    content = response.text
+    assert "Backend Selection" in content
+    assert "Scraping Configuration" in content
+    assert "Scraping Status" in content
+    assert "Results" in content
+
+def test_library_operations(client):
+    """Test library management operations."""
+    # Test installing a package
+    response = client.post("/api/libraries/test-package")
+    assert response.status_code == 200
+    operation = response.json()
+    assert "operation_id" in operation
+
+    # Test operation status
+    response = client.get(f"/api/libraries/operation/{operation['operation_id']}")
+    assert response.status_code == 200
+    status = response.json()
+    assert status["operation"] == "install"
+    assert status["package_name"] == "test-package"
+
+    # Test uninstalling a package
+    response = client.delete("/api/libraries/test-package")
+    assert response.status_code == 200
+    operation = response.json()
+    assert "operation_id" in operation

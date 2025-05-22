@@ -15,7 +15,8 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel
 
 from .base import CrawlerBackend, CrawlResult
-from ..utils.helpers import URLInfo
+from ..utils.url.info import URLInfo # Corrected import path
+from ..utils.url.factory import create_url_info # Added import for factory
 from ..processors.content_processor import ContentProcessor # Import ContentProcessor
 from ..processors.content.models import ProcessedContent # Import ProcessedContent
 
@@ -81,13 +82,29 @@ class Crawl4AIBackend(CrawlerBackend):
             "cached_pages": 0,
             "total_pages": 0, # Renamed to pages_crawled for consistency
             "pages_crawled": 0,
-            "start_time": 0.0, # Use float for timestamp
-            "end_time": 0.0 # Use float for timestamp
+            "start_time": 0.0,
+            "end_time": 0.0
         })
         self.content_processor = ContentProcessor() # Initialize ContentProcessor
         logger.info(f"Initialized Crawl4AI backend with config: {self.config}")
         if self._external_rate_limiter:
             logger.info(f"Using external rate limiter with rate: {self._external_rate_limiter.rate} req/s")
+
+    def _initialize_metrics(self) -> Dict[str, Any]:
+        """Return the initial structure for the metrics dictionary."""
+        return {
+            "pages_crawled": 0,
+            "successful_requests": 0,
+            "failed_requests": 0,
+            "total_crawl_time": 0.0,
+            "cached_pages": 0,
+            "total_pages": 0,
+            "start_time": 0.0,
+            "end_time": 0.0,
+            # Add other base metrics if needed from CrawlerBackend's init
+            "success_rate": 0.0,
+            "average_response_time": 0.0,
+        }
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -138,8 +155,8 @@ class Crawl4AIBackend(CrawlerBackend):
     def _is_same_domain(self, url1: str, url2: str) -> bool:
         """Check if two URLs belong to the same domain using URLInfo."""
         try:
-            url1_info = URLInfo(url=url1)
-            url2_info = URLInfo(url=url2)
+            url1_info = create_url_info(url=url1)
+            url2_info = create_url_info(url=url2)
 
             # If either URL is invalid, they are not considered the same domain
             if not url1_info.is_valid or not url2_info.is_valid:
@@ -162,8 +179,8 @@ class Crawl4AIBackend(CrawlerBackend):
     def _is_in_subfolder(self, base_url: str, link_url: str) -> bool:
         """Check if a link is within the same subfolder structure using URLInfo."""
         try:
-            base_url_info = URLInfo(url=base_url)
-            link_url_info = URLInfo(url=link_url)
+            base_url_info = create_url_info(url=base_url)
+            link_url_info = create_url_info(url=link_url)
 
             # If either URL is invalid, cannot determine subfolder relationship
             if not base_url_info.is_valid or not link_url_info.is_valid:
@@ -207,7 +224,7 @@ class Crawl4AIBackend(CrawlerBackend):
             absolute_link_str = urljoin(base_url, link)
             
             # Use URLInfo to validate and normalize the absolute link
-            absolute_link_info = URLInfo(url=absolute_link_str)
+            absolute_link_info = create_url_info(url=absolute_link_str)
 
             if not absolute_link_info.is_valid:
                  logger.debug(f"Skipping invalid link: {absolute_link_str} - Reason: {absolute_link_info.error_message}")
@@ -235,7 +252,7 @@ class Crawl4AIBackend(CrawlerBackend):
             # Only follow links to the same domain as the initial URL
             if self._initial_domain is None:
                 # Use URLInfo for the base URL as well
-                base_url_info = URLInfo(url=base_url)
+                base_url_info = create_url_info(url=base_url)
                 if not base_url_info.is_valid:
                      logger.error(f"Invalid base URL for initial domain check: {base_url}")
                      return False # Cannot determine initial domain from invalid base URL
@@ -259,85 +276,114 @@ class Crawl4AIBackend(CrawlerBackend):
         retries = 0
         last_error = None
 
-        while retries <= self.config.max_retries: # Use <= to allow max_retries attempts *after* the initial one
+        while retries <= self.config.max_retries:
             try:
                 await self._ensure_session()
                 await self._wait_rate_limit()
 
                 async with self._processing_semaphore:
-                    # Call get and await the result
                     response_obj = await self._session.get(url, params=params)
-                    # Now use the response object as the context manager
                     async with response_obj as response:
+                        # Check for HTTP errors that should be retried (e.g., 5xx)
+                        # or let specific exceptions bubble up
+                        response.raise_for_status() # Raise exception for non-2xx status codes
+
                         html = await response.text()
-                        # Use the url_str passed to this method, which might be normalized
+                        logger.debug(f"_fetch_with_retry: Successful fetch for url='{url}'")
                         return CrawlResult(
-                            url=url, # Use the 'url' parameter passed to this method
+                            url=url,
                             content={"html": html},
-                            metadata={"headers": dict(response.headers)},
+                            metadata={"headers": dict(response.headers.items())},
                             status=response.status,
-                            error=None if 200 <= response.status < 300 else f"HTTP {response.status} for {url}" # Set error for non-200 status
+                            error=None
                         )
 
-            except Exception as e:
-                last_error = str(e)
+            except aiohttp.ClientResponseError as e:
+                # Handle HTTP errors specifically - retry on 5xx, fail immediately on 4xx?
+                # For now, treat all ClientResponseErrors like other exceptions for retry
+                last_error = f"HTTP {e.status}: {e.message}"
+                logger.warning(f"Attempt {retries + 1}/{self.config.max_retries + 1} failed for {url}: {last_error}")
                 retries += 1
-                if retries < self.config.max_retries:
-                    await asyncio.sleep(2 ** retries)  # Exponential backoff
-                logger.warning(f"Retry {retries}/{self.config.max_retries} for {url}: {str(e)}")
+                if retries <= self.config.max_retries:
+                    sleep_time = 2 ** (retries - 1) # Exponential backoff (1, 2, 4...)
+                    logger.debug(f"Sleeping for {sleep_time}s before retry {retries + 1}")
+                    await asyncio.sleep(sleep_time)
+                # Continue to next iteration
 
-            return CrawlResult(
-                url=url, # Use the 'url' parameter passed to this method
-                content={},
-                metadata={},
-            status=0,
-            error=f"Failed after {retries} retries: {last_error}"
+            except Exception as e:
+                # Handle other exceptions (timeouts, connection errors, etc.)
+                last_error = str(e)
+                logger.warning(f"Attempt {retries + 1}/{self.config.max_retries + 1} failed for {url}: {last_error}")
+                retries += 1
+                if retries <= self.config.max_retries:
+                    sleep_time = 2 ** (retries - 1) # Exponential backoff
+                    logger.debug(f"Sleeping for {sleep_time}s before retry {retries + 1}")
+                    await asyncio.sleep(sleep_time)
+                # Continue to next iteration
+
+        # If the loop finishes without returning a success result, return the error result
+        logger.error(f"Failed to fetch {url} after {self.config.max_retries + 1} attempts.")
+        return CrawlResult(
+            url=url,
+            content={},
+            metadata={},
+            status=0, # Indicate failure after all retries
+            error=f"Failed after {self.config.max_retries} retries: {last_error}"
         )
 
-    # Reverted signature to accept Union[str, URLInfo] and config from crawler
-    async def crawl(self, url: Union[str, URLInfo], config: Optional[Any] = None, params: Optional[Dict[str, Any]] = None) -> CrawlResult:
-        """Crawl the specified URL and return all crawled pages."""
+    # Update signature to match ABC
+    async def crawl(self, url_info: URLInfo, config: Optional['CrawlerConfig'] = None, params: Optional[Dict[str, Any]] = None) -> CrawlResult: # Use CrawlResult type hint
+        """Crawl the specified URL using the Crawl4AI backend."""
+        logger.debug(f"Crawl4AIBackend.crawl received: url_info={repr(url_info)}, is_valid={url_info.is_valid}, error='{url_info.error_message}'") # ADD LOGGING
         # --- Metrics Start ---
-        start_crawl_time = datetime.now() # Use datetime for consistency
-        if not self.metrics.get("start_time"): # Set overall start time only once, use .get for safety
-             self.metrics["start_time"] = start_crawl_time
+        start_crawl_time = time.time() # Use float timestamp
+        if not self.metrics.get("start_time"): # Set overall start time only once
+             self.metrics["start_time"] = start_crawl_time # Store as float
 
         # --- URL Initialization and Validation ---
-        # Handle both str and URLInfo input
-        try:
-            if isinstance(url, str):
-                url_info = URLInfo(url=url)
-            elif isinstance(url, URLInfo):
-                url_info = url # Use the provided URLInfo object
-            else:
-                # This case should ideally not happen based on Union typing, but good practice
-                raise TypeError(f"Expected url to be str or URLInfo, got {type(url)}")
-
-            # This check is now redundant as URLInfo constructor handles it, but keep for clarity
-            # if not url_info.is_valid:
-            #      # Use raw_url for reporting the original input if available
-            #      original_input_url = url if isinstance(url, str) else url.raw_url
-            #      raise ValueError(f"Invalid URL provided: {original_input_url} - Reason: {url_info.error_message}")
-        except Exception as e:
-             original_input_url_str = str(url) # Fallback to string representation
-             logger.error(f"Error processing URL input {original_input_url_str}: {e}")
-             # Return error result immediately if URL processing fails
-             result = CrawlResult(url=original_input_url_str, content={}, metadata={}, status=0, error=f"Invalid URL: {e}")
+        # The URLInfo object is now passed directly
+        if not isinstance(url_info, URLInfo):
+             # This should ideally not happen due to type hinting, but handle defensively
+             error_msg = f"Crawl4AIBackend.crawl received incorrect type for url_info: {type(url_info)}"
+             logger.error(error_msg)
+             # Use 400 for bad input type
+             result = CrawlResult(url=str(url_info), content={}, metadata={}, status=400, error=error_msg)
              self.metrics["failed_requests"] += 1
-             self.metrics["end_time"] = datetime.now()
-             self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
+             # Update end_time and total_crawl_time here as well
+             self.metrics["end_time"] = time.time() # Use float timestamp
+             if self.metrics.get("start_time"):
+                  self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
+             return result
+
+        # Use the backend's own config for its specific settings
+        # current_config = config or self.config # Don't use potentially different passed config for backend settings
+
+        # Validation is now done before calling crawl, but double-check
+        if not url_info.is_valid:
+             logger.error(f"Invalid URLInfo provided to Crawl4AIBackend: {url_info.raw_url} - Reason: {url_info.error_message}")
+             # Use 400 for invalid URL input
+             result = CrawlResult(
+                 url=url_info.raw_url, # Use raw_url for the result URL on validation failure
+                 content={}, metadata={}, status=400, error=f"Invalid URL: {url_info.error_message}"
+             )
+             self.metrics["failed_requests"] += 1
+             self.metrics["end_time"] = time.time() # Use float timestamp
+             if self.metrics.get("start_time"): # Check if start_time exists
+                  self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
              return result
 
         if not url_info.is_valid:
             logger.error(f"Invalid URL provided: {url_info.raw_url} - Reason: {url_info.error_message}")
             # Return result using the raw URL as the reference
+            # Use 400 for invalid URL input
             result = CrawlResult(
                 url=url_info.raw_url,
-                content={}, metadata={}, status=0, error=f"Invalid URL: {url_info.error_message}"
+                content={}, metadata={}, status=400, error=f"Invalid URL: {url_info.error_message}"
             )
             self.metrics["failed_requests"] += 1
-            self.metrics["end_time"] = datetime.now()
-            self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
+            self.metrics["end_time"] = time.time() # Use float timestamp
+            if self.metrics.get("start_time"): # Check if start_time exists
+                 self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
             return result
 
         # Temporarily removed try block for debugging syntax error
@@ -362,77 +408,92 @@ class Crawl4AIBackend(CrawlerBackend):
              )
              self.metrics["successful_requests"] += 1
              self.metrics["pages_crawled"] += 1
-             self.metrics["end_time"] = datetime.now().timestamp()
-             self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
+             self.metrics["end_time"] = time.time() # Use float timestamp
+             if self.metrics.get("start_time"):
+                  self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
              return result
             # No need to prepend 'https://' as URLInfo validation ensures a valid scheme
 
         # --- Pre-Fetch Checks (Domain, Limits) ---
-        # URL format validation is already done by URLInfo
-        parsed = url_info._parsed # Use the parsed result from URLInfo
+        # Use the parsed result from the validated URLInfo
+        parsed = url_info._parsed
 
-        # Check allowed domains *before* fetching
-        if self.config.allowed_domains:
-             parsed_domain = parsed.netloc.lower()
+        # Check allowed domains *before* fetching using the backend's config
+        if self.config.allowed_domains: # Use self.config
+             # Use hostname from URLInfo which handles potential port removal
+             parsed_domain = url_info.hostname.lower() if url_info.hostname else ""
              # Normalize www.
              if parsed_domain.startswith('www.'):
                   parsed_domain = parsed_domain[4:]
              is_allowed = any(parsed_domain == domain or parsed_domain.endswith(f'.{domain}')
-                            for domain in self.config.allowed_domains)
+                            for domain in self.config.allowed_domains) # Use self.config
              if not is_allowed:
                   logger.warning(f"Domain {parsed_domain} not in allowed domains: {self.config.allowed_domains}. Skipping {url_str}")
-                  result = CrawlResult(
-                      url=url_str,
+                  result = CrawlResult( # Use CrawlResult
+                      url=url_str, # Use normalized url string
                       content={},
                       metadata={},
                       status=403, # Use 403 Forbidden as expected by test
                       error=f"Domain not allowed: {parsed_domain}"
-                  )
+                  ) # Use CrawlResult
                   self.metrics["failed_requests"] += 1
-                  self.metrics["end_time"] = datetime.now()
-                  self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
+                  self.metrics["end_time"] = time.time() # Use float timestamp
+                  if self.metrics.get("start_time"):
+                       self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
                   return result
 
-        # Check max_pages limit *before* fetching
-        if len(self._crawled_urls) >= self.config.max_pages:
+        # Check max_pages limit *before* fetching using the backend's config
+        if self.config.max_pages is not None and len(self._crawled_urls) >= self.config.max_pages: # Use self.config, Check if None first
              logger.info(f"Max pages limit ({self.config.max_pages}) reached. Skipping {url_str}")
-             result = CrawlResult(
-                 url=url_str,
+             result = CrawlResult( # Use CrawlResult
+                 url=url_str, # Use normalized url string
                  content={},
                  metadata={},
-                 status=0, # Or a custom status?
-                 error=f"Max pages limit reached ({self.config.max_pages})"
-             )
+                 status=0, # Keep status 0 for non-HTTP errors like limits
+                 error=f"Max pages limit reached ({self.config.max_pages})" # Use self.config
+             ) # Use CrawlResult
              # Don't count as failure, just limit reached
-             self.metrics["end_time"] = datetime.now()
-             self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
+             self.metrics["end_time"] = time.time() # Use float timestamp
+             if self.metrics.get("start_time"):
+                  self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
              return result
 
         # Use the validated and normalized url_str
         final_url_to_fetch = url_str
         logger.info(f"Starting crawl of URL: {final_url_to_fetch}")
+        logger.debug(f"crawl: Calling _fetch_with_retry with url='{final_url_to_fetch}'") # ADDED LOG
         fetch_result = await self._fetch_with_retry(final_url_to_fetch, params)
-        if fetch_result.error:
+        logger.debug(f"crawl: _fetch_with_retry returned CrawlResult with url='{fetch_result.url}'") # ADDED LOG
+        # Ensure fetch_result is CrawlResult (from base)
+        if not isinstance(fetch_result, CrawlResult):
+             logger.error(f"Internal error: _fetch_with_retry did not return CrawlResult for {final_url_to_fetch}")
+             # Handle this unexpected situation, perhaps return an error CrawlResult
+             fetch_result = CrawlResult(url=final_url_to_fetch, status=0, error="Internal fetch error", content={}, metadata={})
+             self.metrics["failed_requests"] += 1
+        elif fetch_result.error:
             logger.error(f"Error crawling {final_url_to_fetch}: {fetch_result.error}") # Log the URL actually fetched
             self.metrics["failed_requests"] += 1
-            self.metrics["end_time"] = datetime.now()
-            self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
+            # Update end_time and total_crawl_time here as well
+            self.metrics["end_time"] = time.time() # Use float timestamp
+            if self.metrics.get("start_time"):
+                 self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
             return fetch_result
 
         # --- Post-Fetch Checks and Processing ---
-        # Check max_pages limit *again* after successful fetch before adding to crawled set
-        if len(self._crawled_urls) >= self.config.max_pages:
+        # Check max_pages limit *again* after successful fetch before adding to crawled set using the backend's config
+        if self.config.max_pages is not None and len(self._crawled_urls) >= self.config.max_pages: # Use self.config, Check if None first
              logger.info(f"Max pages limit ({self.config.max_pages}) reached after fetching {final_url_to_fetch}. Discarding.")
-             limit_result = CrawlResult(
+             limit_result = CrawlResult( # Use CrawlResult
                  url=final_url_to_fetch, # Use the URL actually fetched
                  content={},
                  metadata=fetch_result.metadata, # Keep metadata like headers if needed
-                 status=0,
-                 error=f"Max pages limit reached ({self.config.max_pages}) after fetch"
-             )
+                 status=0, # Keep status 0 for non-HTTP errors like limits
+                 error=f"Max pages limit reached ({self.config.max_pages}) after fetch" # Use self.config
+             ) # Use CrawlResult
              # Don't count as failure, just limit reached
-             self.metrics["end_time"] = datetime.now()
-             self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
+             self.metrics["end_time"] = time.time() # Use float timestamp
+             if self.metrics.get("start_time"):
+                  self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
              return limit_result
 
         # Add to crawled set *before* processing
@@ -469,9 +530,17 @@ class Crawl4AIBackend(CrawlerBackend):
             self.metrics["failed_requests"] += 1
 
         # --- Metrics End ---
-        self.metrics["end_time"] = datetime.now()
-        if self.metrics.get("start_time"): # Ensure start_time was set, use .get for safety
-             self.metrics["total_crawl_time"] = (self.metrics["end_time"] - self.metrics["start_time"]).total_seconds()
+        end_crawl_time = time.time()
+        self.metrics["end_time"] = end_crawl_time # Use float timestamp
+        if self.metrics.get("start_time"): # Ensure start_time was set
+             self.metrics["total_crawl_time"] = self.metrics["end_time"] - self.metrics["start_time"]
+
+        # Ensure the returned object is CrawlResult
+        if not isinstance(final_result, CrawlResult):
+             logger.error(f"Internal error: crawl method returning wrong type {type(final_result)} for {url_str}")
+             # Attempt to convert or create a default error result
+             final_result = CrawlResult(url=url_str, status=0, error="Internal result type error", content={}, metadata={})
+
 
         return final_result
 
@@ -490,7 +559,7 @@ class Crawl4AIBackend(CrawlerBackend):
         try:
             # Use the initialized ContentProcessor
             processed_data: ProcessedContent = await self.content_processor.process( # Add await
-                html_content=html_text,
+                content=html_text, # Changed 'html_content' to 'content'
                 base_url=content.url # Pass the original URL as base_url
             )
 
@@ -513,17 +582,18 @@ class Crawl4AIBackend(CrawlerBackend):
             return {"error": f"Failed to process content: {str(e)}"}
     def get_metrics(self) -> Dict[str, Any]:
         """Get current crawler metrics."""
-        metrics = super().get_metrics()
+        # Start with a copy of the instance's metrics, then add calculated rates
+        metrics = self.metrics.copy()
         metrics.update({
             "success_rate": (
-                self.metrics["successful_requests"] /
-                (self.metrics["successful_requests"] + self.metrics["failed_requests"])
-                if self.metrics["successful_requests"] + self.metrics["failed_requests"] > 0
+                metrics["successful_requests"] / # Use the copied metrics dict
+                (metrics["successful_requests"] + metrics["failed_requests"]) # Use the copied metrics dict
+                if metrics["successful_requests"] + metrics["failed_requests"] > 0 # Use the copied metrics dict
                 else 0.0
             ),
             "average_response_time": (
-                self.metrics["total_crawl_time"] / self.metrics["pages_crawled"]
-                if self.metrics["pages_crawled"] > 0
+                metrics["total_crawl_time"] / metrics["pages_crawled"] # Use the copied metrics dict
+                if metrics["pages_crawled"] > 0 # Use the copied metrics dict
                 else 0.0
             )
         })
@@ -564,11 +634,34 @@ class Crawl4AIBackend(CrawlerBackend):
             logging.debug(f"Error validating link {link}: {str(e)}")
             return False
     async def _wait_rate_limit(self) -> None:
-        """Enforce rate limiting between requests."""
-        async with self._rate_limiter:
-            now = time.time()
-            if self._last_request:
-                wait_time = (1.0 / self.config.rate_limit) - (now - self._last_request)
-                if wait_time > 0:
-                    await asyncio.sleep(wait_time)
-            self._last_request = time.time()
+        """Enforce rate limiting between requests.
+        Uses the external rate limiter if provided, otherwise uses internal simple rate limiting.
+        """
+        if self._external_rate_limiter:
+            # Use the external rate limiter
+            logger.debug(f"Using external rate limiter: {self._external_rate_limiter}")
+            wait_time = await self._external_rate_limiter.acquire()
+            if wait_time > 0:
+                logger.debug(f"External rate limiter requested wait: {wait_time:.4f}s. Sleeping...")
+                await asyncio.sleep(wait_time)
+            else:
+                logger.debug("External rate limiter acquired token immediately.")
+        else:
+            # Fallback to internal rate limiting logic
+            logger.debug(f"Using internal rate limiter (rate: {self.config.rate_limit} req/s).")
+            async with self._rate_limiter: # self._rate_limiter is an asyncio.Lock for this internal logic
+                now = time.time()
+                if self._last_request:
+                    # Calculate time since last request and required delay
+                    time_passed_since_last = now - self._last_request
+                    required_interval = 1.0 / self.config.rate_limit
+                    wait_time = required_interval - time_passed_since_last
+                    
+                    if wait_time > 0:
+                        logger.debug(f"Internal rate limiter: last_request={self._last_request:.4f}, now={now:.4f}, time_passed={time_passed_since_last:.4f}, interval={required_interval:.4f}, calculated_wait_time={wait_time:.4f}s. Sleeping...")
+                        await asyncio.sleep(wait_time)
+                    else:
+                        logger.debug(f"Internal rate limiter: Sufficient time passed ({time_passed_since_last:.4f}s >= {required_interval:.4f}s). No wait needed.")
+                else:
+                    logger.debug("Internal rate limiter: First request, no wait needed.")
+                self._last_request = time.time() # Update last request time for internal limiter

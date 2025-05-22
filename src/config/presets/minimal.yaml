@@ -1,0 +1,107 @@
+# Minimal configuration preset for lib2docScrape
+# This preset provides a minimal configuration for quick testing
+
+# Crawler configuration
+crawler:
+  max_depth: 2
+  max_pages: 20
+  follow_external_links: false
+  respect_robots_txt: true
+  delay_between_requests: 1.0
+  timeout: 10.0
+  max_retries: 1
+  user_agent: "lib2docScrape/1.0 Documentation Crawler"
+  concurrent_requests: 2
+  max_request_rate: 5  # requests per second
+
+# Backend selector configuration
+backend_selector:
+  default_backend: "http"
+  javascript_backend: "lightpanda"
+  static_backend: "http"
+
+# Crawl4AI backend configuration
+crawl4ai:
+  max_retries: 1
+  timeout: 10.0
+  follow_redirects: true
+  verify_ssl: true
+  max_depth: 2
+  rate_limit: 1.0
+  concurrent_requests: 2
+  extract_links: true
+  extract_images: false
+  extract_metadata: true
+  extract_code_blocks: false
+  circuit_breaker_threshold: 3
+  circuit_breaker_reset_timeout: 30.0
+  javascript_enabled: false
+
+# Lightpanda backend configuration
+lightpanda:
+  executable_path: "lightpanda"
+  host: "127.0.0.1"
+  port: 9222
+  timeout: 10.0
+  max_retries: 1
+  wait_for_load: true
+  wait_time: 1.0
+  javascript_enabled: true
+  user_agent: "lib2docScrape/1.0 (Lightpanda) Documentation Crawler"
+  viewport_width: 1024
+  viewport_height: 768
+  circuit_breaker_threshold: 3
+  circuit_breaker_reset_timeout: 30.0
+  rate_limit: 1.0
+  concurrent_requests: 2
+  extract_links: true
+  extract_images: false
+  extract_metadata: true
+  extract_code_blocks: false
+  screenshots: false
+
+# Content processor configuration
+content_processor:
+  max_content_length: 100000
+  min_content_length: 10
+  extract_metadata: true
+  extract_assets: false
+  extract_code_blocks: false
+  extract_comments: false
+  max_heading_level: 3
+  sanitize_content: true
+  preserve_whitespace: false
+  code_languages:
+    - python
+    - javascript
+    - html
+    - css
+
+# Quality checker configuration
+quality_checker:
+  min_content_length: 50
+  max_broken_links: 0
+  max_missing_images: 0
+  check_spelling: false
+  check_grammar: false
+  check_code_blocks: false
+  check_headings: true
+  check_links: false
+  check_images: false
+  check_metadata: true
+
+# Document organizer configuration
+document_organizer:
+  output_format: "markdown"
+  create_index: true
+  create_toc: false
+  group_by_topic: false
+  include_metadata: true
+  include_assets: false
+  include_code_blocks: false
+  output_dir: "docs"
+  template_dir: "templates"
+
+# Distributed crawling configuration
+distributed:
+  enabled: false

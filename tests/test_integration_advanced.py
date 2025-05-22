@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch, MagicMock, AsyncMock # Add AsyncMock
 from unittest.mock import patch, MagicMock
 import asyncio
 
@@ -117,7 +118,17 @@ async def test_full_crawl_pipeline():
             # Create a CrawlTarget with the URL and depth
             from src.crawler import CrawlTarget
             target = CrawlTarget(url="https://example.com", depth=2)
-            result = await crawler.crawl(target)
+            result = await crawler.crawl(
+                target_url=target.url,
+                depth=target.depth,
+                follow_external=target.follow_external,
+                content_types=target.content_types,
+                exclude_patterns=target.exclude_patterns,
+                required_patterns=target.required_patterns,
+                max_pages=target.max_pages,
+                allowed_paths=target.allowed_paths,
+                excluded_paths=target.excluded_paths
+            )
             
             # Check that we got a result
             assert result is not None
@@ -143,7 +154,19 @@ async def test_error_handling_integration():
     
     # Test invalid URL
     with pytest.raises(ValueError):
-        await crawler.crawl(CrawlTarget(url="not_a_url"))
+        # Note: The CrawlTarget is constructed here just to get its default attributes for the call
+        temp_target_for_invalid_url = CrawlTarget(url="not_a_url")
+        await crawler.crawl(
+            target_url=temp_target_for_invalid_url.url,
+            depth=temp_target_for_invalid_url.depth,
+            follow_external=temp_target_for_invalid_url.follow_external,
+            content_types=temp_target_for_invalid_url.content_types,
+            exclude_patterns=temp_target_for_invalid_url.exclude_patterns,
+            required_patterns=temp_target_for_invalid_url.required_patterns,
+            max_pages=temp_target_for_invalid_url.max_pages,
+            allowed_paths=temp_target_for_invalid_url.allowed_paths,
+            excluded_paths=temp_target_for_invalid_url.excluded_paths
+        )
     
     # Test network error
     async def mock_fetch_error(*args, **kwargs):
@@ -151,14 +174,29 @@ async def test_error_handling_integration():
     
     # Patch the _fetch_with_retry method on the specific backend instance
     with patch.object(backend, '_fetch_with_retry', side_effect=mock_fetch_error):
-        result = await crawler.crawl(CrawlTarget(url="https://example.com"))
+        temp_target_for_network_error = CrawlTarget(url="https://example.com")
+        result = await crawler.crawl(
+            target_url=temp_target_for_network_error.url,
+            depth=temp_target_for_network_error.depth,
+            follow_external=temp_target_for_network_error.follow_external,
+            content_types=temp_target_for_network_error.content_types,
+            exclude_patterns=temp_target_for_network_error.exclude_patterns,
+            required_patterns=temp_target_for_network_error.required_patterns,
+            max_pages=temp_target_for_network_error.max_pages,
+            allowed_paths=temp_target_for_network_error.allowed_paths,
+            excluded_paths=temp_target_for_network_error.excluded_paths
+        )
         assert len(result.failed_urls) == 1
         assert "https://example.com" in result.failed_urls
         assert isinstance(result.errors["https://example.com"], ConnectionError)
 
 @pytest.mark.asyncio
-async def test_rate_limiting_integration():
+@patch('asyncio.sleep', new_callable=AsyncMock) # Patch asyncio.sleep directly
+@patch('src.crawler.DuckDuckGoSearch.search', new_callable=AsyncMock)
+async def test_rate_limiting_integration(mock_ddg_search, mock_asyncio_sleep):
     """Test rate limiting across components."""
+    mock_asyncio_sleep.return_value = None # Ensure all asyncio.sleep calls are instantaneous
+    mock_ddg_search.return_value = [] # Ensure DDG search returns no URLs and quickly
     rate_limiter = RateLimiter(requests_per_second=2)
     backend = Crawl4AIBackend(rate_limiter=rate_limiter)
     crawler = DocumentationCrawler(backend=backend)
@@ -174,7 +212,11 @@ async def test_rate_limiting_integration():
         )
     
     with patch.object(backend, '_fetch_with_retry', side_effect=mock_fetch):
+        import logging # Add import for logging
+        logger = logging.getLogger("test_rate_limiting_integration") # Get a logger instance
+        logger.info("Starting rate limiting integration test...")
         start_time = asyncio.get_event_loop().time()
+        logger.info(f"Test start_time: {start_time:.4f}")
         
         # Create multiple targets to trigger rate limiter
         targets = [
@@ -183,17 +225,47 @@ async def test_rate_limiting_integration():
         ]
         
         # Crawl targets concurrently
-        tasks = [crawler.crawl(target) for target in targets]
+        tasks = [
+            crawler.crawl(
+                target_url=t.url,
+                depth=t.depth,
+                follow_external=t.follow_external,
+                content_types=t.content_types,
+                exclude_patterns=t.exclude_patterns,
+                required_patterns=t.required_patterns,
+                max_pages=t.max_pages,
+                allowed_paths=t.allowed_paths,
+                excluded_paths=t.excluded_paths
+            ) for i, t in enumerate(targets)
+        ]
+        
+        # Log before gathering tasks
+        for i, task_coro in enumerate(tasks):
+            logger.info(f"Task {i} (URL: {targets[i].url}) created. Type: {type(task_coro)}")
+
+        logger.info(f"Gathering {len(tasks)} tasks at {asyncio.get_event_loop().time():.4f}")
         results = await asyncio.gather(*tasks) # Gather results
+        logger.info(f"Finished gathering tasks at {asyncio.get_event_loop().time():.4f}")
         
         end_time = asyncio.get_event_loop().time()
         elapsed = end_time - start_time
+        logger.info(f"Test end_time: {end_time:.4f}, elapsed: {elapsed:.4f}s")
         
         # For 5 concurrent requests at 2 req/s, the 3rd, 4th, and 5th requests
         # should be delayed by ~0.5s. Gather finishes when the last one completes.
-        # Expected time is roughly 0.5s + overhead. Assert it's less than sequential time.
-        assert elapsed < 1.5, f"Expected concurrent elapsed time < 1.5s, but got {elapsed:.4f}s"
-        assert elapsed > 0.4, f"Expected some delay due to rate limiting, but got {elapsed:.4f}s" # Check lower bound
+        
+        # Check that sleep was called due to rate limiting.
+        # For 5 tasks and rate 2 (capacity 2), the first 2 should pass without calculated delay,
+        # and the next 3 should result in calculated non-zero sleep times.
+        substantial_sleep_calls = [call_args[0][0] for call_args in mock_asyncio_sleep.call_args_list if call_args[0][0] > 0.1]
+        
+        logger.info(f"Substantial sleep calls detected (durations > 0.1s): {substantial_sleep_calls}")
+        assert len(substantial_sleep_calls) >= 3, \
+            f"Expected at least 3 substantial sleep calls for 5 tasks at rate 2, got {len(substantial_sleep_calls)}. All sleep calls: {mock_asyncio_sleep.call_args_list}"
+
+        # Elapsed time should be small because asyncio.sleep is mocked to be instantaneous.
+        # This assertion verifies that the mocking of sleep is effective and there are no other unexpected long delays.
+        assert elapsed < 0.5, f"Expected small elapsed time with mocked sleep (<0.5s), but got {elapsed:.4f}s."
 
         # Check that all crawls were attempted
         assert len(results) == 5
@@ -242,10 +314,22 @@ async def test_content_processing_integration():
     with patch.object(backend, '_fetch_with_retry', side_effect=mock_fetch):
         # Wrap the URL in a CrawlTarget object
         target = CrawlTarget(url="https://example.com")
-        result = await crawler.crawl(target)
+        result = await crawler.crawl(
+            target_url=target.url,
+            depth=target.depth,
+            follow_external=target.follow_external,
+            content_types=target.content_types,
+            exclude_patterns=target.exclude_patterns,
+            required_patterns=target.required_patterns,
+            max_pages=target.max_pages,
+            allowed_paths=target.allowed_paths,
+            excluded_paths=target.excluded_paths
+        )
         
-        # Use target.url for consistency when accessing crawled_pages
-        processed = result.crawled_pages["https://example.com/"] # This should be a ProcessedContent object
+        # Use the normalized URL (without trailing slash for root) as the key
+        normalized_url = "https://example.com"
+        assert normalized_url in result.crawled_pages, f"Normalized URL {normalized_url} not found in crawled pages keys: {list(result.crawled_pages.keys())}"
+        processed = result.crawled_pages[normalized_url] # This should be a ProcessedContent object
 
         # Check content processing (accessing the 'content' dict within ProcessedContent)
         assert "Test Document" in processed.content.get('formatted_content', '')

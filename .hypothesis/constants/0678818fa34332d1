@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/url/info.py
+# hypothesis_version: 6.131.20
+
+[65535, '#', '/', 'None', 'URLInfo', '[', ']', '__dict__', '_creator_func', '_initialized', '_normalized_parsed', '_normalized_url', '_original_fragment', '_parsed', '_raw_url', 'base_url', 'domain', 'error_message', 'https', 'is_valid', 'registered_domain', 'subdomain', 'suffix', 'url_type', 'valid', 'wss']

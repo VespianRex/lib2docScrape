@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/link_processor.py
+# hypothesis_version: 6.131.20
+
+['#', '%2e%2e', '&', '&amp;', '.', '..', '/', '/+', '//', '?', '[<>{}|]', 'a', 'about:', 'allowed_domains', 'allowed_schemes', 'base', 'base_url', 'blob:', 'data:', 'error', 'file:', 'fragment', 'href', 'http', 'http://', 'https', 'https:', 'https://', 'is_internal', 'is_relative', 'is_valid', 'javascript:', 'mailto:', 'netloc', 'normalized_url', 'path', 'query', 'scheme', 'sms:', 'tel:', 'url', 'vbscript:']

@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/content/asset_handler.py
+# hypothesis_version: 6.131.20
+
+['audio', 'data:', 'data:image/', 'href', 'images', 'img', 'link', 'media', 'script', 'scripts', 'source', 'src', 'stylesheet', 'stylesheets', 'video']

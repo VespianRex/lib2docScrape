@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/organizers/doc_organizer.py
+# hypothesis_version: 6.131.20
+
+[0.3, 1000, '/', '\\w+', 'api', 'code', 'code_blocks', 'concept', 'content', 'demo', 'doc', 'documentation', 'endpoint', 'errors', 'example', 'external', 'formatted_content', 'graphql', 'guide', 'headings', 'how-to', 'howto', 'http://', 'https://', 'internal', 'introduction', 'language', 'links', 'meta_tags', 'overview', 'reference', 'rest', 'sample', 'search_indices', 'text', 'title', 'tutorial', 'type', 'uncategorized', 'url', 'v', 'version_id']

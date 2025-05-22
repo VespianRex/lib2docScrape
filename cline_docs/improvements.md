@@ -82,3 +82,30 @@ The current `url/normalization.py` module **satisfies the SRS's requirements for
   - Add test cases for edge cases in IDNA encoding
   - Implement additional URL classification heuristics for subdomains
   - Create domain-specific validators for specialized content types
+
+- Review async/await patterns across the codebase, particularly in test mocks and backend integrations, to prevent further `RuntimeWarning: coroutine was never awaited` issues. (Identified May 2025)
+- Investigate the source of the `DeprecationWarning: datetime.datetime.utcnow()` to identify the specific dependency. Plan for updating or replacing this dependency if it poses a future risk. (Noted May 2025)
+- Consider a more standardized approach for mocking external API calls (e.g., for DuckDuckGo search) to improve test reliability and maintainability. (Insight from May 2025 fixes)
+- Review integration points, like the `RateLimiter` usage with `Crawl4AIBackend`, for potential simplification or clearer contracts to prevent future integration issues. (Insight from May 2025 fixes)
+
+- Address pending issues with backend selector scoring logic in `src/backends/selector.py::_evaluate_backend` and ensure correct HTTP backend error handling.
+- Refactor `src/crawler.py` to implement/verify proper recursive link following based on `depth`.
+- Refactor `src/processors/content_processor.py` to use `markdownify` for HTML-to-Markdown conversion.
+- Improve modularity by moving `ProjectIdentifier` and `DuckDuckGoSearch` out of `src/crawler.py` into `src/utils/`. Break down long methods in `DocumentationCrawler`.
+- Add Scrapy as a new backend option in `BackendSelector`.
+- Benchmark URL processing, memoize `tldextract` lookups, and profile regex hotspots for performance optimization.
+- Add `fragment` property to `URLInfo`, implement RFC 3986 canonicalization aspects, and investigate `py-dnsbl` integration for block-lists.
+- Ensure `LinkProcessor`, `BackendSelector`, `Crawler`, `QualityChecker` fully utilize the new `URLInfo` and its features.
+- Add edge case tests for IDNA encoding, implement additional URL classification heuristics (subdomains), and create domain-specific validators.
+- Refactor `_should_crawl_url` in `src/crawler.py`.
+- Improve Test Coverage by generating coverage reports and identifying gaps.
+- Address `content_processor.py` Test Workaround by investigating the filter in `ContentProcessor` and related tests.
+- Externalize `ProjectIdentifier` Patterns from `src/crawler.py`.
+- Make `URLInfo` Validation Configurable.
+- Review Async/Await Patterns across the codebase.
+- Investigate the source of the `datetime.utcnow()` Deprecation.
+- Standardize External API Mocking.
+- Review `RateLimiter` Usage for potential simplification.
+- Remove Debug Code (`print` statements).
+- Refine Error Handling to use Specific Exceptions.
+- Evaluate `lxml` for Performance improvements.

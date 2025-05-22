@@ -1,0 +1,164 @@
+/* Test Dashboard Styles */
+
+/* Progress Bar */
+#test-progress {
+    height: 25px !important;
+    background-color: #e9ecef;
+    border-radius: 4px;
+    box-shadow: inset 0 1px 2px rgba(0,0,0,.1);
+}
+
+#test-progress .progress-bar {
+    transition: width .6s ease;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+/* Status Indicators */
+#test-status .badge {
+    font-size: 1.2rem;
+    padding: 0.5rem 1rem;
+    min-width: 60px;
+}
+
+#test-status h6 {
+    color: #6c757d;
+    margin-bottom: 0.5rem;
+}
+
+/* Log Viewer */
+#log-viewer {
+    background-color: #1e1e1e;
+    border-radius: 4px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+#log-viewer pre {
+    margin-bottom: 0;
+}
+
+#log-viewer code {
+    color: #d4d4d4;
+}
+
+/* Log Level Colors */
+.log-INFO {
+    color: #4CAF50 !important;
+}
+
+.log-WARNING {
+    color: #FFC107 !important;
+}
+
+.log-ERROR {
+    color: #f44336 !important;
+}
+
+/* Metrics Display */
+#metrics-display label {
+    min-width: 120px;
+    margin-right: 1rem;
+}
+
+#metrics-display span {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 1.1rem;
+}
+
+/* Control Buttons */
+.btn-group .btn {
+    padding: 0.375rem 1rem;
+}
+
+.btn-group .btn i {
+    margin-right: 0.5rem;
+}
+
+/* Log Filter Buttons */
+.log-level {
+    min-width: 80px;
+}
+
+.log-level.active {
+    font-weight: 600;
+}
+
+/* Card Styles */
+.card {
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+    border: none;
+    margin-bottom: 1rem;
+}
+
+.card-title {
+    margin-bottom: 0;
+    font-weight: 600;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    #test-status {
+        flex-wrap: wrap;
+    }
+    
+    #test-status > div {
+        flex: 0 0 50%;
+        margin-bottom: 1rem;
+    }
+    
+    .btn-group {
+        flex-wrap: wrap;
+    }
+    
+    .btn-group .btn {
+        flex: 1 0 auto;
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Loading States */
+.loading {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* Animations */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.status-updating {
+    animation: pulse 1s infinite;
+}
+
+/* Tooltip Customization */
+.tooltip {
+    font-size: 0.875rem;
+}
+
+.tooltip-inner {
+    max-width: 200px;
+    padding: 0.5rem;
+    background-color: #343a40;
+}
+
+/* Modal Styles for Result Details */
+.result-detail-modal .modal-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.result-detail-modal .modal-body {
+    padding: 1.5rem;
+}
+
+.result-detail-modal pre {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 4px;
+    margin: 0;
+}

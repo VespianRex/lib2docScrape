@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/content/url_handler.py
+# hypothesis_version: 6.131.20
+
+['#', '/', '://', '?', 'about:', 'ascii', 'blob:', 'data:', 'data:image/', 'file', 'file:', 'ftp', 'http', 'https', 'idna', 'javascript:', 'mailto', 'vbscript:']

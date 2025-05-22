@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/retry.py
+# hypothesis_version: 6.131.20
+
+[0.2, 1.0, 60.0]

@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/ui/search.py
+# hypothesis_version: 6.131.20
+
+[0.0, 0.5, 0.7, 1.0, 2.0, 100, 200, 400, 1000, ',', '...', '/api/search', '/api/suggestions', 'AND', 'Untitled', '[^\\w\\s]', 'content', 'id', 'mark', 'metadata', 'query', 'relevance', 'suggestions', 'title', 'url']

@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/content/format_handlers.py
+# hypothesis_version: 6.131.20
+
+['# ', '--no-header-footer', '::\\s*\\n\\s+\\w+', ':`[^`]+`', 'AsciiDoc', 'HTML', 'Markdown', '\\[.+\\]\\(.+\\)', '^(#+) (.+)$', '^(=+) (.+)$', '^- ', '^= \\w+', '^=+\\s*$', '^== \\w+', '^=== \\w+', '^[=\\-`:\'\\"~^_*+#]', '^[=\\-`:\'\\"~^_*+#]+$', '^[^\\n]+\\n-+\\s*$', '^[^\\n]+\\n=+\\s*$', '^\\* ', '^\\.\\. \\[.+\\]', '^\\.\\. \\w+::', '^\\.\\. _\\w+:', '^\\[CAUTION\\]', '^\\[IMPORTANT\\]', '^\\[NOTE\\]', '^\\[TIP\\]', '^\\[WARNING\\]', '^\\[source,\\w+\\]', '^\\d+\\. ', '^\\w+\\s*$', '```', 'asciidoc', 'formatted_content', 'heading', 'html', 'html_body', 'level', 'markdown', 'md', 'reStructuredText', 'restructuredtext', 'structure', 'title', 'type', 'x-rst']

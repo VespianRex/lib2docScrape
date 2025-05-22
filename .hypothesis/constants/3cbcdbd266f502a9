@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/url/resolution.py
+# hypothesis_version: 6.131.20
+
+['#', '-', '../images/logo.png', '//google.com/', '__main__', 'file:///etc/passwd', 'http://[::1]/', 'http://example.com', 'invalid url string', 'page.html']

@@ -8,20 +8,26 @@ from src.utils.url.security import URLSecurityConfig
 
 def test_security_config_constants():
     """Test the security configuration constants."""
-    # Test allowed schemes
+    # Test allowed schemes - only http and https should be allowed
     assert 'http' in URLSecurityConfig.ALLOWED_SCHEMES
     assert 'https' in URLSecurityConfig.ALLOWED_SCHEMES
-    assert 'file' in URLSecurityConfig.ALLOWED_SCHEMES
-    assert 'ftp' in URLSecurityConfig.ALLOWED_SCHEMES
+    assert 'file' in URLSecurityConfig.ALLOWED_SCHEMES # Changed: file is now allowed
+    assert 'ftp' not in URLSecurityConfig.ALLOWED_SCHEMES
+    
+    # Test disallowed schemes - file, ftp, and ftps should be explicitly disallowed
+    assert 'file' not in URLSecurityConfig.DISALLOWED_SCHEMES # Changed: file is no longer disallowed
+    assert 'ftp' in URLSecurityConfig.DISALLOWED_SCHEMES
+    assert 'ftps' in URLSecurityConfig.DISALLOWED_SCHEMES
     
     # Test length limits
     assert URLSecurityConfig.MAX_PATH_LENGTH == 2048 # Updated to match the corrected value in security.py
     assert URLSecurityConfig.MAX_QUERY_LENGTH == 2048 # Corrected based on src/utils/url/security.py
     
-    # Test default ports
+    # Test default ports - should only include http and https
     assert URLSecurityConfig.DEFAULT_PORTS['http'] == 80
     assert URLSecurityConfig.DEFAULT_PORTS['https'] == 443
-    assert URLSecurityConfig.DEFAULT_PORTS['ftp'] == 21
+    assert 'ftp' not in URLSecurityConfig.DEFAULT_PORTS
+    assert 'ftps' not in URLSecurityConfig.DEFAULT_PORTS
 
 def test_security_regex_patterns():
     """Test the regex patterns in security configuration."""

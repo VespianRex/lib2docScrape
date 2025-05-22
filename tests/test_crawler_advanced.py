@@ -1,8 +1,11 @@
+from typing import Optional, Union, Dict, Any # Add Optional, Union, Dict, Any
 from src.crawler import DocumentationCrawler, CrawlTarget, CrawlStats, CrawlResult, CrawlerConfig  # Use CrawlerConfig
 from src.backends.base import CrawlResult as BackendCrawlResult  # Import for mock
 from src.processors.content_processor import ProcessedContent, ContentProcessor  # Import for mock
 from src.utils.url import URLInfo  # Corrected import path
 import pytest
+import pytest_asyncio # Add this import
+import logging # Import logging
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 from src.backends.base import CrawlerBackend
@@ -13,21 +16,30 @@ TEST_URL = "http://example.com"
 
 @pytest.fixture
 def mock_backend():
-    # Revert to return_value for simplicity, address side_effect complexity later if needed
-    backend = AsyncMock(name="mock_test_backend")
-    backend.name = "mock_test_backend"  # Explicitly set name attribute
+    backend = AsyncMock(spec=CrawlerBackend) # Use spec for better mocking
+    backend.name = "mock_test_backend"
 
-    # Configure crawl to return a valid BackendCrawlResult for the basic test URL
-    mock_crawl_result = BackendCrawlResult(
-        url=TEST_URL,  # Match the URL used in basic tests
-        content={"html": "<html><head><title>Advanced Test for http://example.com</title></head><body>Mock content for http://example.com. <a href='/advanced_link'>Link</a></body></html>"},
-        metadata={"status_code": 200, "headers": {"content-type": "text/html"}},
-        status=200
-    )
-    backend.crawl.return_value = mock_crawl_result
+    async def crawl_side_effect(url_info: URLInfo, config: Optional[CrawlerConfig] = None, params: Optional[Dict[str, Any]] = None):
+        normalized_url = url_info.normalized_url
+        if normalized_url == TEST_URL:
+            return BackendCrawlResult(
+                url=TEST_URL,
+                content={"html": f"<html><head><title>Advanced Test for {TEST_URL}</title></head><body>Mock content for {TEST_URL}. <a href='/advanced_link'>Link</a></body></html>"},
+                metadata={"status_code": 200, "headers": {"content-type": "text/html"}},
+                status=200
+            )
+        elif normalized_url == f"{TEST_URL}/advanced_link":
+            return BackendCrawlResult(
+                url=f"{TEST_URL}/advanced_link",
+                content={"html": f"<html><head><title>Advanced Test for advanced_link</title></head><body>Mock content for advanced_link.</body></html>"},
+                metadata={"status_code": 200, "headers": {"content-type": "text/html"}},
+                status=200
+            )
+        # Default for http://nonexistent.com or other unexpected URLs in this test file's context
+        return BackendCrawlResult(url=normalized_url, content={}, metadata={}, status=404, error="Not Found by mock_backend")
 
-    # backend.process is not directly used by the crawler, mock can be simplified or removed if not needed elsewhere
-    backend.process = AsyncMock(return_value={"processed": True})
+    backend.crawl = AsyncMock(side_effect=crawl_side_effect)
+    backend.process = AsyncMock(return_value={"processed": True}) # Kept for completeness if used elsewhere
     # Add mock for get_metrics to avoid TypeError during selection
     backend.get_metrics = Mock(return_value={"success_rate": 1.0, "pages_crawled": 0, "errors": 0})
     return backend
@@ -69,17 +81,18 @@ def mock_document_organizer():
     organizer.add_document = AsyncMock(return_value="mock_doc_id")
     return organizer
 
-@pytest.fixture
+@pytest.fixture(scope="function") # Explicitly set scope
 def crawler(mock_backend, mock_content_processor, mock_quality_checker, mock_document_organizer):
-    crawler = DocumentationCrawler(
-        content_processor=mock_content_processor,
-        quality_checker=mock_quality_checker,
-        document_organizer=mock_document_organizer
-    )
-    from src.backends.selector import BackendCriteria
-    crawler.backend_selector.clear_backends()  # Clear default backends first
-    crawler.backend_selector.register_backend(
-        mock_backend,
+    from src.backends.selector import BackendSelector, BackendCriteria # Import here
+    
+    # Create a fresh BackendSelector for this crawler instance
+    selector_for_advanced_test = BackendSelector()
+    selector_for_advanced_test.close_all_backends() # Clear defaults from this new selector
+
+    # Register the specific mock_backend for this test file
+    selector_for_advanced_test.register_backend(
+        "mock_test_backend",
+        mock_backend,  # This is the AsyncMock from this file's fixture
         BackendCriteria(
             priority=100,
             content_types=["text/html"],
@@ -88,11 +101,29 @@ def crawler(mock_backend, mock_content_processor, mock_quality_checker, mock_doc
             min_success_rate=0.7
         )
     )
-    yield crawler
-    # Finalizer: reset state and release resources
-    crawler.backend_selector.clear_backends()
 
-@pytest.fixture
+    # Mock DuckDuckGoSearch to prevent actual searches and ensure isolation
+    mock_ddg_search = AsyncMock()
+    mock_ddg_search.search = AsyncMock(return_value=[])
+
+    crawler_instance = DocumentationCrawler(
+        content_processor=mock_content_processor,
+        quality_checker=mock_quality_checker,
+        document_organizer=mock_document_organizer,
+        backend_selector=selector_for_advanced_test # Pass the dedicated selector
+    )
+    crawler_instance.duckduckgo = mock_ddg_search # Replace the real DDG search with a mock
+
+    # Note: DocumentationCrawler.__init__ will still add its HTTPBackend to this selector_for_advanced_test
+
+    crawler_instance._crawled_urls.clear() # Clear before yielding
+    yield crawler_instance
+    # Finalizer: reset state and release resources
+    # selector_for_advanced_test is local, no need to clear its backends explicitly here
+    # as it will be garbage collected.
+    crawler_instance._crawled_urls.clear() # Clear after test too, just in case
+
+@pytest_asyncio.fixture
 async def patched_rate_limiter(crawler):
     async def mock_acquire(*args, **kwargs):
         return 0.0  # Explicitly return float
@@ -100,10 +131,37 @@ async def patched_rate_limiter(crawler):
         yield
 
 @pytest.mark.asyncio
+async def test_crawl_target_stability():
+    """Check if CrawlTarget instances are stable."""
+    url1 = "http://original-url.com"
+    ct = CrawlTarget(url=url1)
+    original_url_attr = ct.url
+    logging.debug(f"[test_crawl_target_stability] Initial: id(ct)={id(ct)}, ct.url='{ct.url}', original_url_attr='{original_url_attr}'")
+    
+    # Perform some unrelated async operations or pass time
+    await asyncio.sleep(0.01)
+    
+    logging.debug(f"[test_crawl_target_stability] After sleep: id(ct)={id(ct)}, ct.url='{ct.url}', original_url_attr='{original_url_attr}'")
+    assert ct.url == url1, "CrawlTarget.url should not change on its own"
+    assert ct.url == original_url_attr, "CrawlTarget.url should match initially stored value"
+
+@pytest.mark.asyncio
 async def test_crawler_basic_crawl(crawler, patched_rate_limiter):
     """Test basic crawling functionality."""
-    target = CrawlTarget(url=TEST_URL)
-    result = await crawler.crawl(target)
+    from src.crawler import CrawlTarget # Re-import locally
+    target = CrawlTarget(url=TEST_URL, depth=1) # Ensure depth is set for the test
+    logging.debug(f"[test_crawler_basic_crawl] Created target id: {id(target)}, url: {target.url}, depth: {target.depth}")
+    result = await crawler.crawl(
+        target_url=target.url,
+        depth=target.depth,
+        follow_external=target.follow_external,
+        content_types=target.content_types,
+        exclude_patterns=target.exclude_patterns,
+        include_patterns=target.include_patterns,  # Use include_patterns instead
+        max_pages=target.max_pages,
+        allowed_paths=target.allowed_paths,
+        excluded_paths=target.excluded_paths
+    )
 
     assert result is not None
     assert isinstance(result, CrawlResult)
@@ -120,10 +178,23 @@ async def test_crawler_failed_crawl(crawler, mock_backend):
     # Use BackendCrawlResult for failure case as well
     mock_backend.crawl.return_value = BackendCrawlResult(url="http://nonexistent.com", content={}, metadata={}, status=404, error="Not Found")
 
-    target = CrawlTarget(url="http://nonexistent.com")
-    result = await crawler.crawl(target)
+    from src.crawler import CrawlTarget # Re-import locally
+    target = CrawlTarget(url="http://nonexistent.com", depth=0) # Ensure depth is set
+    logging.debug(f"[test_crawler_failed_crawl] Created target id: {id(target)}, url: {target.url}, depth: {target.depth}")
+    result = await crawler.crawl(
+        target_url=target.url,
+        depth=target.depth,
+        follow_external=target.follow_external,
+        content_types=target.content_types,
+        exclude_patterns=target.exclude_patterns,
+        include_patterns=target.include_patterns,  # Use include_patterns instead
+        max_pages=target.max_pages,
+        allowed_paths=target.allowed_paths,
+        excluded_paths=target.excluded_paths
+    )
 
     assert result is not None
+    assert result.stats.pages_crawled == 1 # URL is added to visited_urls even if crawl fails
     assert result.stats.failed_crawls == 1
     assert result.stats.successful_crawls == 0
     assert len(result.documents) == 0
@@ -148,8 +219,18 @@ async def test_crawler_retry_mechanism(crawler, mock_backend):
         success_result  # Use the instance here
     ]
 
-    target = CrawlTarget(url=TEST_URL)
-    result = await crawler.crawl(target)
+    target = CrawlTarget(url=TEST_URL, depth=0) # Ensure depth is set
+    result = await crawler.crawl(
+        target_url=target.url,
+        depth=target.depth,
+        follow_external=target.follow_external,
+        content_types=target.content_types,
+        exclude_patterns=target.exclude_patterns,
+        include_patterns=target.include_patterns,  # Use include_patterns instead
+        max_pages=target.max_pages,
+        allowed_paths=target.allowed_paths,
+        excluded_paths=target.excluded_paths
+    )
 
     assert result is not None
     assert result.stats.successful_crawls == 1
@@ -161,13 +242,23 @@ async def test_crawler_retry_mechanism(crawler, mock_backend):
 @pytest.mark.skip(reason="Rate limiter timing is difficult to test reliably with mocks")
 async def test_crawler_rate_limiting(crawler):
     """Test rate limiting functionality."""
-    target = CrawlTarget(url=TEST_URL)
+    target = CrawlTarget(url=TEST_URL, depth=0, max_pages=1) # Ensure depth and max_pages
     start_time = asyncio.get_event_loop().time()
 
     # Crawl multiple times
     for _ in range(3):
         crawler._crawled_urls.clear()  # Clear crawled URLs to ensure rate limiter is hit
-        await crawler.crawl(target)
+        await crawler.crawl(
+            target_url=target.url,
+            depth=target.depth,
+            follow_external=target.follow_external,
+            content_types=target.content_types,
+            exclude_patterns=target.exclude_patterns,
+            include_patterns=target.include_patterns,  # Use include_patterns instead
+            max_pages=target.max_pages,
+            allowed_paths=target.allowed_paths,
+            excluded_paths=target.excluded_paths
+        )
 
     end_time = asyncio.get_event_loop().time()
     time_taken = end_time - start_time
@@ -181,9 +272,9 @@ async def test_crawler_rate_limiting(crawler):
 @pytest.mark.asyncio
 async def test_crawler_content_processing(crawler, mock_content_processor):
     """Test content processing pipeline."""
-    target = CrawlTarget(url=TEST_URL)
+    target = CrawlTarget(url=TEST_URL, depth=1) # Ensure depth
     # Ensure mock backend returns the expected URL for this test
-    mock_backend = crawler.backend_selector.backends['mock_test_backend']
+    mock_backend = crawler.backend_selector._backends['mock_test_backend']
     mock_backend.crawl.side_effect = None  # Clear potential side effects from other tests
     mock_backend.crawl.return_value = BackendCrawlResult(
         url=TEST_URL,
@@ -192,7 +283,17 @@ async def test_crawler_content_processing(crawler, mock_content_processor):
         status=200
     )
 
-    await crawler.crawl(target)
+    await crawler.crawl(
+        target_url=target.url,
+        depth=target.depth,
+        follow_external=target.follow_external,
+        content_types=target.content_types,
+        exclude_patterns=target.exclude_patterns,
+        include_patterns=target.include_patterns,  # Use include_patterns instead
+        max_pages=target.max_pages,
+        allowed_paths=target.allowed_paths,
+        excluded_paths=target.excluded_paths
+    )
 
     # Verify content processor was called with correct input
     mock_content_processor.process.assert_called_once()
@@ -203,7 +304,7 @@ async def test_crawler_content_processing(crawler, mock_content_processor):
 @pytest.mark.asyncio
 async def test_crawler_quality_checking(crawler, mock_quality_checker):
     """Test quality checking functionality."""
-    target = CrawlTarget(url=TEST_URL)
+    target = CrawlTarget(url=TEST_URL, depth=0) # Ensure depth
     # Mock check_quality to return a list with a QualityIssue instance
     mock_issue = QualityIssue(
         type=IssueType.GENERAL,  # Corrected: Use a valid IssueType member
@@ -214,7 +315,17 @@ async def test_crawler_quality_checking(crawler, mock_quality_checker):
     # Set the return value for this specific test run
     mock_quality_checker.check_quality.return_value = ([mock_issue], {"quality_score": 0.5})
 
-    result = await crawler.crawl(target)
+    result = await crawler.crawl(
+        target_url=target.url,
+        depth=target.depth,
+        follow_external=target.follow_external,
+        content_types=target.content_types,
+        exclude_patterns=target.exclude_patterns,
+        include_patterns=target.include_patterns,  # Use include_patterns instead
+        max_pages=target.max_pages,
+        allowed_paths=target.allowed_paths,
+        excluded_paths=target.excluded_paths
+    )
 
     # Assert that the issue from the quality checker is present in the results
     # The crawler adds issues returned by the quality checker.
@@ -227,8 +338,18 @@ async def test_crawler_quality_checking(crawler, mock_quality_checker):
 @pytest.mark.asyncio
 async def test_crawler_resource_cleanup(crawler):
     """Test proper cleanup of resources."""
-    target = CrawlTarget(url=TEST_URL)
-    await crawler.crawl(target)
+    target = CrawlTarget(url=TEST_URL, depth=0) # Ensure depth
+    await crawler.crawl(
+        target_url=target.url,
+        depth=target.depth,
+        follow_external=target.follow_external,
+        content_types=target.content_types,
+        exclude_patterns=target.exclude_patterns,
+        include_patterns=target.include_patterns,  # Use include_patterns instead
+        max_pages=target.max_pages,
+        allowed_paths=target.allowed_paths,
+        excluded_paths=target.excluded_paths
+    )
 
     # Test cleanup
     await crawler.cleanup()
@@ -241,7 +362,8 @@ async def test_crawler_resource_cleanup(crawler):
 async def test_crawler_concurrent_requests(crawler, mock_backend):  # Pass mock_backend here
     """Test handling of concurrent requests."""
     # Use the side_effect function from the fixture for dynamic responses
-    async def mock_crawl_side_effect(url: str):
+    async def mock_crawl_side_effect(url_info: URLInfo, config: Optional[CrawlerConfig] = None):
+        url = url_info.normalized_url
         return BackendCrawlResult(
             url=url,
             content={"html": f"<html><body>Content for {url}</body></html>"},
@@ -251,12 +373,24 @@ async def test_crawler_concurrent_requests(crawler, mock_backend):  # Pass mock_
     mock_backend.crawl.side_effect = mock_crawl_side_effect  # Set side_effect for this test
 
     targets = [
-        CrawlTarget(url=f"http://example{i}.com")
+        CrawlTarget(url=f"http://example{i}.com", depth=0) # Ensure depth
         for i in range(5)
     ]
 
     # Process multiple targets concurrently
-    tasks = [crawler.crawl(target) for target in targets]
+    tasks = [
+        crawler.crawl(
+            target_url=t.url,
+            depth=t.depth,
+            follow_external=t.follow_external,
+            content_types=t.content_types,
+            exclude_patterns=t.exclude_patterns,
+            include_patterns=t.include_patterns,  # Use include_patterns instead
+            max_pages=t.max_pages,
+            allowed_paths=t.allowed_paths,
+            excluded_paths=t.excluded_paths
+        ) for t in targets
+    ]
     results = await asyncio.gather(*tasks)
 
     assert len(results) == 5
@@ -268,7 +402,8 @@ async def test_crawler_concurrent_requests(crawler, mock_backend):  # Pass mock_
 @pytest.mark.asyncio
 async def test_crawler_url_normalization(crawler, mock_backend):  # Pass mock_backend
     """Test URL normalization during crawling."""
-    async def mock_crawl_side_effect(url: str):
+    async def mock_crawl_side_effect(url_info: URLInfo, config: Optional[CrawlerConfig] = None):
+        url = url_info.normalized_url
         return BackendCrawlResult(
             url=url,
             content={"html": f"<html><body>Content for {url}</body></html>"},
@@ -290,9 +425,19 @@ async def test_crawler_url_normalization(crawler, mock_backend):  # Pass mock_ba
 
     try:
         for input_url, expected_url in test_urls:
-            target = CrawlTarget(url=input_url)
+            target = CrawlTarget(url=input_url, depth=0) # Ensure depth
             crawler._crawled_urls.clear()
-            result = await crawler.crawl(target)
+            result = await crawler.crawl(
+                target_url=target.url,
+                depth=target.depth,
+                follow_external=target.follow_external,
+                content_types=target.content_types,
+                exclude_patterns=target.exclude_patterns,
+                include_patterns=target.include_patterns,  # Use include_patterns instead
+                max_pages=target.max_pages,
+                allowed_paths=target.allowed_paths,
+                excluded_paths=target.excluded_paths
+            )
 
             # Expect success and check normalized URL in the result document
             assert not result.issues, f"Expected no issues for {input_url}, but got: {result.issues}"
@@ -314,7 +459,17 @@ async def test_crawler_error_handling(crawler, mock_backend, error, expected_mes
     """Test various error scenarios."""
     mock_backend.crawl.side_effect = [error] * crawler.config.max_retries
     crawler._crawled_urls.clear()  # Clear crawled URLs for each test case
-    target = CrawlTarget(url=TEST_URL)
-    result = await crawler.crawl(target)
+    target = CrawlTarget(url=TEST_URL, depth=0) # Ensure depth
+    result = await crawler.crawl(
+        target_url=target.url,
+        depth=target.depth,
+        follow_external=target.follow_external,
+        content_types=target.content_types,
+        exclude_patterns=target.exclude_patterns,
+        include_patterns=target.include_patterns,  # Use include_patterns instead
+        max_pages=target.max_pages,
+        allowed_paths=target.allowed_paths,
+        excluded_paths=target.excluded_paths
+    )
     assert len(result.issues) == 1
     assert expected_message in result.issues[0].message, f"Expected '{expected_message}' in issue message, but got '{result.issues[0].message}'"

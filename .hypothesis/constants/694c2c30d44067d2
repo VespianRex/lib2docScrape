@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/nlp/categorizer.py
+# hypothesis_version: 6.131.20
+
+[0.8, 100, 10000, 'Model not trained', '[^\\w\\s]', '\\d+', '\\s+', 'a', 'about', 'am', 'an', 'and', 'are', 'as', 'at', 'be', 'because', 'been', 'being', 'both', 'but', 'by', 'categories', 'classifier', 'could', 'did', 'do', 'does', 'doing', 'during', 'english', 'for', 'from', 'had', 'has', 'have', 'having', 'he', 'her', 'hers', 'him', 'his', 'i', 'if', 'in', 'is', 'it', 'its', 'just', 'kmeans', 'me', 'metadata', 'mine', 'my', 'no', 'nor', 'normalizer', 'not', 'num_categories', 'num_documents', 'of', 'on', 'or', 'ought', 'our', 'ours', 'rb', 'she', 'should', 'so', 'such', 'svd', 'text', 'tfidf', 'than', 'that', 'the', 'their', 'theirs', 'them', 'then', 'these', 'they', 'this', 'those', 'through', 'to', 'us', 'vectorizer', 'was', 'wb', 'we', 'were', 'what', 'which', 'while', 'with', 'without', 'would', 'you', 'your', 'yours']

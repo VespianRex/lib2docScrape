@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/processors/content/code_handler.py
+# hypothesis_version: 6.131.20
+
+['brush:', 'class', 'code', 'javascript', 'lang-', 'language-', 'pre', 'python', 'syntax-']

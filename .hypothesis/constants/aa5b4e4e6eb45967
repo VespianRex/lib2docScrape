@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/utils/url/validation.py
+# hypothesis_version: 6.131.20
+
+[127, 253, 2083, 65535, '.', '/', '//', '10.0.0.1', '<script>', '?', '@', 'Domain too long', 'Empty domain', 'Missing host', 'Null byte detected', 'Path too long', 'Query too long', 'XSS pattern detected', '[', '[\\x00-\\x1F\\x7F]', '[]', '\\', '\\\\', ']', 'ascii', 'file', 'javascript:', 'localhost', 'utf-8', 'xn--']

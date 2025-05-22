@@ -8,101 +8,89 @@ from src.processors.content_processor import (
     ContentProcessingError
 )
 
-@pytest.mark.asyncio # Mark test as async
-async def test_empty_content(): # Make test async
+@pytest.mark.asyncio
+async def test_empty_content():
     """Test processing of empty content."""
     processor = ContentProcessor()
-    
-    # Test empty string
     with pytest.raises(ContentProcessingError):
-        await processor.process("", "https://example.com") # Add await
-    
-    # Test whitespace only
+        await processor.process("", "https://example.com")
     with pytest.raises(ContentProcessingError):
-        await processor.process("   \n\t   ", "https://example.com") # Add await
-    
-    # Test None
+        await processor.process("   \n\t   ", "https://example.com")
     with pytest.raises(ContentProcessingError):
-        await processor.process(None, "https://example.com") # Ensure await is present
+        await processor.process(None, "https://example.com")
 
-@pytest.mark.asyncio # Mark test as async
-async def test_malformed_html(): # Make test async
+@pytest.mark.asyncio
+async def test_malformed_html():
     """Test processing of malformed HTML."""
     processor = ContentProcessor()
     
     # Test unclosed tags
-    content = "<div><p>Test content<div>"
-    result = await processor.process(content, "https://example.com") # Add await
+    content = "<div><p>Test content<div>" # BeautifulSoup handles this
+    result = await processor.process(content, "https://example.com")
     assert isinstance(result, ProcessedContent)
-    assert "Test content" in result.content['formatted_content'] # Check 'formatted_content' key
+    assert "Test content" in result.content['formatted_content']
     
     # Test mismatched tags
-    content = "<div><p>Test content</div></p>"
-    result = await processor.process(content, "https://example.com") # Add await
+    content = "<div><p>Test content</div></p>" # BeautifulSoup handles this
+    result = await processor.process(content, "https://example.com")
     assert isinstance(result, ProcessedContent)
-    assert "Test content" in result.content['formatted_content'] # Check 'formatted_content' key
+    assert "Test content" in result.content['formatted_content']
     
-    # Test invalid attributes
+    # Test invalid attributes - bleach should strip them
     content = '<div class="test" <<invalid>>Test content</div>'
-    result = await processor.process(content, "https://example.com") # Add await
+    result = await processor.process(content, "https://example.com")
     assert isinstance(result, ProcessedContent)
-    assert "<<invalid>>" not in result.content['formatted_content'] # Check that the invalid attribute part is removed
-    assert "Test content" in result.content['formatted_content'] # Check that the valid content remains (even if prefixed with >)
+    assert "<<invalid>>" not in result.content['formatted_content']
+    assert "Test content" in result.content['formatted_content']
 
-@pytest.mark.asyncio # Mark test as async
-async def test_special_characters(): # Make test async
+@pytest.mark.asyncio
+async def test_special_characters():
     """Test processing of content with special characters."""
     processor = ContentProcessor()
     
     # Test Unicode characters
-    content = "<div><p>Test content with Unicode: 你好, Café, 🌟</p></div>" # Wrap in <p>
-    result = await processor.process(content, "https://example.com") # Add await
-    assert "你好" in result.content['formatted_content'] # Check 'formatted_content' key
-    assert "Café" in result.content['formatted_content'] # Check 'formatted_content' key
-    assert "🌟" in result.content['formatted_content'] # Check 'formatted_content' key
+    content = "<div><p>Test content with Unicode: 你好, Café, 🌟</p></div>"
+    result = await processor.process(content, "https://example.com")
+    assert "你好" in result.content['formatted_content']
+    assert "Café" in result.content['formatted_content']
+    assert "🌟" in result.content['formatted_content']
     
-    # Test HTML entities
-    content = "<div><p>Test content with entities: &amp; &lt; &gt; &quot; &apos;</p></div>" # Wrap in <p>
-    result = await processor.process(content, "https://example.com") # Add await
-    assert "&" in result.content['formatted_content'] # Check 'formatted_content' key
-    assert "<" in result.content['formatted_content'] # Check 'formatted_content' key
-    assert ">" in result.content['formatted_content'] # Check 'formatted_content' key
-    assert '"' in result.content['formatted_content'] # Check 'formatted_content' key
-    assert "'" in result.content['formatted_content'] # Check 'formatted_content' key
+    # Test HTML entities - markdownify unescapes them
+    content = "<div><p>Test content with entities: &amp; &lt; &gt; &quot; &apos;</p></div>"
+    result = await processor.process(content, "https://example.com")
+    assert "&" in result.content['formatted_content'] # Markdownify unescapes
+    assert "<" in result.content['formatted_content']
+    assert ">" in result.content['formatted_content']
+    assert '"' in result.content['formatted_content']
+    assert "'" in result.content['formatted_content']
 
-@pytest.mark.asyncio # Mark test as async
-async def test_large_content(): # Make test async
+@pytest.mark.asyncio
+async def test_large_content():
     """Test processing of large content."""
     processor = ContentProcessor()
+    large_content = "<div><p>" + "Test content. " * 10000 + "</p></div>"
     
-    # Generate large content
-    large_content = "<div><p>" + "Test content. " * 10000 + "</p></div>" # Wrap content in <p>
-    
-    # Test processing time
     with patch('time.time') as mock_time:
-        mock_time.side_effect = [0, 10, 11, 12, 13] # Provide more values
-        result = await processor.process(large_content, "https://example.com") # Add await
+        mock_time.side_effect = [0, 10, 11, 12, 13]
+        result = await processor.process(large_content, "https://example.com")
         assert isinstance(result, ProcessedContent)
-        assert len(result.content['formatted_content']) > 1000 # Check 'formatted_content' key
+        assert len(result.content['formatted_content']) > 1000
 
-@pytest.mark.asyncio # Mark test as async
-async def test_nested_structures(): # Make test async
+@pytest.mark.asyncio
+async def test_nested_structures():
     """Test processing of deeply nested structures."""
     processor = ContentProcessor()
-    
-    # Create deeply nested content
-    nested_content = "<div>" * 100 + "<p>Test content</p>" + "</div>" * 100 # Wrap in <p>
-    
-    result = await processor.process(nested_content, "https://example.com") # Add await
+    nested_content = "<div>" * 100 + "<p>Test content</p>" + "</div>" * 100
+    result = await processor.process(nested_content, "https://example.com")
     assert isinstance(result, ProcessedContent)
-    assert "Test content" in result.content['formatted_content'] # Check 'formatted_content' key
+    assert "Test content" in result.content['formatted_content']
 
-@pytest.mark.asyncio # Mark test as async
-async def test_javascript_handling(): # Make test async
+@pytest.mark.asyncio
+async def test_javascript_handling():
     """Test handling of JavaScript content."""
     processor = ContentProcessor()
     
-    # Test inline scripts
+    # Test inline scripts - bleach removes script tags
     content = """
     <div>
         <script>alert('test');</script>
@@ -113,23 +101,23 @@ async def test_javascript_handling(): # Make test async
         </script>
     </div>
     """
-    result = await processor.process(content, "https://example.com") # Add await
-    assert "alert" not in result.content['formatted_content'] # Check 'formatted_content' key
-    assert "Valid content" in result.content['formatted_content'] # Check 'formatted_content' key
-    assert "var x = 1" not in result.content['formatted_content'] # Check 'formatted_content' key
+    result = await processor.process(content, "https://example.com")
+    assert "alert" not in result.content['formatted_content']
+    assert "Valid content" in result.content['formatted_content']
+    assert "var x = 1" not in result.content['formatted_content']
     
-    # Test event handlers
-    content = '<div onclick="alert(\'test\')"><p>Test content</p></div>' # Wrap in <p>
-    result = await processor.process(content, "https://example.com") # Add await
-    assert "onclick" not in result.content['formatted_content'] # Check 'formatted_content' key
-    assert "Test content" in result.content['formatted_content'] # Check 'formatted_content' key
+    # Test event handlers - bleach removes them
+    content = '<div onclick="alert(\'test\')"><p>Test content</p></div>'
+    result = await processor.process(content, "https://example.com")
+    assert "onclick" not in result.content['formatted_content'] 
+    assert "Test content" in result.content['formatted_content']
 
-@pytest.mark.asyncio # Mark test as async
-async def test_style_handling(): # Make test async
+@pytest.mark.asyncio
+async def test_style_handling():
     """Test handling of CSS styles."""
     processor = ContentProcessor()
     
-    # Test inline styles
+    # Test inline styles - bleach removes style tags
     content = """
     <div>
         <style>
@@ -141,19 +129,19 @@ async def test_style_handling(): # Make test async
         </style>
     </div>
     """
-    result = await processor.process(content, "https://example.com") # Add await
-    assert "color: red" not in result.content['formatted_content'] # Corrected key
-    assert "Valid content" in result.content['formatted_content'] # Corrected key
-    assert "background: white" not in result.content['formatted_content'] # Corrected key
+    result = await processor.process(content, "https://example.com")
+    assert "color: red" not in result.content['formatted_content']
+    assert "Valid content" in result.content['formatted_content']
+    assert "background: white" not in result.content['formatted_content']
     
-    # Test style attributes
-    content = '<div style="color: blue;"><p>Test content</p></div>' # Wrap in <p>
-    result = await processor.process(content, "https://example.com") # Add await
-    assert "color: blue" not in result.content['formatted_content'] # Corrected key
-    assert "Test content" in result.content['formatted_content'] # Corrected key
+    # Test style attributes - bleach removes them by default
+    content = '<div style="color: blue;"><p>Test content</p></div>'
+    result = await processor.process(content, "https://example.com")
+    assert "color: blue" not in result.content['formatted_content'] 
+    assert "Test content" in result.content['formatted_content']
 
-@pytest.mark.asyncio # Mark test as async
-async def test_iframe_handling(): # Make test async
+@pytest.mark.asyncio
+async def test_iframe_handling():
     """Test handling of iframes."""
     processor = ContentProcessor()
     
@@ -165,12 +153,12 @@ async def test_iframe_handling(): # Make test async
         <p>Main content</p>
     </div>
     """
-    result = await processor.process(content, "https://example.com") # Add await
-    assert "Fallback content" not in result.content['formatted_content'] # Corrected key
-    assert "Main content" in result.content['formatted_content'] # Already corrected, ensuring consistency
+    result = await processor.process(content, "https://example.com")
+    assert "Fallback content" not in result.content['formatted_content']
+    assert "Main content" in result.content['formatted_content']
 
-@pytest.mark.asyncio # Mark test as async
-async def test_form_handling(): # Make test async
+@pytest.mark.asyncio
+async def test_form_handling():
     """Test handling of forms and input elements."""
     processor = ContentProcessor()
     
@@ -188,6 +176,8 @@ async def test_form_handling(): # Make test async
         <p>Main content</p>
     </div>
     """
-    result = await processor.process(content, "https://example.com") # Add await
-    assert "Main content" in result.content['formatted_content'] # Corrected key
-    # Form elements should be stripped or handled according to requirements
+    result = await processor.process(content, "https://example.com")
+    assert "Main content" in result.content['formatted_content']
+    # Depending on markdownify options, form elements might be stripped or represented.
+    # For now, we ensure main content is preserved.
+    # assert "Default text" not in result.content['formatted_content'] # Example if stripped

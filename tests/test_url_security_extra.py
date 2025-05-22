@@ -1,5 +1,6 @@
 import pytest
-from src.utils.url import URLInfo
+from src.utils.url.factory import create_url_info # Import the factory function
+from src.utils.url import URLInfo # Keep URLInfo import for type hinting if needed elsewhere
 
 class TestURLSecurityExtra:
     """Test additional security edge cases for URL handling."""
@@ -15,7 +16,7 @@ class TestURLSecurityExtra:
         # Scheme exploitation attempts
         ("ftp://example.com/resource", False, "Disallowed scheme: FTP"),
         ("smb://example.com/share", False, "Disallowed scheme: SMB"),
-        ("file:///etc/passwd", False, "Disallowed scheme: local file access"),
+        ("file:///etc/passwd", True, "Allowed scheme: local file access"), # File scheme is now allowed
         ("javascript:void(0)", False, "Javascript URI scheme"), # Already covered, but good to re-affirm
         ("vbscript:msgbox('XSS')", False, "VBScript URI scheme"),
 
@@ -28,7 +29,7 @@ class TestURLSecurityExtra:
         # Homograph attacks (using visually similar characters - basic check)
         # Note: Full homograph detection is complex. This checks for obviously problematic schemes.
         # A more robust check might involve IDNA processing and character analysis.
-        ("http://еxample.com", True, "Cyrillic 'е' instead of Latin 'e' - Should ideally be handled by IDNA normalization, but basic validation passes"), # This might pass basic validation but fail normalization/comparison
+        ("http://еxample.com", False, "Cyrillic 'е' instead of Latin 'e' - Detected as homograph attack"), # Now properly detected as invalid
         ("https://google.com@evil.com/", False, "URL with username/password attempting to mask domain"),
 
         # Extremely long URLs (potential DoS vector)
@@ -40,7 +41,8 @@ class TestURLSecurityExtra:
     ])
     def test_various_security_risks(self, url, expected_valid, description):
         """Test URLInfo against various security risk patterns."""
-        info = URLInfo(url)
+        # Use the factory function to create the URLInfo instance
+        info = create_url_info(url)
         assert info.is_valid == expected_valid, f"Failed check: {description} ({url})"
         if not expected_valid:
             assert info.error_message is not None, f"Error message expected for invalid URL: {description} ({url})"

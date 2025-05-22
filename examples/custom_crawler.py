@@ -218,7 +218,7 @@ async def main():
             
             # Handle quality issues
             for issue in result.issues:
-                await quality_handler.handle_issue(target.url, issue.dict())
+                await quality_handler.handle_issue(target.url, issue.model_dump())
         
         # Output results
         logging.info("\nProcessing Statistics:")

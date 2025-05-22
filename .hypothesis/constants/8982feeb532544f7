@@ -1,0 +1,4 @@
+# file: /home/alex/DEV/lib2docScrape/src/backends/selector.py
+# hypothesis_version: 6.131.20
+
+[0.7, 0.8, '*?[]', '://', 'BackendCriteria', 'HTTPBackend', 'close', 'config', 'criteria', 'file', 'http', 'https', 'mock_crawler', 'schemes', 'text/html', 'url_patterns']
