@@ -1,35 +1,40 @@
 """
 Configuration management for the lib2docScrape system.
 """
+
 import json
 import logging
 import os
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Type, TypeVar, Union, cast
+from typing import Any, Optional, TypeVar, Union
 
 import yaml
-from pydantic import BaseModel, ValidationError, create_model
+from pydantic import BaseModel, ValidationError
 
 from ..utils.error_handler import ErrorCategory, ErrorLevel, handle_error
 
 logger = logging.getLogger(__name__)
 
-T = TypeVar('T', bound=BaseModel)
+T = TypeVar("T", bound=BaseModel)
+
 
 class ConfigFormat(Enum):
     """Supported configuration file formats."""
+
     JSON = "json"
     YAML = "yaml"
     TOML = "toml"
 
+
 class ConfigPreset(Enum):
     """Predefined configuration presets."""
+
     DEFAULT = "default"
     MINIMAL = "minimal"
     PERFORMANCE = "performance"
     QUALITY = "quality"
     JAVASCRIPT = "javascript"
+
 
 class ConfigManager:
     """
@@ -46,11 +51,13 @@ class ConfigManager:
         Args:
             config_dir: Directory containing configuration files
         """
-        self.config_dir = config_dir or os.path.join(os.path.dirname(__file__), "presets")
-        self.configs: Dict[str, Dict[str, Any]] = {}
-        self.model_registry: Dict[str, Type[BaseModel]] = {}
+        self.config_dir = config_dir or os.path.join(
+            os.path.dirname(__file__), "presets"
+        )
+        self.configs: dict[str, dict[str, Any]] = {}
+        self.model_registry: dict[str, type[BaseModel]] = {}
 
-    def register_model(self, name: str, model: Type[BaseModel]) -> None:
+    def register_model(self, name: str, model: type[BaseModel]) -> None:
         """
         Register a configuration model.
 
@@ -63,8 +70,8 @@ class ConfigManager:
     def load_config(
         self,
         config_path: Optional[str] = None,
-        format: ConfigFormat = ConfigFormat.YAML
-    ) -> Dict[str, Any]:
+        format: ConfigFormat = ConfigFormat.YAML,
+    ) -> dict[str, Any]:
         """
         Load configuration from a file.
 
@@ -83,13 +90,14 @@ class ConfigManager:
             config_path = os.path.join(self.config_dir, f"default.{format.value}")
 
         try:
-            with open(config_path, "r") as f:
+            with open(config_path) as f:
                 if format == ConfigFormat.JSON:
                     config = json.load(f)
                 elif format == ConfigFormat.YAML:
                     config = yaml.safe_load(f)
                 elif format == ConfigFormat.TOML:
                     import toml
+
                     config = toml.load(f)
                 else:
                     raise ValueError(f"Unsupported configuration format: {format}")
@@ -98,7 +106,7 @@ class ConfigManager:
             self.configs["main"] = config
             return config
 
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             error = FileNotFoundError(f"Configuration file not found: {config_path}")
             handle_error(
                 error,
@@ -106,25 +114,22 @@ class ConfigManager:
                 "load_config",
                 details={"config_path": config_path},
                 level=ErrorLevel.ERROR,
-                category=ErrorCategory.CONFIGURATION
+                category=ErrorCategory.CONFIGURATION,
             )
-            raise error
+            raise error from e
         except Exception as e:
-            error_details = {
-                "config_path": config_path,
-                "format": format.value
-            }
+            error_details = {"config_path": config_path, "format": format.value}
             handle_error(
                 e,
                 "ConfigManager",
                 "load_config",
                 details=error_details,
                 level=ErrorLevel.ERROR,
-                category=ErrorCategory.CONFIGURATION
+                category=ErrorCategory.CONFIGURATION,
             )
             raise ValueError(f"Failed to load configuration: {str(e)}") from e
 
-    def validate_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_config(self, config: dict[str, Any]) -> dict[str, Any]:
         """
         Validate configuration against registered models.
 
@@ -162,13 +167,15 @@ class ConfigManager:
                 "validate_config",
                 details={"errors": errors},
                 level=ErrorLevel.ERROR,
-                category=ErrorCategory.VALIDATION
+                category=ErrorCategory.VALIDATION,
             )
             raise error
 
         return validated_config
 
-    def get_config(self, section: Optional[str] = None, model_type: Optional[Type[T]] = None) -> Union[Dict[str, Any], T]:
+    def get_config(
+        self, section: Optional[str] = None, model_type: Optional[type[T]] = None
+    ) -> Union[dict[str, Any], T]:
         """
         Get configuration for a specific section.
 
@@ -204,7 +211,7 @@ class ConfigManager:
                         "get_config",
                         details={"section": section},
                         level=ErrorLevel.WARNING,
-                        category=ErrorCategory.VALIDATION
+                        category=ErrorCategory.VALIDATION,
                     )
                     return model_type()
             return section_config
@@ -213,9 +220,9 @@ class ConfigManager:
 
     def save_config(
         self,
-        config: Dict[str, Any],
+        config: dict[str, Any],
         config_path: str,
-        format: ConfigFormat = ConfigFormat.YAML
+        format: ConfigFormat = ConfigFormat.YAML,
     ) -> None:
         """
         Save configuration to a file.
@@ -236,26 +243,24 @@ class ConfigManager:
                     yaml.dump(config, f, default_flow_style=False)
                 elif format == ConfigFormat.TOML:
                     import toml
+
                     toml.dump(config, f)
                 else:
                     raise ValueError(f"Unsupported configuration format: {format}")
 
         except Exception as e:
-            error_details = {
-                "config_path": config_path,
-                "format": format.value
-            }
+            error_details = {"config_path": config_path, "format": format.value}
             handle_error(
                 e,
                 "ConfigManager",
                 "save_config",
                 details=error_details,
                 level=ErrorLevel.ERROR,
-                category=ErrorCategory.CONFIGURATION
+                category=ErrorCategory.CONFIGURATION,
             )
             raise ValueError(f"Failed to save configuration: {str(e)}") from e
 
-    def load_preset(self, preset: ConfigPreset) -> Dict[str, Any]:
+    def load_preset(self, preset: ConfigPreset) -> dict[str, Any]:
         """
         Load a predefined configuration preset.
 
@@ -268,7 +273,9 @@ class ConfigManager:
         preset_path = os.path.join(self.config_dir, f"{preset.value}.yaml")
         return self.load_config(preset_path)
 
-    def merge_configs(self, base_config: Dict[str, Any], override_config: Dict[str, Any]) -> Dict[str, Any]:
+    def merge_configs(
+        self, base_config: dict[str, Any], override_config: dict[str, Any]
+    ) -> dict[str, Any]:
         """
         Merge two configuration dictionaries.
 
@@ -282,7 +289,11 @@ class ConfigManager:
         result = base_config.copy()
 
         for key, value in override_config.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
                 # Recursively merge nested dictionaries
                 result[key] = self.merge_configs(result[key], value)
             else:
@@ -291,10 +302,12 @@ class ConfigManager:
 
         return result
 
+
 # Global configuration manager instance
 config_manager = ConfigManager()
 
-def register_config_model(name: str, model: Type[BaseModel]) -> None:
+
+def register_config_model(name: str, model: type[BaseModel]) -> None:
     """
     Register a configuration model with the global config manager.
 
@@ -304,7 +317,10 @@ def register_config_model(name: str, model: Type[BaseModel]) -> None:
     """
     config_manager.register_model(name, model)
 
-def get_config(section: Optional[str] = None, model_type: Optional[Type[T]] = None) -> Union[Dict[str, Any], T]:
+
+def get_config(
+    section: Optional[str] = None, model_type: Optional[type[T]] = None
+) -> Union[dict[str, Any], T]:
     """
     Get configuration from the global config manager.
 
@@ -317,7 +333,10 @@ def get_config(section: Optional[str] = None, model_type: Optional[Type[T]] = No
     """
     return config_manager.get_config(section, model_type)
 
-def load_config(config_path: Optional[str] = None, format: ConfigFormat = ConfigFormat.YAML) -> Dict[str, Any]:
+
+def load_config(
+    config_path: Optional[str] = None, format: ConfigFormat = ConfigFormat.YAML
+) -> dict[str, Any]:
     """
     Load configuration using the global config manager.
 
@@ -330,7 +349,8 @@ def load_config(config_path: Optional[str] = None, format: ConfigFormat = Config
     """
     return config_manager.load_config(config_path, format)
 
-def load_preset(preset: ConfigPreset) -> Dict[str, Any]:
+
+def load_preset(preset: ConfigPreset) -> dict[str, Any]:
     """
     Load a predefined configuration preset using the global config manager.
 

@@ -1,0 +1,22 @@
+[run]
+source = src
+branch = True
+parallel = True
+concurrency = multiprocessing,thread
+
+omit =
+    */site-packages/*
+    */dist-packages/*
+    */tests/*
+    */__pycache__/*
+    */__init__.py
+    src/crawler.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+
+[html]
+directory = htmlcov

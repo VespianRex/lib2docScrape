@@ -1,0 +1,68 @@
+{
+  "start_time": "2025-06-03T17:32:18.334777",
+  "test_phase": "completed",
+  "discoveries": [],
+  "issues_found": [],
+  "successes": [
+    {
+      "timestamp": "2025-06-03T17:32:18.728638",
+      "message": "HTTPBackend imports working",
+      "metrics": {}
+    },
+    {
+      "timestamp": "2025-06-03T17:32:18.921550",
+      "message": "Crawler imports working",
+      "metrics": {}
+    },
+    {
+      "timestamp": "2025-06-03T17:32:18.921763",
+      "message": "HTTPBackendConfig creation working",
+      "metrics": {
+        "timeout": 30.0,
+        "verify_ssl": true,
+        "follow_redirects": true
+      }
+    },
+    {
+      "timestamp": "2025-06-03T17:32:18.921975",
+      "message": "HTTPBackend initialization successful",
+      "metrics": {
+        "backend_name": "http_backend",
+        "config_timeout": 30.0
+      }
+    },
+    {
+      "timestamp": "2025-06-03T17:32:18.950495",
+      "message": "DocumentationCrawler initialization successful",
+      "metrics": {}
+    },
+    {
+      "timestamp": "2025-06-03T17:32:18.950738",
+      "message": "Basic CrawlTarget creation successful",
+      "metrics": {
+        "url": "https://example.com",
+        "depth": 1,
+        "max_pages": 1
+      }
+    },
+    {
+      "timestamp": "2025-06-03T17:32:18.950860",
+      "message": "Full CrawlTarget creation successful",
+      "metrics": {}
+    },
+    {
+      "timestamp": "2025-06-03T17:32:22.954814",
+      "message": "Backend cleanup completed",
+      "metrics": {}
+    }
+  ],
+  "lessons_learned": [],
+  "next_steps": [],
+  "end_time": "2025-06-03T17:32:22.955191",
+  "summary": {
+    "total_discoveries": 0,
+    "total_issues": 0,
+    "total_successes": 8,
+    "total_lessons": 0
+  }
+}

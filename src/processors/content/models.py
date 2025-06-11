@@ -1,25 +1,73 @@
 """Data models for content processing."""
+
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
 from datetime import datetime  # add import
+from typing import Any
+
 
 @dataclass
 class ProcessorConfig:
     """Configuration for the content processor."""
-    allowed_tags: List[str] = field(default_factory=lambda: [
-        'p', 'a', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 
-        'ul', 'ol', 'li', 'code', 'pre', 'blockquote', 'em', 
-        'strong', 'table', 'tr', 'td', 'th'
-    ])
+
+    allowed_tags: list[str] = field(
+        default_factory=lambda: [
+            "p",
+            "a",
+            "img",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "ul",
+            "ol",
+            "li",
+            "code",
+            "pre",
+            "blockquote",
+            "em",
+            "strong",
+            "table",
+            "tr",
+            "td",
+            "th",
+        ]
+    )
     max_heading_level: int = 3
-    preserve_whitespace_elements: List[str] = field(default_factory=lambda: ['pre', 'code'])
-    code_languages: List[str] = field(default_factory=lambda: [
-        'python', 'javascript', 'typescript', 'java', 'cpp', 'c', 'csharp', 'go',
-        'rust', 'swift', 'kotlin', 'php', 'ruby', 'scala', 'perl', 'r',
-        'html', 'css', 'sql', 'shell', 'bash', 'powershell'
-    ])
+    preserve_whitespace_elements: list[str] = field(
+        default_factory=lambda: ["pre", "code"]
+    )
+    code_languages: list[str] = field(
+        default_factory=lambda: [
+            "python",
+            "javascript",
+            "typescript",
+            "java",
+            "cpp",
+            "c",
+            "csharp",
+            "go",
+            "rust",
+            "swift",
+            "kotlin",
+            "php",
+            "ruby",
+            "scala",
+            "perl",
+            "r",
+            "html",
+            "css",
+            "sql",
+            "shell",
+            "bash",
+            "powershell",
+        ]
+    )
     sanitize_urls: bool = True
-    metadata_prefixes: List[str] = field(default_factory=lambda: ['og:', 'twitter:', 'dc.', 'article:', 'book:'])
+    metadata_prefixes: list[str] = field(
+        default_factory=lambda: ["og:", "twitter:", "dc.", "article:", "book:"]
+    )
     extract_comments: bool = False
     max_content_length: int = 1000000
     min_content_length: int = 0
@@ -33,7 +81,6 @@ class ProcessorConfig:
     extract_code_blocks: bool = True
     # blocked_attributes field removed as bleach handles allowed attributes directly
 
-
     def __post_init__(self):
         # Ensure max_heading_level is between 1 and 6
         self.max_heading_level = max(1, min(6, self.max_heading_level))
@@ -42,37 +89,45 @@ class ProcessorConfig:
         if self.max_heading_length < min_length:
             self.max_heading_length = min_length
 
+
 @dataclass
 class ProcessedContent:
     """Result of content processing."""
+
     url: str = ""
     content_type: str = ""
     raw: str = ""
     text: str = ""
     markdown: str = ""
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=datetime.now)
 
-    content: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    assets: Dict[str, List[str]] = field(default_factory=lambda: {
-        'images': [], 'stylesheets': [], 'scripts': [], 'media': []
-    })
-    headings: List[Dict[str, Any]] = field(default_factory=list)
-    structure: List[Dict[str, Any]] = field(default_factory=list)
-    errors: List[str] = field(default_factory=list)
+    content: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    assets: dict[str, list[str]] = field(
+        default_factory=lambda: {
+            "images": [],
+            "stylesheets": [],
+            "scripts": [],
+            "media": [],
+        }
+    )
+    headings: list[dict[str, Any]] = field(default_factory=list)
+    structure: list[dict[str, Any]] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     title: str = field(default="Untitled Document")
 
     def __str__(self) -> str:
         """Convert to string representation."""
-        if 'formatted_content' in self.content:
-            return str(self.content['formatted_content'])
-        return ''
+        if "formatted_content" in self.content:
+            return str(self.content["formatted_content"])
+        return ""
 
     def __contains__(self, item: str) -> bool:
         """Check if string is in content."""
         if isinstance(item, str):
-            content_str = str(self)
-            return item in content_str
+            # Directly check the formatted content to avoid recursion
+            formatted_content = self.content.get("formatted_content", "")
+            return item in str(formatted_content)
         return False
 
     def __len__(self) -> int:
@@ -88,7 +143,7 @@ class ProcessedContent:
         return iter(str(self))
 
     @property
-    def processed_content(self) -> Dict[str, str]:
+    def processed_content(self) -> dict[str, str]:
         """Get processed content."""
         return self.content
 
@@ -104,7 +159,7 @@ class ProcessedContent:
 
     def get_content_section(self, section: str) -> str:
         """Get content for a specific section."""
-        return str(self.content.get(section, ''))
+        return str(self.content.get(section, ""))
 
     def add_error(self, error: str) -> None:
         """Add an error message."""
@@ -124,17 +179,16 @@ class ProcessedContent:
             if url not in self.assets[asset_type]:
                 self.assets[asset_type].append(url)
 
-    def add_heading(self, heading: Dict[str, Any]) -> None:
+    def add_heading(self, heading: dict[str, Any]) -> None:
         """Add a heading."""
         self.headings.append(heading)
-        if 'headings' in self.structure:  # Ensure 'headings' key exists
-            self.structure['headings'].append(heading)
-        else:
-            self.structure = {'headings': [heading], 'sections': [], 'custom_elements': []}  # Initialize if not present
+        # Structure is a list, not a dict, so just append the heading
+        self.structure.append(heading)
 
     def is_valid(self) -> bool:
         """Check if the processed content is valid."""
         return bool(self.title and self.content and self.metadata)
+
 
 # Alias for backward compatibility with code expecting ProcessingConfig
 ProcessingConfig = ProcessorConfig

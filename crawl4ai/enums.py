@@ -1,5 +1,6 @@
 import enum
 
+
 class URLType(enum.Enum):
     INTERNAL = 1
     EXTERNAL = 2

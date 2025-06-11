@@ -2,32 +2,46 @@
 Playwright backend module for handling browser-based crawling.
 This backend provides full browser automation capabilities for JavaScript-heavy sites.
 """
+
 import asyncio
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field
 from bs4 import BeautifulSoup
+from pydantic import BaseModel, Field
 
-from .base import CrawlerBackend, CrawlResult
-from ..utils.url.info import URLInfo
 from ..processors.content_processor import ContentProcessor
-from ..utils.retry import ExponentialBackoff, RetryWithStrategy
 from ..utils.circuit_breaker import CircuitBreaker
+from ..utils.retry import ExponentialBackoff
+from ..utils.url.info import URLInfo
+from .base import CrawlerBackend, CrawlResult
 
 # Conditional import to avoid errors if playwright is not installed
 try:
-    from playwright.async_api import async_playwright, Browser, Page, TimeoutError as PlaywrightTimeoutError
+    from playwright.async_api import (
+        Browser,  # noqa: F401
+        Page,  # noqa: F401
+        async_playwright,
+    )
+    from playwright.async_api import (
+        TimeoutError as PlaywrightTimeoutError,
+    )
+
     PLAYWRIGHT_AVAILABLE = True
 except ImportError:
+    # Create dummy objects for testing when Playwright is not available
+    async_playwright = None
+    PlaywrightTimeoutError = Exception
     PLAYWRIGHT_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
+
 class PlaywrightConfig(BaseModel):
     """Configuration for the Playwright backend."""
+
     browser_type: str = "chromium"  # chromium, firefox, or webkit
     headless: bool = True
     timeout: float = 30.0
@@ -41,7 +55,7 @@ class PlaywrightConfig(BaseModel):
     viewport_height: int = 800
     ignore_https_errors: bool = False
     proxy: Optional[str] = None
-    extra_http_headers: Dict[str, str] = Field(default_factory=dict)
+    extra_http_headers: dict[str, str] = Field(default_factory=dict)
     screenshots: bool = False
     screenshot_path: str = "screenshots"
     circuit_breaker_threshold: int = 5
@@ -52,6 +66,7 @@ class PlaywrightConfig(BaseModel):
     extract_images: bool = True
     extract_metadata: bool = True
     extract_code_blocks: bool = True
+
 
 class PlaywrightBackend(CrawlerBackend):
     """
@@ -74,20 +89,20 @@ class PlaywrightBackend(CrawlerBackend):
 
         # Initialize retry strategy
         self.retry_strategy = ExponentialBackoff(
-            base_delay=1.0,
-            max_delay=30.0,
-            jitter=True
+            base_delay=1.0, max_delay=30.0, jitter=True
         )
 
         # Initialize circuit breaker
         self.circuit_breaker = CircuitBreaker(
             failure_threshold=self.config.circuit_breaker_threshold,
-            reset_timeout=self.config.circuit_breaker_reset_timeout
+            reset_timeout=self.config.circuit_breaker_reset_timeout,
         )
 
         # Check if Playwright is available
         if not PLAYWRIGHT_AVAILABLE:
-            logger.warning("Playwright is not installed. Please install it with 'pip install playwright' and run 'playwright install'")
+            logger.warning(
+                "Playwright is not installed. Please install it with 'pip install playwright' and run 'playwright install'"
+            )
 
     async def _ensure_browser(self):
         """Ensure browser is launched and ready."""
@@ -95,7 +110,9 @@ class PlaywrightBackend(CrawlerBackend):
             return
 
         if not PLAYWRIGHT_AVAILABLE:
-            raise RuntimeError("Playwright is not installed. Please install it with 'pip install playwright' and run 'playwright install'")
+            raise RuntimeError(
+                "Playwright is not installed. Please install it with 'pip install playwright' and run 'playwright install'"
+            )
 
         try:
             self._playwright = await async_playwright().start()
@@ -112,14 +129,17 @@ class PlaywrightBackend(CrawlerBackend):
             self._browser = await browser_factory.launch(
                 headless=self.config.headless,
                 proxy={"server": self.config.proxy} if self.config.proxy else None,
-                ignore_https_errors=self.config.ignore_https_errors
+                ignore_https_errors=self.config.ignore_https_errors,
             )
 
             # Create browser context
             self._context = await self._browser.new_context(
-                viewport={"width": self.config.viewport_width, "height": self.config.viewport_height},
+                viewport={
+                    "width": self.config.viewport_width,
+                    "height": self.config.viewport_height,
+                },
                 user_agent=self.config.user_agent,
-                extra_http_headers=self.config.extra_http_headers
+                extra_http_headers=self.config.extra_http_headers,
             )
 
             logger.info(f"Playwright {self.config.browser_type} browser launched")
@@ -143,7 +163,7 @@ class PlaywrightBackend(CrawlerBackend):
 
             self._last_request = time.time()
 
-    async def _navigate_with_retry(self, url: str) -> Dict[str, Any]:
+    async def _navigate_with_retry(self, url: str) -> dict[str, Any]:
         """Navigate to a URL with retry logic and circuit breaker protection."""
         # Check if circuit breaker is open
         if self.circuit_breaker.is_open():
@@ -153,7 +173,7 @@ class PlaywrightBackend(CrawlerBackend):
                 "error": "Circuit breaker open",
                 "status": 503,  # Service Unavailable
                 "content": None,
-                "screenshot": None
+                "screenshot": None,
             }
 
         await self._ensure_browser()
@@ -170,7 +190,7 @@ class PlaywrightBackend(CrawlerBackend):
                         response = await page.goto(
                             url,
                             wait_until=self.config.wait_until,
-                            timeout=self.config.timeout * 1000  # Convert to ms
+                            timeout=self.config.timeout * 1000,  # Convert to ms
                         )
 
                         # Wait additional time if configured
@@ -186,7 +206,7 @@ class PlaywrightBackend(CrawlerBackend):
                             os.makedirs(self.config.screenshot_path, exist_ok=True)
                             screenshot_file = os.path.join(
                                 self.config.screenshot_path,
-                                f"{hash(url)}_{int(time.time())}.png"
+                                f"{hash(url)}_{int(time.time())}.png",
                             )
                             await page.screenshot(path=screenshot_file, full_page=True)
                             screenshot = screenshot_file
@@ -200,48 +220,53 @@ class PlaywrightBackend(CrawlerBackend):
                             "content": content,
                             "screenshot": screenshot,
                             "url": response.url if response else url,
-                            "headers": dict(response.headers) if response else {}
+                            "headers": dict(response.headers) if response else {},
                         }
                     finally:
                         await page.close()
-            except PlaywrightTimeoutError as e:
-                # Record failure in circuit breaker
-                self.circuit_breaker.record_failure()
-
-                logger.warning(f"Attempt {attempt + 1}/{self.config.max_retries + 1} timed out for {url}: {str(e)}")
-
-                if attempt < self.config.max_retries:
-                    # Use retry strategy for delay
-                    delay = self.retry_strategy.get_delay(attempt)
-                    logger.debug(f"Retrying in {delay:.2f} seconds")
-                    await asyncio.sleep(delay)
-                else:
-                    return {
-                        "success": False,
-                        "error": f"Timeout after {self.config.max_retries} retries: {str(e)}",
-                        "status": 408,  # Request Timeout
-                        "content": None,
-                        "screenshot": None
-                    }
             except Exception as e:
+                # Check if this is a timeout error when Playwright is available
+                is_timeout_error = (
+                    PLAYWRIGHT_AVAILABLE and isinstance(e, PlaywrightTimeoutError)
+                ) or (not PLAYWRIGHT_AVAILABLE and "timeout" in str(e).lower())
+
                 # Record failure in circuit breaker
                 self.circuit_breaker.record_failure()
 
-                logger.error(f"Unexpected error navigating to {url}: {str(e)}")
+                if is_timeout_error:
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{self.config.max_retries + 1} timed out for {url}: {str(e)}"
+                    )
 
-                if attempt < self.config.max_retries:
-                    # Use retry strategy for delay
-                    delay = self.retry_strategy.get_delay(attempt)
-                    logger.debug(f"Retrying in {delay:.2f} seconds")
-                    await asyncio.sleep(delay)
+                    if attempt < self.config.max_retries:
+                        # Use retry strategy for delay
+                        delay = self.retry_strategy.get_delay(attempt)
+                        logger.debug(f"Retrying in {delay:.2f} seconds")
+                        await asyncio.sleep(delay)
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Timeout after {self.config.max_retries} retries: {str(e)}",
+                            "status": 408,  # Request Timeout
+                            "content": None,
+                            "screenshot": None,
+                        }
                 else:
-                    return {
-                        "success": False,
-                        "error": f"Unexpected error: {str(e)}",
-                        "status": 500,  # Internal Server Error
-                        "content": None,
-                        "screenshot": None
-                    }
+                    logger.error(f"Unexpected error navigating to {url}: {str(e)}")
+
+                    if attempt < self.config.max_retries:
+                        # Use retry strategy for delay
+                        delay = self.retry_strategy.get_delay(attempt)
+                        logger.debug(f"Retrying in {delay:.2f} seconds")
+                        await asyncio.sleep(delay)
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Unexpected error: {str(e)}",
+                            "status": 500,  # Internal Server Error
+                            "content": None,
+                            "screenshot": None,
+                        }
 
     async def crawl(self, url_info: URLInfo, config=None) -> CrawlResult:
         """
@@ -260,7 +285,7 @@ class PlaywrightBackend(CrawlerBackend):
                 content={},
                 metadata={},
                 status=400,
-                error=f"Invalid URL: {url_info.error_message}"
+                error=f"Invalid URL: {url_info.error_message}",
             )
 
         url = url_info.normalized_url
@@ -274,7 +299,7 @@ class PlaywrightBackend(CrawlerBackend):
                 content={},
                 metadata={"cached": True},
                 status=304,  # Not Modified
-                error="URL already crawled"
+                error="URL already crawled",
             )
 
         # Navigate to URL
@@ -286,10 +311,10 @@ class PlaywrightBackend(CrawlerBackend):
                 content={},
                 metadata={
                     "error_details": result.get("error", "Unknown error"),
-                    "backend": "playwright"
+                    "backend": "playwright",
                 },
                 status=result.get("status", 500),
-                error=result.get("error", "Failed to navigate to URL")
+                error=result.get("error", "Failed to navigate to URL"),
             )
 
         # Add to crawled URLs
@@ -304,10 +329,10 @@ class PlaywrightBackend(CrawlerBackend):
                 "screenshot": result.get("screenshot"),
                 "backend": "playwright",
                 "browser_type": self.config.browser_type,
-                "javascript_enabled": self.config.javascript_enabled
+                "javascript_enabled": self.config.javascript_enabled,
             },
             status=result.get("status", 200),
-            content_type="text/html"
+            content_type="text/html",
         )
 
     async def validate(self, content: CrawlResult) -> bool:
@@ -327,7 +352,9 @@ class PlaywrightBackend(CrawlerBackend):
 
         # Check if content is too short (likely an error page)
         if len(html) < 100:
-            logger.warning(f"Content for {content.url} is too short ({len(html)} bytes)")
+            logger.warning(
+                f"Content for {content.url} is too short ({len(html)} bytes)"
+            )
             return False
 
         # Check if content contains common error indicators
@@ -337,7 +364,7 @@ class PlaywrightBackend(CrawlerBackend):
             "500 Internal Server Error",
             "Service Unavailable",
             "Page Not Found",
-            "Access Denied"
+            "Access Denied",
         ]
 
         soup = BeautifulSoup(html, "html.parser")
@@ -345,12 +372,14 @@ class PlaywrightBackend(CrawlerBackend):
 
         for indicator in error_indicators:
             if indicator in title:
-                logger.warning(f"Error indicator '{indicator}' found in title for {content.url}")
+                logger.warning(
+                    f"Error indicator '{indicator}' found in title for {content.url}"
+                )
                 return False
 
         return True
 
-    async def process(self, content: CrawlResult) -> Dict[str, Any]:
+    async def process(self, content: CrawlResult) -> dict[str, Any]:
         """
         Process the crawled content.
 
@@ -368,9 +397,7 @@ class PlaywrightBackend(CrawlerBackend):
         try:
             # Process content using ContentProcessor
             processed_content = await self.content_processor.process(
-                content=html_text,
-                base_url=content.url,
-                content_type="text/html"
+                content=html_text, base_url=content.url, content_type="text/html"
             )
 
             # Extract links if configured
@@ -381,12 +408,15 @@ class PlaywrightBackend(CrawlerBackend):
                     href = a_tag.get("href")
                     if href:
                         from urllib.parse import urljoin
+
                         absolute_url = urljoin(content.url, href)
-                        links.append({
-                            "url": absolute_url,
-                            "text": a_tag.get_text(strip=True),
-                            "title": a_tag.get("title", "")
-                        })
+                        links.append(
+                            {
+                                "url": absolute_url,
+                                "text": a_tag.get_text(strip=True),
+                                "title": a_tag.get("title", ""),
+                            }
+                        )
 
             return {
                 "title": processed_content.title,
@@ -395,7 +425,7 @@ class PlaywrightBackend(CrawlerBackend):
                 "metadata": {**processed_content.metadata, **content.metadata},
                 "headings": processed_content.headings,
                 "assets": processed_content.assets,
-                "structure": processed_content.structure
+                "structure": processed_content.structure,
             }
         except Exception as e:
             logger.error(f"Error processing content for {content.url}: {str(e)}")

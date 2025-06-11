@@ -1,6 +1,7 @@
 """
 Library version tracking module for managing documentation from different library versions.
 """
+
 import difflib
 import json
 import logging
@@ -8,7 +9,7 @@ import os
 import re
 from dataclasses import asdict
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Any, Optional
 from uuid import uuid4
 
 try:
@@ -19,8 +20,8 @@ except ImportError:
         @staticmethod
         def compare(v1, v2):
             """Simple version comparison."""
-            v1_parts = [int(x) for x in v1.split('.')]
-            v2_parts = [int(x) for x in v2.split('.')]
+            v1_parts = [int(x) for x in v1.split(".")]
+            v2_parts = [int(x) for x in v2.split(".")]
 
             for i in range(max(len(v1_parts), len(v2_parts))):
                 v1_part = v1_parts[i] if i < len(v1_parts) else 0
@@ -33,9 +34,11 @@ except ImportError:
 
             return 0
 
+
 try:
     import matplotlib.pyplot as plt
     import networkx as nx
+
     HAS_VISUALIZATION = True
 except ImportError:
     HAS_VISUALIZATION = False
@@ -45,8 +48,10 @@ from ..processors.content_processor import ProcessedContent
 
 logger = logging.getLogger(__name__)
 
+
 class LibraryVersionInfo(BaseModel):
     """Information about a library version."""
+
     name: str
     version: str
     release_date: Optional[datetime] = None
@@ -55,27 +60,36 @@ class LibraryVersionInfo(BaseModel):
     is_stable: bool = True
     is_deprecated: bool = False
     supported_until: Optional[datetime] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
 
 class VersionDiff(BaseModel):
     """Represents differences between two library versions."""
+
     from_version: str
     to_version: str
-    added_pages: List[str] = Field(default_factory=list)
-    removed_pages: List[str] = Field(default_factory=list)
-    modified_pages: List[str] = Field(default_factory=list)
-    diff_details: Dict[str, Any] = Field(default_factory=dict)
-    summary: Dict[str, Any] = Field(default_factory=dict)
-    breaking_changes: List[Dict[str, Any]] = Field(default_factory=list)
-    api_changes: List[Dict[str, Any]] = Field(default_factory=list)
+    added_pages: list[str] = Field(default_factory=list)
+    removed_pages: list[str] = Field(default_factory=list)
+    modified_pages: list[str] = Field(default_factory=list)
+    diff_details: dict[str, Any] = Field(default_factory=dict)
+    summary: dict[str, Any] = Field(default_factory=dict)
+    breaking_changes: list[dict[str, Any]] = Field(default_factory=list)
+    api_changes: list[dict[str, Any]] = Field(default_factory=list)
     visual_diff_path: Optional[str] = None
+
 
 class LibraryRegistry(BaseModel):
     """Registry of known libraries and their documentation URLs."""
-    libraries: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
 
-    def add_library(self, name: str, base_url: str, version_pattern: str = None,
-                   doc_paths: List[str] = None) -> None:
+    libraries: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+    def add_library(
+        self,
+        name: str,
+        base_url: str,
+        version_pattern: str = None,
+        doc_paths: list[str] = None,
+    ) -> None:
         """
         Add a library to the registry.
 
@@ -90,10 +104,10 @@ class LibraryRegistry(BaseModel):
             "base_url": base_url,
             "version_pattern": version_pattern or r"v?(\d+\.\d+\.\d+)",
             "doc_paths": doc_paths or ["docs", "documentation", "api", "reference"],
-            "versions": {}
+            "versions": {},
         }
 
-    def get_library(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_library(self, name: str) -> Optional[dict[str, Any]]:
         """Get library information by name."""
         return self.libraries.get(name)
 
@@ -121,9 +135,14 @@ class LibraryRegistry(BaseModel):
         # Otherwise return the base URL
         return base_url
 
-    def register_version(self, name: str, version: str, doc_url: str,
-                        release_date: Optional[datetime] = None,
-                        is_latest: bool = False) -> None:
+    def register_version(
+        self,
+        name: str,
+        version: str,
+        doc_url: str,
+        release_date: Optional[datetime] = None,
+        is_latest: bool = False,
+    ) -> None:
         """
         Register a specific library version.
 
@@ -148,7 +167,7 @@ class LibraryRegistry(BaseModel):
             "version": version,
             "documentation_url": doc_url,
             "release_date": release_date,
-            "is_latest": is_latest
+            "is_latest": is_latest,
         }
 
         # If this is the latest version, update other versions
@@ -157,7 +176,7 @@ class LibraryRegistry(BaseModel):
                 if ver != version:
                     info["is_latest"] = False
 
-    def verify_doc_site(self, url: str) -> Tuple[bool, Optional[str], Optional[str]]:
+    def verify_doc_site(self, url: str) -> tuple[bool, Optional[str], Optional[str]]:
         """
         Verify if a URL is a known documentation site.
 
@@ -187,25 +206,24 @@ class LibraryRegistry(BaseModel):
 
     def save_to_file(self, filepath: str) -> None:
         """Save the registry to a JSON file."""
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             # Convert to dict for serialization
-            data = {
-                "libraries": self.libraries
-            }
+            data = {"libraries": self.libraries}
 
             # Handle datetime objects
             json.dump(data, f, indent=2, default=str)
 
     @classmethod
-    def load_from_file(cls, filepath: str) -> 'LibraryRegistry':
+    def load_from_file(cls, filepath: str) -> "LibraryRegistry":
         """Load the registry from a JSON file."""
         try:
-            with open(filepath, 'r') as f:
+            with open(filepath) as f:
                 data = json.load(f)
                 return cls(**data)
         except (FileNotFoundError, json.JSONDecodeError):
             # Return empty registry if file doesn't exist or is invalid
             return cls()
+
 
 class LibraryVersionTracker:
     """
@@ -221,10 +239,11 @@ class LibraryVersionTracker:
             registry: Optional library registry
         """
         self.registry = registry or LibraryRegistry()
-        self.version_docs: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self.version_docs: dict[str, dict[str, dict[str, Any]]] = {}
 
-    def add_documentation(self, library_name: str, version: str,
-                         processed_content: ProcessedContent) -> str:
+    def add_documentation(
+        self, library_name: str, version: str, processed_content: ProcessedContent
+    ) -> str:
         """
         Add documentation for a specific library version.
 
@@ -252,7 +271,7 @@ class LibraryVersionTracker:
             "url": processed_content.url,
             "title": processed_content.title,
             "content": asdict(processed_content),
-            "timestamp": datetime.now(timezone.utc)
+            "timestamp": datetime.now(timezone.utc),
         }
 
         # Register the version in the registry if not already registered
@@ -262,12 +281,12 @@ class LibraryVersionTracker:
                 library_name,
                 version,
                 processed_content.url,
-                release_date=datetime.now(timezone.utc)
+                release_date=datetime.now(timezone.utc),
             )
 
         return doc_id
 
-    def get_versions(self, library_name: str) -> List[str]:
+    def get_versions(self, library_name: str) -> list[str]:
         """
         Get all versions for a library.
 
@@ -282,7 +301,7 @@ class LibraryVersionTracker:
 
         return list(self.version_docs[library_name].keys())
 
-    def get_documentation(self, library_name: str, version: str) -> Dict[str, Any]:
+    def get_documentation(self, library_name: str, version: str) -> dict[str, Any]:
         """
         Get all documentation for a specific library version.
 
@@ -301,7 +320,9 @@ class LibraryVersionTracker:
 
         return self.version_docs[library_name][version]
 
-    def compare_versions(self, library_name: str, version1: str, version2: str) -> VersionDiff:
+    def compare_versions(
+        self, library_name: str, version1: str, version2: str
+    ) -> VersionDiff:
         """
         Compare documentation between two library versions.
 
@@ -316,7 +337,10 @@ class LibraryVersionTracker:
         if library_name not in self.version_docs:
             return VersionDiff(from_version=version1, to_version=version2)
 
-        if version1 not in self.version_docs[library_name] or version2 not in self.version_docs[library_name]:
+        if (
+            version1 not in self.version_docs[library_name]
+            or version2 not in self.version_docs[library_name]
+        ):
             return VersionDiff(from_version=version1, to_version=version2)
 
         docs1 = self.version_docs[library_name][version1]
@@ -342,8 +366,12 @@ class LibraryVersionTracker:
 
             if doc1 and doc2:
                 # Compare content
-                content1 = doc1["content"].get("content", {}).get("formatted_content", "")
-                content2 = doc2["content"].get("content", {}).get("formatted_content", "")
+                content1 = (
+                    doc1["content"].get("content", {}).get("formatted_content", "")
+                )
+                content2 = (
+                    doc2["content"].get("content", {}).get("formatted_content", "")
+                )
 
                 if content1 != content2:
                     modified_urls.append(url)
@@ -354,13 +382,13 @@ class LibraryVersionTracker:
                         content2.splitlines(),
                         fromfile=f"{url} ({version1})",
                         tofile=f"{url} ({version2})",
-                        lineterm=""
+                        lineterm="",
                     )
 
                     diff_details[url] = {
                         "diff": list(diff),
                         "title1": doc1["title"],
-                        "title2": doc2["title"]
+                        "title2": doc2["title"],
                     }
 
         return VersionDiff(
@@ -369,7 +397,7 @@ class LibraryVersionTracker:
             added_pages=list(added_urls),
             removed_pages=list(removed_urls),
             modified_pages=modified_urls,
-            diff_details=diff_details
+            diff_details=diff_details,
         )
 
     def is_newer_version(self, version1: str, version2: str) -> bool:
@@ -405,18 +433,20 @@ class LibraryVersionTracker:
             Cleaned version string
         """
         # Remove 'v' prefix if present
-        if version.startswith('v'):
+        if version.startswith("v"):
             version = version[1:]
 
         # Ensure there are at least three parts (major.minor.patch)
-        parts = version.split('.')
+        parts = version.split(".")
         while len(parts) < 3:
-            parts.append('0')
+            parts.append("0")
 
         # Join back together
-        return '.'.join(parts)
+        return ".".join(parts)
 
-    def generate_visual_diff(self, library_name: str, version1: str, version2: str, output_dir: str = None) -> Optional[str]:
+    def generate_visual_diff(
+        self, library_name: str, version1: str, version2: str, output_dir: str = None
+    ) -> Optional[str]:
         """
         Generate a visual diff between two library versions.
 
@@ -430,7 +460,9 @@ class LibraryVersionTracker:
             Path to the visual diff file or None if visualization is not available
         """
         if not HAS_VISUALIZATION:
-            logger.warning("Visualization libraries (matplotlib, networkx) not available")
+            logger.warning(
+                "Visualization libraries (matplotlib, networkx) not available"
+            )
             return None
 
         # Compare versions
@@ -493,7 +525,9 @@ class LibraryVersionTracker:
         plt.axis("off")
 
         # Save the visualization
-        output_file = os.path.join(output_dir, f"{library_name}_{version1}_vs_{version2}.png")
+        output_file = os.path.join(
+            output_dir, f"{library_name}_{version1}_vs_{version2}.png"
+        )
         plt.savefig(output_file, dpi=300, bbox_inches="tight")
         plt.close()
 
@@ -502,7 +536,9 @@ class LibraryVersionTracker:
 
         return output_file
 
-    def detect_breaking_changes(self, library_name: str, version1: str, version2: str) -> List[Dict[str, Any]]:
+    def detect_breaking_changes(
+        self, library_name: str, version1: str, version2: str
+    ) -> list[dict[str, Any]]:
         """
         Detect potential breaking changes between two library versions.
 
@@ -521,11 +557,13 @@ class LibraryVersionTracker:
 
         # Check for removed pages (potential API removals)
         for url in diff.removed_pages:
-            breaking_changes.append({
-                "type": "removed_page",
-                "url": url,
-                "description": f"Page removed in {version2}"
-            })
+            breaking_changes.append(
+                {
+                    "type": "removed_page",
+                    "url": url,
+                    "description": f"Page removed in {version2}",
+                }
+            )
 
         # Check for modified pages with potential breaking changes
         for url in diff.modified_pages:
@@ -538,26 +576,34 @@ class LibraryVersionTracker:
             for line in diff_lines:
                 if line.startswith("-") and not line.startswith("---"):
                     # Check for patterns that might indicate breaking changes
-                    if re.search(r"def\s+\w+|class\s+\w+|function\s+\w+|method\s+\w+", line):
-                        breaking_changes.append({
-                            "type": "removed_api",
-                            "url": url,
-                            "line": line,
-                            "description": f"Potential API removal: {line.strip()}"
-                        })
+                    if re.search(
+                        r"def\s+\w+|class\s+\w+|function\s+\w+|method\s+\w+", line
+                    ):
+                        breaking_changes.append(
+                            {
+                                "type": "removed_api",
+                                "url": url,
+                                "line": line,
+                                "description": f"Potential API removal: {line.strip()}",
+                            }
+                        )
                     elif "deprecated" in line.lower():
-                        breaking_changes.append({
-                            "type": "deprecation",
-                            "url": url,
-                            "line": line,
-                            "description": f"Potential deprecation: {line.strip()}"
-                        })
+                        breaking_changes.append(
+                            {
+                                "type": "deprecation",
+                                "url": url,
+                                "line": line,
+                                "description": f"Potential deprecation: {line.strip()}",
+                            }
+                        )
                     elif "breaking" in line.lower() or "break" in line.lower():
-                        breaking_changes.append({
-                            "type": "explicit_breaking",
-                            "url": url,
-                            "line": line,
-                            "description": f"Explicit breaking change mention: {line.strip()}"
-                        })
+                        breaking_changes.append(
+                            {
+                                "type": "explicit_breaking",
+                                "url": url,
+                                "line": line,
+                                "description": f"Explicit breaking change mention: {line.strip()}",
+                            }
+                        )
 
         return breaking_changes

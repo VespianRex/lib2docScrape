@@ -1,20 +1,20 @@
 """
 Visualizations for lib2docScrape.
 """
-import logging
-import os
-import json
-from typing import Dict, List, Optional, Any, Union
-from datetime import datetime
 
-from pydantic import BaseModel, Field
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+import json
+import logging
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+
 class VisualizationConfig(BaseModel):
     """Configuration for visualizations."""
+
     enable_charts: bool = True
     enable_graphs: bool = True
     enable_maps: bool = True
@@ -29,276 +29,315 @@ class VisualizationConfig(BaseModel):
     custom_css: Optional[str] = None
     custom_js: Optional[str] = None
 
+
 class Visualizations:
     """
     Visualizations for lib2docScrape.
     Provides interactive visualizations for documentation data.
     """
-    
+
     def __init__(self, app: FastAPI, config: Optional[VisualizationConfig] = None):
         """
         Initialize the visualizations.
-        
+
         Args:
             app: FastAPI application
             config: Optional visualization configuration
         """
         self.app = app
         self.config = config or VisualizationConfig()
-        
+
         # Set up routes
         self._setup_routes()
-        
-        logger.info(f"Visualizations initialized with default_chart_type={self.config.default_chart_type}")
-        
+
+        logger.info(
+            f"Visualizations initialized with default_chart_type={self.config.default_chart_type}"
+        )
+
     def _setup_routes(self) -> None:
         """Set up visualization routes."""
+
         # Chart API
         @self.app.get("/api/visualizations/chart")
         async def get_chart(
             type: str = None,
-            data: str = None,
-            options: str = None
+            data: str = None,  # Type hint for data will be List[Dict[str, Any]] after json.loads
+            options: str = None,  # Type hint for options will be Dict[str, Any] after json.loads
         ):
             # Validate chart type
             chart_type = type or self.config.default_chart_type
             if chart_type not in ["bar", "line", "pie", "scatter", "area", "heatmap"]:
-                raise HTTPException(status_code=400, detail=f"Invalid chart type: {chart_type}")
-                
+                raise HTTPException(
+                    status_code=400, detail=f"Invalid chart type: {chart_type}"
+                )
+
             # Parse data
-            chart_data = []
+            chart_data_parsed = []
             if data:
                 try:
-                    chart_data = json.loads(data)
-                except json.JSONDecodeError:
-                    raise HTTPException(status_code=400, detail="Invalid data format")
-                    
+                    chart_data_parsed = json.loads(data)
+                except json.JSONDecodeError as e:
+                    raise HTTPException(
+                        status_code=400, detail="Invalid data format"
+                    ) from e
+
             # Parse options
-            chart_options = {}
+            chart_options_parsed = {}
             if options:
                 try:
-                    chart_options = json.loads(options)
-                except json.JSONDecodeError:
-                    raise HTTPException(status_code=400, detail="Invalid options format")
-                    
+                    chart_options_parsed = json.loads(options)
+                except json.JSONDecodeError as e:
+                    raise HTTPException(
+                        status_code=400, detail="Invalid options format"
+                    ) from e
+
             # Generate chart configuration
-            chart_config = self._generate_chart_config(chart_type, chart_data, chart_options)
-            
+            chart_config = self._generate_chart_config(
+                chart_type, chart_data_parsed, chart_options_parsed
+            )
+
             return chart_config
-            
+
         # Graph API
         @self.app.get("/api/visualizations/graph")
         async def get_graph(
-            data: str = None,
-            options: str = None
+            data: str = None,  # Type hint for data will be Dict[str, List[Dict[str, Any]]] after json.loads
+            options: str = None,  # Type hint for options will be Dict[str, Any] after json.loads
         ):
             if not self.config.enable_graphs:
                 raise HTTPException(status_code=403, detail="Graphs are disabled")
-                
+
             # Parse data
-            graph_data = {"nodes": [], "links": []}
+            graph_data_parsed = {"nodes": [], "links": []}
             if data:
                 try:
-                    graph_data = json.loads(data)
-                except json.JSONDecodeError:
-                    raise HTTPException(status_code=400, detail="Invalid data format")
-                    
+                    graph_data_parsed = json.loads(data)
+                except json.JSONDecodeError as e:
+                    raise HTTPException(
+                        status_code=400, detail="Invalid data format"
+                    ) from e
+
             # Parse options
-            graph_options = {}
+            graph_options_parsed = {}
             if options:
                 try:
-                    graph_options = json.loads(options)
-                except json.JSONDecodeError:
-                    raise HTTPException(status_code=400, detail="Invalid options format")
-                    
+                    graph_options_parsed = json.loads(options)
+                except json.JSONDecodeError as e:
+                    raise HTTPException(
+                        status_code=400, detail="Invalid options format"
+                    ) from e
+
             # Generate graph configuration
-            graph_config = self._generate_graph_config(graph_data, graph_options)
-            
+            graph_config = self._generate_graph_config(
+                graph_data_parsed, graph_options_parsed
+            )
+
             return graph_config
-            
+
         # Table API
         @self.app.get("/api/visualizations/table")
         async def get_table(
-            data: str = None,
-            options: str = None
+            data: str = None,  # Type hint for data will be List[Dict[str, Any]] after json.loads
+            options: str = None,  # Type hint for options will be Dict[str, Any] after json.loads
         ):
             if not self.config.enable_tables:
                 raise HTTPException(status_code=403, detail="Tables are disabled")
-                
+
             # Parse data
-            table_data = []
+            table_data_parsed = []
             if data:
                 try:
-                    table_data = json.loads(data)
-                except json.JSONDecodeError:
-                    raise HTTPException(status_code=400, detail="Invalid data format")
-                    
+                    table_data_parsed = json.loads(data)
+                except json.JSONDecodeError as e:
+                    raise HTTPException(
+                        status_code=400, detail="Invalid data format"
+                    ) from e
+
             # Parse options
-            table_options = {}
+            table_options_parsed = {}
             if options:
                 try:
-                    table_options = json.loads(options)
-                except json.JSONDecodeError:
-                    raise HTTPException(status_code=400, detail="Invalid options format")
-                    
+                    table_options_parsed = json.loads(options)
+                except json.JSONDecodeError as e:
+                    raise HTTPException(
+                        status_code=400, detail="Invalid options format"
+                    ) from e
+
             # Generate table configuration
-            table_config = self._generate_table_config(table_data, table_options)
-            
+            table_config = self._generate_table_config(
+                table_data_parsed, table_options_parsed
+            )
+
             return table_config
-            
-    def _generate_chart_config(self, chart_type: str, data: List[Dict[str, Any]], options: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _generate_chart_config(
+        self, chart_type: str, data: list, options: dict
+    ) -> dict:  # Adjusted type hints
         """
         Generate chart configuration.
-        
+
         Args:
             chart_type: Chart type
-            data: Chart data
-            options: Chart options
-            
+            data: Chart data (List[Dict[str, Any]])
+            options: Chart options (Dict[str, Any])
+
         Returns:
             Chart configuration
         """
-        # Limit data size
-        if len(data) > self.config.max_items_per_chart:
-            data = data[:self.config.max_items_per_chart]
-            
-        # Set default options
-        default_options = {
-            "width": self.config.chart_width,
-            "height": self.config.chart_height,
-            "colorScheme": self.config.default_color_scheme,
-            "animationDuration": self.config.animation_duration,
-            "responsive": True,
-            "title": f"{chart_type.capitalize()} Chart",
-            "subtitle": f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "xAxis": {
-                "title": "X Axis",
-                "grid": True
-            },
-            "yAxis": {
-                "title": "Y Axis",
-                "grid": True
-            },
-            "legend": {
-                "enabled": True,
-                "position": "bottom"
-            },
-            "tooltip": {
-                "enabled": True
-            }
-        }
-        
-        # Merge with user options
-        merged_options = {**default_options, **options}
-        
-        # Create chart configuration
+        # Base configuration
         chart_config = {
             "type": chart_type,
-            "data": data,
-            "options": merged_options
+            "data": {"datasets": [], "labels": []},
+            "options": {
+                "responsive": True,
+                "title": f"{chart_type.capitalize()} Chart",
+                "subtitle": "Generated chart",  # Removed f-string
+                "xAxis": {"title": "X-Axis", "labels": [], "type": "category"},
+                "yAxis": {"title": "Y-Axis", "min": 0},
+                "legend": {"display": True},
+                "animation": {"duration": self.config.animation_duration},
+            },
         }
-        
+
+        # Add data - handle different data formats
+        if chart_type == "pie":
+            chart_config["data"]["datasets"].append(
+                {
+                    "data": [item.get("value", item.get("y", 0)) for item in data],
+                    "backgroundColor": self.config.default_color_scheme,
+                    "label": "Dataset 1",
+                }
+            )
+        else:
+            chart_config["data"]["datasets"].append(
+                {
+                    "data": [item.get("value", item.get("y", 0)) for item in data],
+                    "label": "Dataset 1",
+                    "borderColor": self.config.default_color_scheme,
+                    "fill": chart_type != "line",
+                }
+            )
+
+        # Add labels - handle different label formats
+        chart_config["data"]["labels"] = [
+            item.get("label", item.get("x", f"Item {i + 1}"))
+            for i, item in enumerate(data)
+        ]
+
+        # Override with user options
+        chart_config["options"].update(options)
+
         return chart_config
-        
-    def _generate_graph_config(self, data: Dict[str, List[Dict[str, Any]]], options: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _generate_graph_config(
+        self, data: dict, options: dict
+    ) -> dict:  # Adjusted type hints
         """
         Generate graph configuration.
-        
+
         Args:
-            data: Graph data
-            options: Graph options
-            
+            data: Graph data (Dict[str, List[Dict[str, Any]]])
+            options: Graph options (Dict[str, Any])
+
         Returns:
             Graph configuration
         """
-        # Validate data
-        if "nodes" not in data or "links" not in data:
-            raise HTTPException(status_code=400, detail="Graph data must contain 'nodes' and 'links'")
-            
-        # Limit data size
-        if len(data["nodes"]) > self.config.max_items_per_chart:
-            data["nodes"] = data["nodes"][:self.config.max_items_per_chart]
-            
-            # Filter links to only include nodes that are in the data
-            node_ids = {node["id"] for node in data["nodes"]}
-            data["links"] = [
-                link for link in data["links"]
-                if link["source"] in node_ids and link["target"] in node_ids
-            ]
-            
-        # Set default options
-        default_options = {
-            "width": self.config.chart_width,
-            "height": self.config.chart_height,
-            "colorScheme": self.config.default_color_scheme,
-            "animationDuration": self.config.animation_duration,
-            "responsive": True,
-            "title": "Network Graph",
-            "subtitle": f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            "nodeSize": 10,
-            "linkWidth": 1,
-            "charge": -100,
-            "linkDistance": 100,
-            "tooltip": {
-                "enabled": True
-            }
-        }
-        
-        # Merge with user options
-        merged_options = {**default_options, **options}
-        
-        # Create graph configuration
+        # Base configuration
         graph_config = {
-            "type": "graph",
-            "data": data,
-            "options": merged_options
+            "type": "network",
+            "data": {"nodes": [], "links": []},
+            "options": {
+                "responsive": True,
+                "title": "Network Graph",
+                "subtitle": "Generated graph",  # Removed f-string
+                "nodeSize": 10,
+                "linkDistance": 50,
+                "charge": -30,
+            },
         }
-        
+
+        # Add nodes and links
+        graph_config["data"]["nodes"] = [
+            {"id": node["id"], "group": node.get("group", 1)} for node in data["nodes"]
+        ]
+        graph_config["data"]["links"] = [
+            {
+                "source": link["source"],
+                "target": link["target"],
+                "value": link.get("value", 1),
+            }
+            for link in data["links"]
+        ]
+
+        # Override with user options
+        graph_config["options"].update(options)
+
         return graph_config
-        
-    def _generate_table_config(self, data: List[Dict[str, Any]], options: Dict[str, Any]) -> Dict[str, Any]:
+
+    def _generate_table_config(
+        self, data: list, options: dict
+    ) -> dict:  # Adjusted type hints
         """
         Generate table configuration.
-        
+
         Args:
-            data: Table data
-            options: Table options
-            
+            data: Table data (List[Dict[str, Any]])
+            options: Table options (Dict[str, Any])
+
         Returns:
             Table configuration
         """
-        # Limit data size
-        if len(data) > self.config.max_items_per_chart:
-            data = data[:self.config.max_items_per_chart]
-            
+        # Base configuration
+        table_config = {
+            "type": "table",
+            "data": {"head": [], "body": []},
+            "options": {
+                "responsive": True,
+                "title": "Data Table",
+                "subtitle": "Generated table",  # Removed f-string
+                "paging": True,
+                "sorting": True,
+            },
+        }
+
         # Extract columns from data
         columns = []
         if data:
             columns = list(data[0].keys())
-            
+            table_config["data"]["head"] = [[{"text": col} for col in columns]]
+            table_config["data"]["body"] = [
+                [{"text": str(item[col])} for col in columns] for item in data
+            ]
+
         # Set default options
         default_options = {
             "title": "Data Table",
-            "subtitle": f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "subtitle": "Generated table",  # Removed f-string
             "columns": [{"field": col, "title": col.capitalize()} for col in columns],
-            "pagination": True,
-            "pageSize": 10,
+            "paging": True,
             "sorting": True,
-            "filtering": True,
-            "responsive": True,
-            "striped": True,
-            "bordered": True,
-            "hover": True
         }
-        
-        # Merge with user options
-        merged_options = {**default_options, **options}
-        
-        # Create table configuration
-        table_config = {
-            "type": "table",
-            "data": data,
-            "options": merged_options
-        }
-        
+        table_config["options"].update(
+            {
+                k: v
+                for k, v in default_options.items()
+                if k not in table_config["options"]
+            }
+        )
+
+        # Override with user options
+        table_config["options"].update(options)
+
         return table_config
+
+
+# Create a default instance of Visualizations and expose its FastAPI app
+# This allows tests to import 'app' from this module.
+_default_app_for_visualizations = FastAPI(
+    title="Visualizations Service",
+    description="Service for generating visualizations.",
+    version="0.1.0",
+)
+
+visualizations_instance = Visualizations(app=_default_app_for_visualizations)
+app = visualizations_instance.app  # Expose the app for testing

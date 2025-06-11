@@ -1,0 +1,134 @@
+{
+  "start_time": "2025-06-03T17:40:28.382876",
+  "backend_tests": {
+    "HTTPBackend": {
+      "backend": "HTTPBackend",
+      "package": "requests",
+      "url": "https://requests.readthedocs.io/en/latest/",
+      "success": true,
+      "metrics": {
+        "duration": 1.5132031440734863,
+        "documents_found": 3,
+        "successful_crawls": 3,
+        "failed_crawls": 0,
+        "pages_crawled": 3,
+        "total_requests": 3,
+        "success_rate": 1.0
+      },
+      "content_info": {
+        "first_doc_title": "Requests: HTTP for Humans\u2122 \u2014 Requests 2.32.3 documentation",
+        "content_length": 9843,
+        "has_substantial_content": true,
+        "sample_content": "\nRequests: HTTP for Humans\u2122 \u2014 Requests 2.32.3 documentation\n\n\n\n\n\n\n# Requests: HTTP for Humans\u2122[\u00b6](#requests-http-for-humans \"Link to this heading\")\n\nRelease v2.32.3. ([Installation](user/install/#inst..."
+      },
+      "storage_info": {
+        "archive_files_count": 1393,
+        "latest_archive_file": "archive/output_1747031251.7061553.json"
+      }
+    },
+    "Crawl4AIBackend": {
+      "backend": "Crawl4AIBackend",
+      "package": "requests",
+      "url": "https://requests.readthedocs.io/en/latest/",
+      "success": true,
+      "metrics": {
+        "duration": 3.535893201828003,
+        "documents_found": 3,
+        "successful_crawls": 3,
+        "failed_crawls": 0,
+        "pages_crawled": 3,
+        "total_requests": 3,
+        "success_rate": 1.0
+      },
+      "content_info": {
+        "first_doc_title": "Requests: HTTP for Humans\u2122 \u2014 Requests 2.32.3 documentation",
+        "content_length": 9843,
+        "has_substantial_content": true,
+        "sample_content": "\nRequests: HTTP for Humans\u2122 \u2014 Requests 2.32.3 documentation\n\n\n\n\n\n\n# Requests: HTTP for Humans\u2122[\u00b6](#requests-http-for-humans \"Link to this heading\")\n\nRelease v2.32.3. ([Installation](user/install/#inst..."
+      },
+      "storage_info": {
+        "archive_files_count": 1393,
+        "latest_archive_file": "archive/output_1747031251.7061553.json"
+      }
+    },
+    "FileBackend": {
+      "backend": "FileBackend",
+      "package": "requests",
+      "url": "https://requests.readthedocs.io/en/latest/",
+      "success": false,
+      "metrics": {
+        "duration": 0.8238911628723145,
+        "documents_found": 0,
+        "successful_crawls": 0,
+        "failed_crawls": 1,
+        "pages_crawled": 1,
+        "total_requests": 1,
+        "success_rate": 0.0
+      },
+      "content_info": {},
+      "storage_info": {
+        "archive_files_count": 1393,
+        "latest_archive_file": "archive/output_1747031251.7061553.json"
+      }
+    }
+  },
+  "dependency_tests": {},
+  "storage_analysis": {
+    "archive_directory": {
+      "total_files": 1393,
+      "total_size_mb": 32.83484935760498,
+      "oldest_file": "archive/output_1743519805.7596357.json",
+      "newest_file": "archive/output_1747031251.7061553.json"
+    },
+    "docs_directory": {
+      "total_files": 3,
+      "file_types": [
+        ".md"
+      ]
+    },
+    "recent_outputs": [
+      {
+        "file": "archive/output_1747031251.7061553.json",
+        "size_kb": 57.982421875,
+        "documents_count": 0,
+        "target_url": "Unknown",
+        "stats": {}
+      },
+      {
+        "file": "archive/output_1746984276.4882898.json",
+        "size_kb": 58.1025390625,
+        "documents_count": 0,
+        "target_url": "Unknown",
+        "stats": {}
+      },
+      {
+        "file": "archive/output_1746983991.2982993.json",
+        "size_kb": 58.099609375,
+        "documents_count": 0,
+        "target_url": "Unknown",
+        "stats": {}
+      }
+    ],
+    "content_samples": []
+  },
+  "performance_metrics": {
+    "successful_backends": 2,
+    "total_documents_crawled": 6,
+    "average_crawl_time": 2.5245481729507446,
+    "best_performing_backend": "HTTPBackend",
+    "backend_comparison": {
+      "HTTPBackend": {
+        "documents": 3,
+        "duration": 1.5132031440734863,
+        "pages_per_second": 1.9825494096741778
+      },
+      "Crawl4AIBackend": {
+        "documents": 3,
+        "duration": 3.535893201828003,
+        "pages_per_second": 0.848441915171263
+      }
+    }
+  },
+  "lessons_learned": [],
+  "end_time": "2025-06-03T17:40:40.851160"
+}

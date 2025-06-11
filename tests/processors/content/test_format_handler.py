@@ -1,9 +1,8 @@
 """
 Tests for the format handler.
 """
-import pytest
 
-from src.processors.content.format_handler import FormatHandler, DocFormat, FormatDetectionResult
+from src.processors.content.format_handler import DocFormat, FormatHandler
 
 
 def test_format_detection_markdown():

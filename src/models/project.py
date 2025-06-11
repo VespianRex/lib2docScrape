@@ -1,10 +1,11 @@
-from enum import Enum
-from typing import List, Optional
 from dataclasses import dataclass
+from enum import Enum
+from typing import Optional
 
 
 class ProjectType(Enum):
     """Enumeration of project types."""
+
     PACKAGE = "package"
     FRAMEWORK = "framework"
     PROGRAM = "program"
@@ -18,6 +19,7 @@ class ProjectType(Enum):
 @dataclass
 class ProjectIdentity:
     """Class representing project identity information."""
+
     name: str
     type: ProjectType
     language: Optional[str] = None
@@ -25,8 +27,9 @@ class ProjectIdentity:
     repository: Optional[str] = None
     package_manager: Optional[str] = None
     main_doc_url: Optional[str] = None
-    related_keywords: List[str] = None
+    related_keywords: list[str] = None
     confidence: float = 0.0
+    version: Optional[str] = None
 
     def __post_init__(self):
         if self.related_keywords is None:
@@ -36,7 +39,7 @@ class ProjectIdentity:
 class ProjectIdentifier:
     """Class for identifying project type and characteristics."""
 
-    def _detect_language(self, files: List[str]) -> Optional[str]:
+    def _detect_language(self, files: list[str]) -> Optional[str]:
         """Detect programming language based on file extensions and names."""
         extensions = {
             ".py": "python",
@@ -49,7 +52,7 @@ class ProjectIdentifier:
             ".rs": "rust",
             ".cs": "csharp",
             ".cpp": "c++",
-            ".c": "c"
+            ".c": "c",
         }
 
         language_indicators = {
@@ -60,7 +63,7 @@ class ProjectIdentifier:
             "php": ["composer.json", "artisan"],
             "java": ["pom.xml", "build.gradle", "gradlew"],
             "go": ["go.mod", "go.sum"],
-            "rust": ["Cargo.toml", "Cargo.lock"]
+            "rust": ["Cargo.toml", "Cargo.lock"],
         }
 
         # Count occurrences of each language
@@ -75,7 +78,9 @@ class ProjectIdentifier:
             # Check language indicators
             for lang, indicators in language_indicators.items():
                 if any(ind.lower() in file.lower() for ind in indicators):
-                    lang_counts[lang] = lang_counts.get(lang, 0) + 5  # Give more weight to indicators
+                    lang_counts[lang] = (
+                        lang_counts.get(lang, 0) + 5
+                    )  # Give more weight to indicators
 
         if not lang_counts:
             return None
@@ -83,7 +88,9 @@ class ProjectIdentifier:
         # Return the language with the highest count
         return max(lang_counts.items(), key=lambda x: x[1])[0]
 
-    def _detect_framework(self, files: List[str], language: Optional[str]) -> Optional[str]:
+    def _detect_framework(
+        self, files: list[str], language: Optional[str]
+    ) -> Optional[str]:
         """Detect framework based on file patterns and language."""
         framework_indicators = {
             "python": {
@@ -105,7 +112,7 @@ class ProjectIdentifier:
             "php": {
                 "laravel": ["artisan", "composer.json"],
                 "symfony": ["symfony.lock", "composer.json"],
-            }
+            },
         }
 
         if not language or language not in framework_indicators:
@@ -122,7 +129,7 @@ class ProjectIdentifier:
 
         return max(framework_counts.items(), key=lambda x: x[1])[0]
 
-    def _generate_doc_urls(self, identity: ProjectIdentity) -> List[str]:
+    def _generate_doc_urls(self, identity: ProjectIdentity) -> list[str]:
         """Generate potential documentation URLs based on project identity."""
         urls = []
         name = identity.name.lower().replace(" ", "-")

@@ -548,5 +548,17 @@
       }
     }
   },
-  "remote": {}
+  "remote": {},
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@happy-dom/global-registrator@^17.6.1",
+        "npm:@playwright/test@^1.52.0",
+        "npm:@testing-library/dom@^10.4.0",
+        "npm:@testing-library/jest-dom@^6.6.3",
+        "npm:@types/bun@latest",
+        "npm:happy-dom@^17.6.1"
+      ]
+    }
+  }
 }

@@ -1,8 +1,6 @@
-import pytest
-from src.utils.url.factory import create_url_info # Import the factory function
-from src.utils.url import URLInfo, URLType # Keep URLInfo and URLType imports
-from urllib.parse import urlparse, parse_qsl
-import time
+from src.utils.url import URLType  # Keep URLInfo and URLType imports
+from src.utils.url.factory import create_url_info  # Import the factory function
+
 
 class TestURLInfoEnhanced:
     """Tests for enhanced URLInfo functionality."""
@@ -13,31 +11,31 @@ class TestURLInfoEnhanced:
         """Test accurate domain parsing with tldextract."""
         # Test regular domain
         url = create_url_info("https://www.example.com/path")
-        assert hasattr(url, 'domain_parts')
-        assert url.domain_parts['subdomain'] == 'www'
-        assert url.domain_parts['domain'] == 'example'
-        assert url.domain_parts['suffix'] == 'com'
-        assert url.domain_parts['registered_domain'] == 'example.com'
-        assert url.root_domain == 'example.com'
-        assert url.subdomain == 'www'
-        assert url.tld == 'com'
+        assert hasattr(url, "domain_parts")
+        assert url.domain_parts["subdomain"] == "www"
+        assert url.domain_parts["domain"] == "example"
+        assert url.domain_parts["suffix"] == "com"
+        assert url.domain_parts["registered_domain"] == "example.com"
+        assert url.root_domain == "example.com"
+        assert url.subdomain == "www"
+        assert url.tld == "com"
 
         # Test multi-part TLD
         url = create_url_info("https://shop.example.co.uk/path")
-        assert url.domain_parts['subdomain'] == 'shop'
-        assert url.domain_parts['domain'] == 'example'
-        assert url.domain_parts['suffix'] == 'co.uk'
-        assert url.domain_parts['registered_domain'] == 'example.co.uk'
-        assert url.root_domain == 'example.co.uk'
-        assert url.subdomain == 'shop'
-        assert url.tld == 'co.uk'
+        assert url.domain_parts["subdomain"] == "shop"
+        assert url.domain_parts["domain"] == "example"
+        assert url.domain_parts["suffix"] == "co.uk"
+        assert url.domain_parts["registered_domain"] == "example.co.uk"
+        assert url.root_domain == "example.co.uk"
+        assert url.subdomain == "shop"
+        assert url.tld == "co.uk"
 
         # Test domain with no subdomain
         url = create_url_info("https://example.org/path")
-        assert url.domain_parts['subdomain'] is None # Expect None, not empty string
-        assert url.domain_parts['domain'] == 'example'
-        assert url.domain_parts['suffix'] == 'org'
-        assert url.subdomain is None # Property should also return None
+        assert url.domain_parts["subdomain"] is None  # Expect None, not empty string
+        assert url.domain_parts["domain"] == "example"
+        assert url.domain_parts["suffix"] == "org"
+        assert url.subdomain is None  # Property should also return None
 
     # Removed test_url_manipulation as methods like with_scheme, with_path etc. are not implemented
 

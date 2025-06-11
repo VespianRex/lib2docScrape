@@ -1,0 +1,26 @@
+=== Test 1: Library without version ===
+Debug: base_name=example-lib, version_str=None
+Debug: identity.type=library, ProjectType.LIBRARY=library
+Debug: identity.type == ProjectType.LIBRARY: True
+Debug: Entering LIBRARY branch
+Debug: No version, adding only basic query
+Result: ['example-lib documentation']
+Expected: ['example-lib documentation']
+Match: True
+
+=== Test 2: Library with version ===
+Debug: base_name=example-lib, version_str=1.2.3
+Debug: identity.type=library, ProjectType.LIBRARY=library
+Debug: identity.type == ProjectType.LIBRARY: True
+Debug: Entering LIBRARY branch
+Debug: Has version, adding versioned queries
+Result: ['example-lib documentation', 'example-lib 1.2.3 documentation']
+
+=== Test 3: Non-library ===
+Debug: base_name=example-framework, version_str=2.0
+Debug: identity.type=framework, ProjectType.LIBRARY=library
+Debug: identity.type == ProjectType.LIBRARY: False
+Debug: Entering NON-LIBRARY branch
+Result: ['example-framework how to', 'example-framework tutorial', 'example-framework 2.0 documentation', 'example-framework guide', 'example-framework documentation']
+
+🎯 Test result: PASS

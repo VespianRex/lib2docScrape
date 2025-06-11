@@ -2,12 +2,14 @@
 
 import pytest
 from pydantic import ValidationError
+
 from src.crawler.models import CrawlConfig
+
 
 def test_crawl_config_default_instantiation():
     """Test default instantiation of CrawlConfig model."""
     config = CrawlConfig()
-    
+
     # Check default values
     assert config.max_depth == 3
     assert config.max_pages == 1000
@@ -19,6 +21,7 @@ def test_crawl_config_default_instantiation():
     assert config.timeout == 30
     assert config.retry_count == 3
     assert config.user_agent == "lib2docScrape/1.0"
+
 
 def test_crawl_config_custom_values():
     """Test setting and getting custom values for CrawlConfig model."""
@@ -32,11 +35,11 @@ def test_crawl_config_custom_values():
         "rate_limit": 2.0,
         "timeout": 60,
         "retry_count": 5,
-        "user_agent": "Custom User Agent"
+        "user_agent": "Custom User Agent",
     }
-    
+
     config = CrawlConfig(**custom_values)
-    
+
     # Verify all custom values are set correctly
     assert config.max_depth == 5
     assert config.max_pages == 100
@@ -49,21 +52,22 @@ def test_crawl_config_custom_values():
     assert config.retry_count == 5
     assert config.user_agent == "Custom User Agent"
 
+
 def test_crawl_config_validation_errors():
     """Test validation errors in CrawlConfig model."""
     # Test invalid types
     with pytest.raises(ValidationError) as excinfo:
         CrawlConfig(max_depth="not_an_int")
     assert "Input should be" in str(excinfo.value)
-    
+
     with pytest.raises(ValidationError) as excinfo:
         CrawlConfig(content_types="not_a_list")
     assert "Input should be a valid list" in str(excinfo.value)
-    
+
     with pytest.raises(ValidationError) as excinfo:
         CrawlConfig(follow_external="not_a_bool")
     assert "Input should be" in str(excinfo.value)
-    
+
     with pytest.raises(ValidationError) as excinfo:
         CrawlConfig(timeout="not_an_int")
     assert "Input should be" in str(excinfo.value)

@@ -8,7 +8,6 @@ The returned Enum is re‑used across the codebase.
 
 from __future__ import annotations
 
-from typing import Optional
 from urllib.parse import urlparse
 
 from .types import URLType  # existing Enum
@@ -21,7 +20,7 @@ def _strip_www(host: str | None) -> str:
     return host[4:] if host.startswith("www.") else host
 
 
-def determine_url_type(url: Optional[str], base_url: Optional[str]) -> URLType:
+def determine_url_type(url: str | None, base_url: str | None) -> URLType:
     """
     Very fast heuristic:
 
@@ -40,7 +39,11 @@ def determine_url_type(url: Optional[str], base_url: Optional[str]) -> URLType:
             return URLType.INTERNAL
 
         if _strip_www(u.hostname) == _strip_www(b.hostname):
-            return URLType.INTERNAL if (u.scheme == b.scheme or not u.scheme or not b.scheme) else URLType.EXTERNAL
+            return (
+                URLType.INTERNAL
+                if (u.scheme == b.scheme or not u.scheme or not b.scheme)
+                else URLType.EXTERNAL
+            )
         return URLType.EXTERNAL
     except Exception:  # pragma: no cover (extreme edge cases)
         return URLType.UNKNOWN

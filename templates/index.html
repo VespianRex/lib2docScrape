@@ -17,17 +17,71 @@
 <div class="row mb-4">
     <div class="col-12">
         <h1 class="display-4">Welcome to Lib2DocScrape</h1>
-        <p class="lead">A powerful tool for scraping and analyzing library documentation.</p>
+        <p class="lead">Comprehensive documentation scraping for Python libraries with professional markdown output.</p>
     </div>
 </div>
 
+<!-- Quick Start Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-primary text-white">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-rocket"></i> Ready to Start Scraping?</h5>
+                <p class="card-text">Enter a documentation URL below and start comprehensive scraping with just one click.</p>
+                <div class="row">
+                    <div class="col-md-8">
+                        <input type="url" class="form-control" id="quickStartUrl"
+                               placeholder="https://requests.readthedocs.io/en/latest/"
+                               value="https://requests.readthedocs.io/en/latest/">
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-light w-100" onclick="startQuickScraping()">
+                            <i class="bi bi-play-circle"></i> Start Scraping
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Feature Cards -->
 <div class="row g-4">
     <div class="col-md-6 col-lg-4">
-        <div class="card h-100 feature-card">
-            <div class="card-body">
-                <h5 class="card-title">Test Dashboard</h5>
-                <p class="card-text">Monitor and manage your documentation scraping tests with real-time updates.</p>
-                <a href="/test-dashboard" class="btn btn-primary">Go to Dashboard</a>
+        <div class="card h-100 feature-card border-primary">
+            <div class="card-body text-center">
+                <i class="bi bi-speedometer2 text-primary" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Comprehensive Scraping</h5>
+                <p class="card-text">Scrape 30-50+ pages per library with 3-4 levels of depth. Get complete documentation coverage, not just the homepage.</p>
+                <div class="mt-auto">
+                    <span class="badge bg-success">20x More Content</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 feature-card border-success">
+            <div class="card-body text-center">
+                <i class="bi bi-file-earmark-text text-success" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Professional Markdown</h5>
+                <p class="card-text">Clean, well-formatted markdown output with proper structure, resolved links, and quality indicators.</p>
+                <div class="mt-auto">
+                    <span class="badge bg-primary">ContentProcessor</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 col-lg-4">
+        <div class="card h-100 feature-card border-info">
+            <div class="card-body text-center">
+                <i class="bi bi-graph-up text-info" style="font-size: 3rem;"></i>
+                <h5 class="card-title mt-3">Real-time Monitoring</h5>
+                <p class="card-text">Watch your scraping progress live with WebSocket updates, performance metrics, and quality analysis.</p>
+                <div class="mt-auto">
+                    <span class="badge bg-info">Live Updates</span>
+                </div>
             </div>
         </div>
     </div>
@@ -35,9 +89,9 @@
     <div class="col-md-6 col-lg-4">
         <div class="card h-100 feature-card">
             <div class="card-body">
-                <h5 class="card-title">Library Management</h5>
-                <p class="card-text">Install, update, and manage your Python libraries with ease.</p>
-                <a href="/libraries" class="btn btn-primary">Manage Libraries</a>
+                <h5 class="card-title"><i class="bi bi-gear"></i> Configuration</h5>
+                <p class="card-text">Customize scraping depth, page limits, URL patterns, and output formats to match your needs.</p>
+                <a href="/config" class="btn btn-outline-primary">Configure Settings</a>
             </div>
         </div>
     </div>
@@ -45,9 +99,9 @@
     <div class="col-md-6 col-lg-4">
         <div class="card h-100 feature-card">
             <div class="card-body">
-                <h5 class="card-title">Configuration</h5>
-                <p class="card-text">Customize your scraping settings and application preferences.</p>
-                <a href="/config" class="btn btn-primary">Configure</a>
+                <h5 class="card-title"><i class="bi bi-folder-open"></i> Browse Results</h5>
+                <p class="card-text">Explore your scraped documentation with organized file structure and quality metrics.</p>
+                <a href="/results" class="btn btn-outline-primary">View Results</a>
             </div>
         </div>
     </div>
@@ -55,19 +109,9 @@
     <div class="col-md-6 col-lg-4">
         <div class="card h-100 feature-card">
             <div class="card-body">
-                <h5 class="card-title">Results</h5>
-                <p class="card-text">View and analyze your documentation scraping results.</p>
-                <a href="/results" class="btn btn-primary">View Results</a>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-md-6 col-lg-4">
-        <div class="card h-100 feature-card">
-            <div class="card-body">
-                <h5 class="card-title">Quick Start</h5>
-                <p class="card-text">New to Lib2DocScrape? Learn how to get started with our quick guide.</p>
-                <a href="#" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#quickStartModal">Learn More</a>
+                <h5 class="card-title"><i class="bi bi-question-circle"></i> Quick Start Guide</h5>
+                <p class="card-text">New to Lib2DocScrape? Learn how to get the most out of comprehensive documentation scraping.</p>
+                <a href="#" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#quickStartModal">Learn More</a>
             </div>
         </div>
     </div>
@@ -82,23 +126,76 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <h6>1. Configure Your Environment</h6>
-                <p>Start by visiting the Configuration page to set up your scraping preferences.</p>
+                <h6>🚀 1. Quick Start (Recommended)</h6>
+                <p>Use the quick start box above to immediately begin scraping with default comprehensive settings:</p>
+                <ul>
+                    <li><strong>Depth:</strong> 3 levels deep</li>
+                    <li><strong>Pages:</strong> Up to 50 pages per library</li>
+                    <li><strong>Output:</strong> Professional markdown files</li>
+                </ul>
 
-                <h6>2. Install Required Libraries</h6>
-                <p>Use the Library Management page to install any necessary Python packages.</p>
+                <h6>⚙️ 2. Custom Configuration</h6>
+                <p>For advanced users, visit the Configuration page to customize:</p>
+                <ul>
+                    <li>Crawling depth and page limits</li>
+                    <li>URL patterns and exclusions</li>
+                    <li>Output formats and organization</li>
+                </ul>
 
-                <h6>3. Run Your First Test</h6>
-                <p>Head to the Test Dashboard to start your first documentation scraping test.</p>
+                <h6>📊 3. Monitor Progress</h6>
+                <p>Watch real-time scraping progress with:</p>
+                <ul>
+                    <li>Live progress bars and metrics</li>
+                    <li>WebSocket log streaming</li>
+                    <li>Quality indicators and coverage analysis</li>
+                </ul>
 
-                <h6>4. View Results</h6>
-                <p>Check the Results page to analyze the scraped documentation.</p>
+                <h6>📁 4. Browse Results</h6>
+                <p>Explore your comprehensive documentation:</p>
+                <ul>
+                    <li>Organized by library sections</li>
+                    <li>Quality metrics and coverage reports</li>
+                    <li>Multiple export formats (Markdown, JSON, HTML)</li>
+                </ul>
+
+                <div class="alert alert-info">
+                    <strong>💡 Pro Tip:</strong> Our comprehensive scraping gets 20x more content than basic scrapers.
+                    Expect 30-50+ files per library instead of just 2-3!
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <a href="/config" class="btn btn-primary">Start Configuration</a>
+                <button type="button" class="btn btn-primary" onclick="startQuickScraping(); $('#quickStartModal').modal('hide');">
+                    <i class="bi bi-play-circle"></i> Start Scraping Now
+                </button>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+function startQuickScraping() {
+    const url = document.getElementById('quickStartUrl').value;
+    if (!url) {
+        alert('Please enter a documentation URL');
+        return;
+    }
+
+    // Redirect to main scraping page with the URL pre-filled
+    const scrapingUrl = new URL('/', window.location.origin);
+    scrapingUrl.searchParams.set('url', url);
+    scrapingUrl.searchParams.set('quick', 'true');
+    window.location.href = scrapingUrl.toString();
+}
+
+// Auto-focus the URL input when modal opens
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('quickStartModal');
+    if (modal) {
+        modal.addEventListener('shown.bs.modal', function() {
+            document.getElementById('quickStartUrl').focus();
+        });
+    }
+});
+</script>
 {% endblock %}

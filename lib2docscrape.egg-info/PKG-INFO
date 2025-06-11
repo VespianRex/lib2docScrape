@@ -1,31 +1,388 @@
 Metadata-Version: 2.4
 Name: lib2docscrape
 Version: 0.1.0
-Summary: A web scraping tool for library documentation
-Author: Your Name
-Requires-Python: >=3.8
-Requires-Dist: beautifulsoup4>=4.12.2
+Summary: A comprehensive web scraping tool for library documentation with multiple backend support
+Author: lib2docScrape Team
+License: MIT
+Keywords: documentation,scraping,web-scraping,library,docs
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Topic :: Software Development :: Documentation
+Classifier: Topic :: Internet :: WWW/HTTP :: Indexing/Search
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
 Requires-Dist: aiohttp>=3.9.1
-Requires-Dist: asyncio>=3.4.3
-Requires-Dist: duckduckgo-search>=4.4.1
+Requires-Dist: requests>=2.31.0
+Requires-Dist: beautifulsoup4>=4.12.2
+Requires-Dist: scrapy>=2.11.0
+Requires-Dist: playwright>=1.40.0
+Requires-Dist: aiofiles>=23.0.0
 Requires-Dist: pydantic>=2.5.2
 Requires-Dist: markdownify>=0.11.6
 Requires-Dist: bleach>=6.0.0
-Requires-Dist: certifi>=2024.2.2
-Requires-Dist: requests>=2.31.0
+Requires-Dist: markdown>=3.4.0
+Requires-Dist: docutils>=0.18.0
+Requires-Dist: networkx>=3.0.0
 Requires-Dist: tldextract>=3.1.0
-Requires-Dist: scrapy>=2.11.0
-Provides-Extra: test
-Requires-Dist: pytest>=7.0.0; extra == "test"
-Requires-Dist: pytest-cov>=4.1.0; extra == "test"
-Requires-Dist: pytest-asyncio>=0.24.0; extra == "test"
-Requires-Dist: uvloop>=0.19.0; extra == "test"
-Requires-Dist: fastapi>=0.110.0; extra == "test"
-Requires-Dist: httpx>=0.27.0; extra == "test"
-Requires-Dist: pytest-mock>=3.10.0; extra == "test"
-Requires-Dist: hypothesis>=6.92.1; extra == "test"
-Requires-Dist: scikit-learn>=1.3.0; extra == "test"
-Requires-Dist: nltk>=3.8.1; extra == "test"
-Requires-Dist: psutil>=5.9.0; extra == "test"
-Requires-Dist: jinja2>=3.1.2; extra == "test"
-Requires-Dist: bz2file>=0.98; extra == "test"
+Requires-Dist: certifi>=2024.2.2
+Requires-Dist: duckduckgo-search>=4.4.1
+Requires-Dist: pandas>=2.0.0
+Requires-Dist: matplotlib>=3.7.0
+Requires-Dist: watchdog>=3.0.0
+Requires-Dist: responses>=0.25.0
+Requires-Dist: aioresponses>=0.7.0
+Requires-Dist: pytest>=8.3.4
+Requires-Dist: pytest-asyncio>=0.25.3
+Requires-Dist: pytest-cov>=6.0.0
+Requires-Dist: pytest-mock>=3.14.0
+Requires-Dist: pre-commit>=4.2.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.3.4; extra == "dev"
+Requires-Dist: pytest-cov>=6.0.0; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.24.0; extra == "dev"
+Requires-Dist: pytest-mock>=3.10.0; extra == "dev"
+Requires-Dist: hypothesis>=6.92.1; extra == "dev"
+Requires-Dist: responses>=0.25.0; extra == "dev"
+Requires-Dist: aioresponses>=0.7.0; extra == "dev"
+Requires-Dist: coverage[toml]>=7.6.10; extra == "dev"
+Requires-Dist: ruff>=0.11.11; extra == "dev"
+Requires-Dist: uvloop>=0.19.0; extra == "dev"
+Requires-Dist: fastapi>=0.110.0; extra == "dev"
+Requires-Dist: httpx>=0.27.0; extra == "dev"
+Requires-Dist: jinja2>=3.1.2; extra == "dev"
+Requires-Dist: pandas>=2.0.0; extra == "dev"
+Requires-Dist: matplotlib>=3.7.0; extra == "dev"
+Requires-Dist: watchdog>=3.0.0; extra == "dev"
+Requires-Dist: scikit-learn>=1.3.0; extra == "dev"
+Requires-Dist: nltk>=3.8.1; extra == "dev"
+Requires-Dist: psutil>=5.9.0; extra == "dev"
+Requires-Dist: bz2file>=0.98; extra == "dev"
+Provides-Extra: crawl4ai
+Requires-Dist: crawl4ai>=0.2.0; extra == "crawl4ai"
+Provides-Extra: playwright
+Requires-Dist: playwright>=1.40.0; extra == "playwright"
+Provides-Extra: lightpanda
+Provides-Extra: all
+Requires-Dist: lib2docscrape[crawl4ai,dev,lightpanda,playwright]; extra == "all"
+
+# lib2docScrape
+
+A comprehensive web scraping tool for library documentation with multiple backend support. Designed to efficiently crawl, process, and organize technical documentation from various sources with intelligent content extraction and quality assurance.
+
+## Features
+
+### 🚀 **Multi-Backend Architecture**
+- **Crawl4AI**: Advanced AI-powered crawling with JavaScript rendering
+- **Playwright**: High-performance browser automation for modern web apps
+- **Lightpanda**: Lightweight browser engine for efficient scraping
+- **Scrapy**: High-throughput crawling for large-scale operations
+- **HTTP Backend**: Simple HTTP requests for basic content
+- **File Backend**: Local file system processing
+
+### 📄 **Content Processing**
+- **Smart Structure Detection**: Automatic identification of documentation sections
+- **Format Support**: HTML, Markdown, reStructuredText, and more
+- **Code Extraction**: Syntax highlighting and code block preservation
+- **Metadata Extraction**: Automatic title, description, and tag detection
+- **Asset Handling**: Images, PDFs, and other media files
+
+### 🔍 **Quality Assurance**
+- **Content Validation**: Automated quality checks and scoring
+- **Link Verification**: Broken link detection and reporting
+- **Duplicate Detection**: Content deduplication and similarity analysis
+- **Metadata Verification**: Required field validation
+
+### 🎯 **Advanced URL Handling**
+- **Intelligent Classification**: Automatic URL type detection
+- **Security Validation**: Path traversal and malicious URL detection
+- **Normalization**: RFC-compliant URL standardization
+- **Domain Analysis**: TLD extraction and subdomain classification
+
+## Installation
+
+### Prerequisites
+- Python 3.9 or higher
+- uv (recommended) or pip for package management
+
+### Using uv (Recommended)
+```bash
+# Install uv if you haven't already
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Clone the repository
+git clone https://github.com/yourusername/lib2docscrape.git
+cd lib2docscrape
+
+# Install with development dependencies
+uv sync --extra dev
+
+# Or install specific backend extras
+uv sync --extra crawl4ai --extra playwright
+```
+
+### Using pip
+```bash
+pip install -e .[dev]  # Development installation
+pip install -e .[all]  # All optional dependencies
+```
+
+## Quick Start
+
+### Development Setup
+```bash
+# Run tests to verify installation
+uv run pytest
+
+# Start the web interface
+uv run python src/main.py
+
+# Run with specific backend
+uv run python -m src.main --backend crawl4ai
+```
+
+### Basic Usage
+```python
+from src.crawler import DocumentationCrawler
+from src.crawler.models import CrawlTarget, CrawlerConfig
+
+# Create crawler configuration
+config = CrawlerConfig(
+    concurrent_requests=5,
+    requests_per_second=2.0,
+    max_retries=3
+)
+
+# Define crawl target
+target = CrawlTarget(
+    url="https://docs.example.com",
+    depth=2,
+    follow_external=False
+)
+
+# Initialize and run crawler
+crawler = DocumentationCrawler(config)
+result = await crawler.crawl(target)
+
+print(f"Crawled {len(result.pages)} pages")
+```
+
+### Web Interface
+
+1. Start the server: `uv run python src/main.py`
+2. Access the web interface at `http://localhost:8000`
+3. Use the dashboard to:
+   - Configure scraping targets
+   - Monitor scraping progress
+   - View and organize documentation
+   - Export documentation
+
+## Supported Documentation Types
+
+- API Documentation
+  - OpenAPI/Swagger
+  - API Blueprint
+  - GraphQL schemas
+
+- Technical Documentation
+  - Product documentation
+  - User guides
+  - Developer guides
+  - Reference documentation
+
+- Knowledge Bases
+  - Wiki pages
+  - Help centers
+  - FAQs
+
+- Source Code Documentation
+  - JSDoc
+  - Python docstrings
+  - JavaDoc
+  - Doxygen
+
+## Configuration
+
+### Main Configuration (config.yaml)
+
+```yaml
+crawler:
+  concurrent_requests: 5
+  requests_per_second: 10
+  max_retries: 3
+  request_timeout: 30
+
+processing:
+  allowed_tags:
+    - p
+    - h1
+    - h2
+    - code
+  code_languages:
+    - python
+    - javascript
+  max_content_length: 5000000
+
+quality:
+  min_content_length: 100
+  required_metadata_fields:
+    - title
+    - description
+```
+
+### Target Configuration (targets.yaml)
+
+```yaml
+- url: "https://docs.example.com/"
+  depth: 2
+  follow_external: false
+  content_types:
+    - "text/html"
+    - "text/markdown"
+  exclude_patterns:
+    - "/downloads/"
+    - "/community/"
+  required_patterns:
+    - "/docs/"
+    - "/api/"
+```
+
+For detailed configuration options and examples, see the [User Guide](docs/user_guide.md).
+
+## Testing
+
+The project has comprehensive test coverage with 598+ tests:
+
+```bash
+# Run all tests
+uv run pytest
+
+# Run with coverage
+uv run pytest --cov=src --cov-report=html
+
+# Run specific test categories
+uv run pytest tests/url/          # URL handling tests
+uv run pytest tests/backends/     # Backend tests
+uv run pytest tests/integration/  # Integration tests
+```
+
+## Requirements
+
+### Core Dependencies
+- **Python 3.9+** (tested on 3.9, 3.10, 3.11, 3.12)
+- **Core Libraries**:
+  ```
+  aiohttp>=3.9.1          # Async HTTP client
+  beautifulsoup4>=4.12.2  # HTML parsing
+  pydantic>=2.5.2         # Data validation
+  scrapy>=2.11.0          # Web crawling framework
+  tldextract>=3.1.0       # Domain parsing
+  ```
+
+### Optional Backend Dependencies
+- **Crawl4AI**: `crawl4ai>=0.2.0`
+- **Playwright**: `playwright>=1.40.0`
+- **Development**: `pytest`, `ruff`, `coverage`
+
+Full dependency specifications in `pyproject.toml`.
+
+## Architecture
+
+### 🏗️ **Modular Design**
+
+```
+src/
+├── backends/           # Pluggable scraping backends
+├── crawler/           # Core crawling logic
+├── processors/        # Content processing pipeline
+├── utils/url/         # Advanced URL handling
+├── organizers/        # Documentation organization
+├── ui/               # Web interface
+└── main.py           # Application entry point
+```
+
+### 🔧 **Core Components**
+
+1. **Backend System** (`src/backends/`)
+   - Pluggable architecture with automatic backend selection
+   - Support for multiple scraping engines (Crawl4AI, Playwright, Scrapy)
+   - Intelligent fallback and load balancing
+
+2. **URL Processing** (`src/utils/url/`)
+   - RFC-compliant URL normalization and validation
+   - Security checks (path traversal, malicious URLs)
+   - Domain classification and TLD extraction
+
+3. **Content Pipeline** (`src/processors/`)
+   - Structure-aware content extraction
+   - Metadata enrichment and validation
+   - Quality scoring and filtering
+
+4. **Quality Assurance** (`src/processors/quality_checker.py`)
+   - Automated content validation
+   - Link verification and health checks
+   - Duplicate detection and deduplication
+
+## Development
+
+### Setting Up Development Environment
+```bash
+# Clone and setup
+git clone https://github.com/yourusername/lib2docscrape.git
+cd lib2docscrape
+uv sync --extra dev
+
+# Run tests
+uv run pytest
+
+# Code quality checks
+uv run ruff check src/
+uv run ruff format src/
+```
+
+### Project Status
+- ✅ **598 tests passing** (100% success rate)
+- ✅ **Comprehensive backend support** (6 different backends)
+- ✅ **Advanced URL handling** with security validation
+- ✅ **Quality assurance pipeline** with automated checks
+- 🔄 **Active development** with regular improvements
+
+## Contributing
+
+We welcome contributions! Please follow these steps:
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Follow TDD**: Write tests first, then implement features
+4. **Run quality checks**: `uv run ruff check && uv run pytest`
+5. **Commit changes**: Use conventional commit messages
+6. **Push to branch**: `git push origin feature/amazing-feature`
+7. **Create Pull Request**
+
+### Development Guidelines
+- Follow Test-Driven Development (TDD)
+- Maintain 100% test pass rate
+- Use type hints and docstrings
+- Follow the existing code style (ruff formatting)
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Support & Documentation
+
+- 📖 **[User Guide](docs/user_guide.md)** - Comprehensive usage documentation
+- 🔧 **[API Documentation](docs/)** - Technical reference
+- 🐛 **[Issue Tracker](https://github.com/yourusername/lib2docscrape/issues)** - Bug reports and feature requests
+- 💬 **[Discussions](https://github.com/yourusername/lib2docscrape/discussions)** - Community support
+
+---
+
+**lib2docScrape** - *Comprehensive documentation scraping made simple*
+
+*Last Updated: January 27, 2025*

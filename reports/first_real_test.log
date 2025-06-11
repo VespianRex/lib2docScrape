@@ -1,0 +1,46 @@
+2025-06-03 17:32:18,334 - __main__ - INFO - ============================================================
+2025-06-03 17:32:18,334 - __main__ - INFO - 🎯 FIRST REAL-WORLD TEST RUN
+2025-06-03 17:32:18,334 - __main__ - INFO - ============================================================
+2025-06-03 17:32:18,334 - __main__ - INFO - This is our first careful test using discovered dependencies.
+2025-06-03 17:32:18,334 - __main__ - INFO - We'll be extra careful and learn from every step.
+2025-06-03 17:32:18,334 - __main__ - INFO - ============================================================
+2025-06-03 17:32:18,334 - __main__ - INFO - 🚀 Starting first real-world test run...
+2025-06-03 17:32:18,334 - __main__ - INFO - 🧪 Testing basic imports...
+2025-06-03 17:32:18,616 - src.backends.selector - INFO - Global BackendSelector instance created: <src.backends.selector.BackendSelector object at 0x7a475ade7d10>
+2025-06-03 17:32:18,728 - __main__ - INFO - ✅ SUCCESS: HTTPBackend imports working
+2025-06-03 17:32:18,921 - __main__ - INFO - ✅ SUCCESS: Crawler imports working
+2025-06-03 17:32:18,921 - __main__ - INFO - ✅ SUCCESS: HTTPBackendConfig creation working
+2025-06-03 17:32:18,921 - __main__ - INFO -    Metrics: {'timeout': 30.0, 'verify_ssl': True, 'follow_redirects': True}
+2025-06-03 17:32:18,921 - __main__ - INFO - 🧪 Testing backend initialization...
+2025-06-03 17:32:18,921 - __main__ - INFO - ✅ SUCCESS: HTTPBackend initialization successful
+2025-06-03 17:32:18,922 - __main__ - INFO -    Metrics: {'backend_name': 'http_backend', 'config_timeout': 30.0}
+2025-06-03 17:32:18,925 - src.backends.selector - INFO - Backend instance 'http_backend' registered: <src.backends.http_backend.HTTPBackend object at 0x7a475a5111f0>
+2025-06-03 17:32:18,925 - src.backends.selector - INFO - Criteria for backend 'http_backend' registered: priority=1 content_types=['text/html'] url_patterns=['http://', 'https://'] max_load=0.8 min_success_rate=0.7 schemes=['http', 'https', 'file'] netloc_patterns=[] path_patterns=[] domains=[] paths=[]
+2025-06-03 17:32:18,950 - src.crawler.crawler - INFO - Crawler initialized with max_depth=3, max_pages=1000
+2025-06-03 17:32:18,950 - __main__ - INFO - ✅ SUCCESS: DocumentationCrawler initialization successful
+2025-06-03 17:32:18,950 - __main__ - INFO - 🧪 Testing CrawlTarget creation...
+2025-06-03 17:32:18,950 - __main__ - INFO - ✅ SUCCESS: Basic CrawlTarget creation successful
+2025-06-03 17:32:18,950 - __main__ - INFO -    Metrics: {'url': 'https://example.com', 'depth': 1, 'max_pages': 1}
+2025-06-03 17:32:18,950 - __main__ - INFO - ✅ SUCCESS: Full CrawlTarget creation successful
+2025-06-03 17:32:18,950 - __main__ - INFO - 
+--- Testing requests ---
+2025-06-03 17:32:18,950 - src.crawler.crawler - INFO - Crawling https://requests.readthedocs.io/en/latest/ with depth=1 (individual parameters interface)
+2025-06-03 17:32:18,951 - __main__ - ERROR - Error testing requests: 2 validation errors for CrawlTarget
+content_types
+  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]
+    For further information visit https://errors.pydantic.dev/2.10/v/list_type
+exclude_patterns
+  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]
+    For further information visit https://errors.pydantic.dev/2.10/v/list_type
+2025-06-03 17:32:20,953 - __main__ - INFO - 
+--- Testing beautifulsoup4 ---
+2025-06-03 17:32:20,953 - src.crawler.crawler - INFO - Crawling https://www.crummy.com/software/BeautifulSoup/bs4/doc/ with depth=1 (individual parameters interface)
+2025-06-03 17:32:20,954 - __main__ - ERROR - Error testing beautifulsoup4: 2 validation errors for CrawlTarget
+content_types
+  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]
+    For further information visit https://errors.pydantic.dev/2.10/v/list_type
+exclude_patterns
+  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]
+    For further information visit https://errors.pydantic.dev/2.10/v/list_type
+2025-06-03 17:32:22,954 - __main__ - INFO - ✅ SUCCESS: Backend cleanup completed
+2025-06-03 17:32:22,955 - __main__ - INFO - 📄 Detailed report saved to reports/first_real_world_test.json

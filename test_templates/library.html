@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Library Page - {{ library }}</title>
+</head>
+<body>
+    <h1>Library: {{ library }}</h1>
+    <p>This is a test template for the library page.</p>
+    {% if versions %}
+    <ul>
+    {% for version in versions %}
+        <li>{{ version.version }}</li>
+    {% endfor %}
+    </ul>
+    {% endif %}
+</body>
+</html>

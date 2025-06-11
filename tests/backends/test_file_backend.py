@@ -1,13 +1,13 @@
 """Tests for the file_backend module."""
 
 import os
-import pytest
 import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import MagicMock
 
-from src.backends.file_backend import FileBackend
+import pytest
+
 from src.backends.base import CrawlResult
+from src.backends.file_backend import FileBackend
 from src.utils.url.info import URLInfo
 
 
@@ -17,9 +17,9 @@ def temp_html_file():
     with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w") as f:
         f.write("<html><body><h1>Test Content</h1></body></html>")
         temp_path = f.name
-    
+
     yield temp_path
-    
+
     # Clean up
     if os.path.exists(temp_path):
         os.unlink(temp_path)
@@ -31,9 +31,9 @@ def temp_css_file():
     with tempfile.NamedTemporaryFile(suffix=".css", delete=False, mode="w") as f:
         f.write("body { color: red; }")
         temp_path = f.name
-    
+
     yield temp_path
-    
+
     # Clean up
     if os.path.exists(temp_path):
         os.unlink(temp_path)
@@ -45,9 +45,9 @@ def temp_js_file():
     with tempfile.NamedTemporaryFile(suffix=".js", delete=False, mode="w") as f:
         f.write("function test() { return true; }")
         temp_path = f.name
-    
+
     yield temp_path
-    
+
     # Clean up
     if os.path.exists(temp_path):
         os.unlink(temp_path)
@@ -87,9 +87,9 @@ class TestFileBackend:
         mock_url_info.raw_url = f"file://{temp_html_file}"
         mock_url_info.normalized_url = f"file://{temp_html_file}"
         mock_url_info._parsed.path = temp_html_file
-        
+
         result = await file_backend.crawl(mock_url_info)
-        
+
         assert result.status == 200
         assert result.url == mock_url_info.normalized_url
         assert "<h1>Test Content</h1>" in result.content.get("html", "")
@@ -102,9 +102,9 @@ class TestFileBackend:
         mock_url_info.raw_url = f"file://{temp_css_file}"
         mock_url_info.normalized_url = f"file://{temp_css_file}"
         mock_url_info._parsed.path = temp_css_file
-        
+
         result = await file_backend.crawl(mock_url_info)
-        
+
         assert result.status == 200
         assert result.url == mock_url_info.normalized_url
         assert "body { color: red; }" in result.content.get("html", "")
@@ -117,13 +117,16 @@ class TestFileBackend:
         mock_url_info.raw_url = f"file://{temp_js_file}"
         mock_url_info.normalized_url = f"file://{temp_js_file}"
         mock_url_info._parsed.path = temp_js_file
-        
+
         result = await file_backend.crawl(mock_url_info)
-        
+
         assert result.status == 200
         assert result.url == mock_url_info.normalized_url
         assert "function test() { return true; }" in result.content.get("html", "")
-        assert result.metadata.get("headers", {}).get("content-type") == "application/javascript"
+        assert (
+            result.metadata.get("headers", {}).get("content-type")
+            == "application/javascript"
+        )
 
     @pytest.mark.asyncio
     async def test_crawl_file_not_found(self, file_backend, mock_url_info):
@@ -133,9 +136,9 @@ class TestFileBackend:
         mock_url_info.raw_url = f"file://{non_existent_file}"
         mock_url_info.normalized_url = f"file://{non_existent_file}"
         mock_url_info._parsed.path = non_existent_file
-        
+
         result = await file_backend.crawl(mock_url_info)
-        
+
         assert result.status == 404
         assert result.url == mock_url_info.raw_url
         assert "File not found" in result.error
@@ -146,9 +149,9 @@ class TestFileBackend:
         invalid_url_info = MagicMock(spec=URLInfo)
         invalid_url_info.is_valid = False
         invalid_url_info.raw_url = "invalid://url"
-        
+
         result = await file_backend.crawl(invalid_url_info)
-        
+
         assert result.status == 500
         assert result.url == invalid_url_info.raw_url
         assert "Invalid URLInfo" in result.error
@@ -158,9 +161,9 @@ class TestFileBackend:
         """Test crawling with a non-file scheme."""
         # Update mock URL info to use a non-file scheme
         mock_url_info._parsed.scheme = "http"
-        
+
         result = await file_backend.crawl(mock_url_info)
-        
+
         assert result.status == 500
         assert "only supports 'file://' scheme" in result.error
 
@@ -172,17 +175,17 @@ class TestFileBackend:
             url="file:///path/to/file.html",
             content={"html": "<html></html>"},
             metadata={},
-            status=200
+            status=200,
         )
         assert await file_backend.validate(valid_content) is True
-        
+
         # Invalid content
         invalid_content = CrawlResult(
             url="file:///path/to/file.html",
             content={},
             metadata={},
             status=404,
-            error="File not found"
+            error="File not found",
         )
         assert await file_backend.validate(invalid_content) is False
 
@@ -194,20 +197,20 @@ class TestFileBackend:
             url="file:///path/to/file.html",
             content={"html": "<html></html>"},
             metadata={"content-type": "text/html"},
-            status=200
+            status=200,
         )
         processed = await file_backend.process(valid_content)
         assert processed["url"] == valid_content.url
         assert processed["html"] == valid_content.content["html"]
         assert processed["metadata"] == valid_content.metadata
-        
+
         # Invalid content
         invalid_content = CrawlResult(
             url="file:///path/to/file.html",
             content={},
             metadata={},
             status=404,
-            error="File not found"
+            error="File not found",
         )
         processed = await file_backend.process(invalid_content)
         assert processed == {}

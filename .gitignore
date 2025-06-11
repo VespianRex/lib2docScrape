@@ -35,6 +35,8 @@ wheels/
 htmlcov/
 .coverage.*
 
+.hypthosis/
+
 # IDE
 .idea/
 .vscode/
@@ -44,3 +46,4 @@ htmlcov/
 
 # Cline Docs
 clinedocs/
+.hypothesis/

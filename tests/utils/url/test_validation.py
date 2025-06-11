@@ -1,22 +1,21 @@
 """Tests for the URL validation module."""
 
-import pytest
+# Create directory structure
+import os
 from urllib.parse import urlparse
 
 from src.utils.url.validation import (
-    validate_url,
-    validate_scheme,
-    validate_netloc,
-    validate_port,
-    validate_path,
-    validate_query,
     detect_path_traversal,
     detect_unc_path,
-    validate_security_patterns
+    validate_netloc,
+    validate_path,
+    validate_port,
+    validate_query,
+    validate_scheme,
+    validate_security_patterns,
+    validate_url,
 )
 
-# Create directory structure
-import os
 os.makedirs(os.path.dirname(os.path.abspath(__file__)), exist_ok=True)
 
 
@@ -189,6 +188,7 @@ class TestValidatePort:
 
     def test_invalid_port(self):
         """Test validating an invalid port."""
+
         # Create a ParseResult with an invalid port
         # We can't directly modify the port attribute, so we'll mock it
         class MockParseResult:
@@ -235,18 +235,23 @@ class TestValidatePath:
 
     def test_path_decode_error(self):
         """Test validating a path with a decode error."""
+
         # Create a mock ParseResult with a path that will cause a decode error
         class MockParseResult:
             def __init__(self):
-                self.path = b'\xff'.decode('utf-8', errors='surrogateescape')
-                self.scheme = 'https'
-                self.netloc = 'example.com'
+                self.path = b"\xff".decode("utf-8", errors="surrogateescape")
+                self.scheme = "https"
+                self.netloc = "example.com"
 
         mock_parsed = MockParseResult()
 
         # Patch the unquote_plus function to raise an exception
         from unittest.mock import patch
-        with patch('src.utils.url.validation.unquote_plus', side_effect=Exception("Decode error")):
+
+        with patch(
+            "src.utils.url.validation.unquote_plus",
+            side_effect=Exception("Decode error"),
+        ):
             is_valid, error = validate_path(mock_parsed)
             assert is_valid is False
             assert "Path decode/validation error" in error
@@ -272,16 +277,21 @@ class TestValidateQuery:
 
     def test_query_decode_error(self):
         """Test validating a query with a decode error."""
+
         # Create a mock ParseResult with a query that will cause a decode error
         class MockParseResult:
             def __init__(self):
-                self.query = b'\xff'.decode('utf-8', errors='surrogateescape')
+                self.query = b"\xff".decode("utf-8", errors="surrogateescape")
 
         mock_parsed = MockParseResult()
 
         # Patch the unquote_plus function to raise an exception
         from unittest.mock import patch
-        with patch('src.utils.url.validation.unquote_plus', side_effect=Exception("Decode error")):
+
+        with patch(
+            "src.utils.url.validation.unquote_plus",
+            side_effect=Exception("Decode error"),
+        ):
             is_valid, error = validate_query(mock_parsed)
             assert is_valid is False
             assert "Query decode error" in error

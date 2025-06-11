@@ -1,19 +1,20 @@
 """
 Tests for the error handling utilities.
 """
-import pytest
+
 from unittest.mock import MagicMock, patch
 
 from src.utils.error_handler import (
-    ErrorHandler,
-    ErrorContext,
-    ErrorLevel,
     ErrorCategory,
+    ErrorContext,
+    ErrorHandler,
+    ErrorLevel,
+    get_error_counts,
     handle_error,
     register_error_callback,
-    get_error_counts,
-    reset_error_counts
+    reset_error_counts,
 )
+
 
 def test_error_context():
     """Test ErrorContext initialization and to_dict method."""
@@ -21,7 +22,7 @@ def test_error_context():
         component="test_component",
         operation="test_operation",
         url="https://example.com",
-        details={"param1": "value1", "param2": 123}
+        details={"param1": "value1", "param2": 123},
     )
 
     assert context.component == "test_component"
@@ -36,13 +37,16 @@ def test_error_context():
     assert context_dict["param1"] == "value1"
     assert context_dict["param2"] == 123
 
+
 def test_error_handler_categorize():
     """Test error categorization."""
     handler = ErrorHandler()
 
     # Test network errors
     assert handler._categorize_error(ConnectionError()) == ErrorCategory.NETWORK
-    assert handler._categorize_error(Exception("network error")) == ErrorCategory.NETWORK
+    assert (
+        handler._categorize_error(Exception("network error")) == ErrorCategory.NETWORK
+    )
 
     # Test parsing errors
     assert handler._categorize_error(ValueError()) == ErrorCategory.PARSING
@@ -50,16 +54,26 @@ def test_error_handler_categorize():
     assert handler._categorize_error(AttributeError()) == ErrorCategory.PARSING
 
     # Test validation errors
-    assert handler._categorize_error(Exception("validation error")) == ErrorCategory.VALIDATION
+    assert (
+        handler._categorize_error(Exception("validation error"))
+        == ErrorCategory.VALIDATION
+    )
 
     # Test configuration errors
-    assert handler._categorize_error(Exception("config error")) == ErrorCategory.CONFIGURATION
+    assert (
+        handler._categorize_error(Exception("config error"))
+        == ErrorCategory.CONFIGURATION
+    )
 
     # Test timeout errors
     assert handler._categorize_error(TimeoutError()) == ErrorCategory.TIMEOUT
 
     # Test unknown errors
-    assert handler._categorize_error(Exception("some random error")) == ErrorCategory.UNKNOWN
+    assert (
+        handler._categorize_error(Exception("some random error"))
+        == ErrorCategory.UNKNOWN
+    )
+
 
 def test_error_handler_callbacks():
     """Test error callback registration and execution."""
@@ -78,7 +92,7 @@ def test_error_handler_callbacks():
     context = ErrorContext("test", "connect", "https://example.com")
 
     # Patch the _log_error method to avoid logging issues
-    with patch.object(handler, '_log_error'):
+    with patch.object(handler, "_log_error"):
         handler.handle_error(error, context, category=ErrorCategory.NETWORK)
 
         # Check that the network callback was called
@@ -97,6 +111,7 @@ def test_error_handler_callbacks():
         # Check that the parsing callback was called
         parsing_callback.assert_called_once()
         network_callback.assert_not_called()
+
 
 def test_error_handler_logging():
     """Test error logging."""
@@ -152,6 +167,7 @@ def test_error_handler_logging():
         mock_logger.error.assert_not_called()
         mock_logger.critical.assert_called_once()
 
+
 def test_error_counts():
     """Test error counting and resetting."""
     handler = ErrorHandler()
@@ -161,7 +177,7 @@ def test_error_counts():
     context = ErrorContext("test", "operation")
 
     # Patch the _log_error method to avoid logging issues
-    with patch.object(handler, '_log_error'):
+    with patch.object(handler, "_log_error"):
         handler.handle_error(error, context, category=ErrorCategory.NETWORK)
         handler.handle_error(error, context, category=ErrorCategory.NETWORK)
         handler.handle_error(error, context, category=ErrorCategory.PARSING)
@@ -180,6 +196,7 @@ def test_error_counts():
         assert counts[ErrorCategory.NETWORK.value] == 0
         assert counts[ErrorCategory.PARSING.value] == 0
 
+
 def test_global_functions():
     """Test the global error handling functions."""
     # Mock the global error handler
@@ -192,7 +209,9 @@ def test_global_functions():
         # Test register_error_callback
         callback = MagicMock()
         register_error_callback(ErrorCategory.NETWORK, callback)
-        mock_handler.register_callback.assert_called_once_with(ErrorCategory.NETWORK, callback)
+        mock_handler.register_callback.assert_called_once_with(
+            ErrorCategory.NETWORK, callback
+        )
 
         # Test get_error_counts
         get_error_counts()

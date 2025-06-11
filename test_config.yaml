@@ -1,0 +1,97 @@
+# Test Configuration for lib2docScrape
+# Optimized for scraping our discovered dependencies
+
+# Crawler configuration
+crawler:
+  max_depth: 2
+  max_pages: 5
+  follow_external_links: false
+  respect_robots_txt: true
+  delay_between_requests: 1.0
+  timeout: 30.0
+  max_retries: 3
+  user_agent: "lib2docScrape/1.0 Documentation Crawler"
+  concurrent_requests: 2
+  max_request_rate: 5
+
+# Backend selector configuration
+backend_selector:
+  default_backend: "http"
+  javascript_backend: "crawl4ai"
+  static_backend: "http"
+
+# HTTP backend configuration
+http_backend:
+  timeout: 30.0
+  verify_ssl: true
+  follow_redirects: true
+  max_redirects: 5
+  headers:
+    User-Agent: "lib2docScrape/1.0 Documentation Crawler"
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+
+# Content processing configuration
+processing:
+  allowed_tags:
+    - p
+    - h1
+    - h2
+    - h3
+    - h4
+    - h5
+    - h6
+    - code
+    - pre
+    - ul
+    - ol
+    - li
+    - a
+    - strong
+    - em
+    - blockquote
+    - div
+    - span
+  code_languages:
+    - python
+    - javascript
+    - bash
+    - shell
+    - json
+    - yaml
+    - html
+    - css
+  max_content_length: 1000000
+  extract_code_blocks: true
+  preserve_formatting: true
+
+# Quality checker configuration
+quality_checker:
+  min_content_length: 100
+  max_broken_links: 10
+  max_missing_images: 5
+  check_spelling: false
+  check_grammar: false
+  check_code_blocks: true
+  check_headings: true
+  check_links: true
+  check_images: false
+  check_metadata: true
+
+# Document organizer configuration - THIS IS KEY!
+document_organizer:
+  output_format: "markdown"
+  create_index: true
+  create_toc: true
+  group_by_topic: true
+  include_metadata: true
+  include_assets: false
+  include_code_blocks: true
+  output_dir: "scraped_libraries"
+  template_dir: "templates"
+
+# Storage configuration
+storage:
+  compress_content: false
+  store_raw_html: false
+  store_processed_content: true
+  backup_enabled: false

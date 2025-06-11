@@ -1,0 +1,2070 @@
+{
+  "project_path": "/home/alex/DEV/lib2docScrape",
+  "discovery_timestamp": "/home/alex/DEV/lib2docScrape",
+  "summary": {
+    "total_unique_dependencies": 128,
+    "config_file_sources": 8,
+    "python_files_scanned": 218,
+    "installed_packages": 0
+  },
+  "dependencies": {
+    "all_unique": [
+      "PyYAML",
+      "aiofiles",
+      "aiohttp",
+      "aioresponses",
+      "anyio",
+      "asciidoc",
+      "asciidocapi",
+      "asset_handler",
+      "asyncio",
+      "backend_benchmark",
+      "backends",
+      "base",
+      "beautifulsoup4",
+      "benchmarking",
+      "black",
+      "bleach",
+      "bs4",
+      "bz2file",
+      "cachetools",
+      "categorizer",
+      "certifi",
+      "code_handler",
+      "config",
+      "content",
+      "content_processor",
+      "coverage",
+      "crawl4ai",
+      "crawl4ai_backend",
+      "crawler",
+      "dashboard",
+      "dataclasses",
+      "difflib",
+      "doc_organizer",
+      "docutils",
+      "domain_parser",
+      "duckduckgo-search",
+      "duckduckgo_search",
+      "enum",
+      "factory",
+      "fastapi",
+      "format_handlers",
+      "fsspec",
+      "heapq",
+      "html2text",
+      "httpx",
+      "hypothesis",
+      "idna",
+      "info",
+      "iniconfig",
+      "io",
+      "ipaddress",
+      "isort",
+      "jinja2",
+      "lib2docscrape",
+      "m2r",
+      "manager",
+      "markdown",
+      "markdownify",
+      "matplotlib",
+      "metadata_extractor",
+      "models",
+      "mypy",
+      "networkx",
+      "nltk",
+      "normalization",
+      "numpy",
+      "organizers",
+      "packaging",
+      "pandas",
+      "platform",
+      "playwright",
+      "playwright_backend",
+      "pluggy",
+      "posixpath",
+      "processors",
+      "protobuf",
+      "psutil",
+      "pydantic",
+      "pydantic_core",
+      "pytest",
+      "pytest-asyncio",
+      "pytest-cov",
+      "pytest-mock",
+      "pytest-xdist",
+      "python-dateutil",
+      "python-dotenv",
+      "redis",
+      "requests",
+      "resolution",
+      "responses",
+      "ruff",
+      "scikit-learn",
+      "scrapy",
+      "scrapy_backend",
+      "search",
+      "security",
+      "selector",
+      "selenium",
+      "semver",
+      "signal",
+      "sklearn",
+      "sniffio",
+      "sqlalchemy",
+      "starlette",
+      "statistics",
+      "storage",
+      "structure_handler",
+      "textwrap",
+      "tldextract",
+      "toml",
+      "topic_modeling",
+      "tqdm",
+      "type_determiner",
+      "types",
+      "url_handler",
+      "urllib3",
+      "utils",
+      "uuid",
+      "uvicorn",
+      "uvloop",
+      "validation",
+      "version_history",
+      "visualizations",
+      "watchdog",
+      "watcher",
+      "websockets",
+      "worker",
+      "yaml"
+    ],
+    "by_source": {
+      "config_files": {
+        "main": [
+          "aiohttp",
+          "requests",
+          "beautifulsoup4",
+          "scrapy",
+          "pydantic",
+          "markdownify",
+          "bleach",
+          "tldextract",
+          "certifi",
+          "duckduckgo-search"
+        ],
+        "optional_dev": [
+          "pytest",
+          "pytest-cov",
+          "pytest-asyncio",
+          "pytest-mock",
+          "hypothesis",
+          "coverage",
+          "ruff",
+          "uvloop",
+          "fastapi",
+          "httpx",
+          "jinja2",
+          "scikit-learn",
+          "nltk",
+          "psutil",
+          "bz2file"
+        ],
+        "optional_crawl4ai": [
+          "crawl4ai"
+        ],
+        "optional_playwright": [
+          "playwright"
+        ],
+        "optional_lightpanda": [],
+        "optional_all": [
+          "lib2docscrape"
+        ],
+        "requirements_requirements_OLD.txt": [
+          "aiohttp",
+          "beautifulsoup4",
+          "selenium",
+          "duckduckgo-search",
+          "scrapy",
+          "redis",
+          "sqlalchemy",
+          "fastapi",
+          "starlette",
+          "anyio",
+          "sniffio",
+          "uvicorn",
+          "python-dotenv",
+          "pydantic",
+          "httpx",
+          "pytest",
+          "pytest-asyncio",
+          "pytest-xdist",
+          "uvloop",
+          "pytest-cov",
+          "black",
+          "coverage",
+          "isort",
+          "mypy",
+          "pluggy",
+          "iniconfig",
+          "jinja2",
+          "ruff",
+          "numpy",
+          "pandas",
+          "requests",
+          "PyYAML",
+          "python-dateutil",
+          "tqdm",
+          "urllib3",
+          "protobuf",
+          "packaging",
+          "fsspec",
+          "certifi",
+          "markdownify",
+          "jinja2",
+          "aiofiles",
+          "tldextract",
+          "idna",
+          "html2text"
+        ],
+        "setup_py": [
+          "beautifulsoup4",
+          "aiohttp",
+          "asyncio",
+          "pydantic",
+          "markdownify",
+          "bleach",
+          "certifi",
+          "requests",
+          "tldextract",
+          "scrapy",
+          "duckduckgo-search",
+          "beautifulsoup4",
+          "aiohttp",
+          "asyncio",
+          "pydantic",
+          "markdownify",
+          "bleach",
+          "certifi",
+          "requests",
+          "tldextract",
+          "scrapy",
+          "duckduckgo-search"
+        ]
+      },
+      "imports": {
+        "by_file": {
+          "src/main.py": [
+            "subprocess",
+            "argparse",
+            "organizers",
+            "benchmarking",
+            "utils",
+            "logging",
+            "processors",
+            "yaml",
+            "fastapi",
+            "typing",
+            "uvicorn",
+            "crawler",
+            "pydantic",
+            "re",
+            "backends",
+            "json",
+            "os",
+            "asyncio",
+            "datetime"
+          ],
+          "src/backend_selector.py": [
+            "urllib",
+            "dataclasses",
+            "logging",
+            "typing"
+          ],
+          "src/crawler.py": [
+            "backends",
+            "urllib",
+            "pydantic",
+            "re",
+            "utils",
+            "collections",
+            "logging",
+            "os",
+            "processors",
+            "asyncio",
+            "organizers",
+            "datetime",
+            "typing"
+          ],
+          "src/websockets/test_manager.py": [
+            "enum",
+            "fastapi",
+            "dataclasses",
+            "time",
+            "typing"
+          ],
+          "src/organizers/doc_organizer.py": [
+            "uuid",
+            "urllib",
+            "pydantic",
+            "json",
+            "re",
+            "hashlib",
+            "dataclasses",
+            "logging",
+            "processors",
+            "datetime",
+            "typing"
+          ],
+          "src/organizers/aliases.py": [
+            "src"
+          ],
+          "src/organizers/library_version_tracker.py": [
+            "uuid",
+            "difflib",
+            "networkx",
+            "matplotlib",
+            "pydantic",
+            "json",
+            "re",
+            "dataclasses",
+            "logging",
+            "os",
+            "processors",
+            "semver",
+            "datetime",
+            "typing"
+          ],
+          "src/organizers/__init__.py": [
+            "doc_organizer"
+          ],
+          "src/versioning/version_manager.py": [
+            "difflib",
+            "enum",
+            "pydantic",
+            "json",
+            "re",
+            "utils",
+            "hashlib",
+            "logging",
+            "os",
+            "semver",
+            "datetime",
+            "typing"
+          ],
+          "src/backends/crawl4ai.py": [
+            "aiohttp",
+            "crawler",
+            "urllib",
+            "pydantic",
+            "sys",
+            "utils",
+            "base",
+            "dataclasses",
+            "logging",
+            "certifi",
+            "processors",
+            "asyncio",
+            "time",
+            "typing",
+            "ssl"
+          ],
+          "src/backends/crawl4ai_backend.py": [
+            "aiohttp",
+            "urllib",
+            "pydantic",
+            "utils",
+            "base",
+            "bs4",
+            "logging",
+            "processors",
+            "asyncio",
+            "time",
+            "typing"
+          ],
+          "src/backends/scrapy_backend.py": [
+            "aiohttp",
+            "crawler",
+            "pydantic",
+            "utils",
+            "base",
+            "logging",
+            "ssl",
+            "certifi",
+            "asyncio",
+            "time",
+            "typing"
+          ],
+          "src/backends/__init__.py": [
+            "selector",
+            "base"
+          ],
+          "src/backends/playwright_backend.py": [
+            "playwright",
+            "urllib",
+            "pydantic",
+            "utils",
+            "base",
+            "bs4",
+            "logging",
+            "os",
+            "processors",
+            "asyncio",
+            "time",
+            "typing"
+          ],
+          "src/backends/file_backend.py": [
+            "src",
+            "urllib",
+            "aiofiles",
+            "utils",
+            "base",
+            "logging",
+            "pathlib",
+            "typing"
+          ],
+          "src/backends/base.py": [
+            "crawler",
+            "pydantic",
+            "utils",
+            "abc",
+            "logging",
+            "datetime",
+            "typing"
+          ],
+          "src/backends/lightpanda_backend.py": [
+            "aiohttp",
+            "urllib",
+            "pydantic",
+            "json",
+            "utils",
+            "subprocess",
+            "bs4",
+            "base",
+            "logging",
+            "os",
+            "processors",
+            "base64",
+            "asyncio",
+            "time",
+            "typing"
+          ],
+          "src/backends/selector.py": [
+            "crawl4ai_backend",
+            "playwright_backend",
+            "urllib",
+            "pydantic",
+            "base",
+            "logging",
+            "inspect",
+            "fnmatch",
+            "asyncio",
+            "scrapy_backend",
+            "typing"
+          ],
+          "src/backends/http_backend.py": [
+            "aiohttp",
+            "src",
+            "base",
+            "dataclasses",
+            "logging",
+            "asyncio",
+            "typing"
+          ],
+          "src/crawler/models.py": [
+            "pydantic",
+            "datetime",
+            "typing",
+            "src"
+          ],
+          "src/crawler/__init__.py": [
+            "crawler",
+            "pydantic",
+            "src"
+          ],
+          "src/crawler/crawler.py": [
+            "src",
+            "urllib",
+            "pydantic",
+            "re",
+            "logging",
+            "models",
+            "os",
+            "asyncio",
+            "datetime",
+            "typing"
+          ],
+          "src/models/quality.py": [
+            "pydantic",
+            "typing"
+          ],
+          "src/models/project.py": [
+            "dataclasses",
+            "typing",
+            "enum"
+          ],
+          "src/processors/quality_checker.py": [
+            "content_processor",
+            "pydantic",
+            "typing",
+            "enum"
+          ],
+          "src/processors/content_processor.py": [
+            "bleach",
+            "urllib",
+            "re",
+            "bs4",
+            "markdownify",
+            "logging",
+            "typing",
+            "content"
+          ],
+          "src/processors/document_processor.py": [
+            "typing",
+            "bs4"
+          ],
+          "src/processors/html_processor.py": [
+            "typing",
+            "re",
+            "bs4"
+          ],
+          "src/processors/link_processor.py": [
+            "urllib",
+            "re",
+            "bs4",
+            "dataclasses",
+            "typing"
+          ],
+          "src/ui/doc_viewer_complete.py": [
+            "src",
+            "pydantic",
+            "logging",
+            "os",
+            "fastapi",
+            "datetime",
+            "typing"
+          ],
+          "src/ui/search.py": [
+            "pydantic",
+            "json",
+            "re",
+            "logging",
+            "fastapi",
+            "datetime",
+            "typing"
+          ],
+          "src/ui/doc_viewer.py": [
+            "src",
+            "pydantic",
+            "logging",
+            "os",
+            "fastapi",
+            "datetime",
+            "typing"
+          ],
+          "src/ui/dashboard.py": [
+            "pydantic",
+            "logging",
+            "fastapi",
+            "datetime",
+            "typing"
+          ],
+          "src/ui/visualizations.py": [
+            "pydantic",
+            "json",
+            "logging",
+            "fastapi",
+            "typing"
+          ],
+          "src/ui/__init__.py": [
+            "search",
+            "visualizations",
+            "dashboard"
+          ],
+          "src/routes/test_routes.py": [
+            "asyncio",
+            "fastapi",
+            "websockets"
+          ],
+          "src/config/config_manager.py": [
+            "toml",
+            "enum",
+            "pydantic",
+            "json",
+            "utils",
+            "logging",
+            "os",
+            "yaml",
+            "typing"
+          ],
+          "src/utils/url_info_perf.py": [
+            "typing",
+            "functools"
+          ],
+          "src/utils/search.py": [
+            "logging",
+            "duckduckgo_search"
+          ],
+          "src/utils/helpers.py": [
+            "requests",
+            "src",
+            "hashlib",
+            "logging",
+            "asyncio",
+            "time",
+            "typing"
+          ],
+          "src/utils/package_manager.py": [
+            "pydantic",
+            "shutil",
+            "logging",
+            "asyncio",
+            "typing"
+          ],
+          "src/utils/error_handler.py": [
+            "traceback",
+            "logging",
+            "typing",
+            "enum"
+          ],
+          "src/utils/url_info_tldextract.py": [
+            "ipaddress",
+            "posixpath",
+            "functools",
+            "enum",
+            "urllib",
+            "re",
+            "tldextract",
+            "logging",
+            "idna",
+            "typing"
+          ],
+          "src/utils/circuit_breaker.py": [
+            "time",
+            "logging",
+            "typing",
+            "enum"
+          ],
+          "src/utils/doc_site_verifier.py": [
+            "urllib",
+            "pydantic",
+            "json",
+            "re",
+            "logging",
+            "typing"
+          ],
+          "src/utils/retry.py": [
+            "abc",
+            "logging",
+            "random",
+            "asyncio",
+            "time",
+            "typing"
+          ],
+          "src/utils/performance.py": [
+            "functools",
+            "enum",
+            "concurrent",
+            "pydantic",
+            "logging",
+            "asyncio",
+            "time",
+            "cachetools",
+            "typing"
+          ],
+          "src/utils/url_info_optimized.py": [
+            "ipaddress",
+            "posixpath",
+            "functools",
+            "enum",
+            "types",
+            "urllib",
+            "re",
+            "logging",
+            "idna",
+            "typing",
+            "copy"
+          ],
+          "src/utils/project_identifier.py": [
+            "aiohttp",
+            "src",
+            "re",
+            "logging",
+            "typing"
+          ],
+          "src/utils/url_info_manipulation.py": [
+            "urllib",
+            "factory",
+            "info"
+          ],
+          "src/benchmarking/__init__.py": [
+            "backend_benchmark"
+          ],
+          "src/benchmarking/backend_benchmark.py": [
+            "backends",
+            "matplotlib",
+            "pydantic",
+            "utils",
+            "pandas",
+            "logging",
+            "asyncio",
+            "time",
+            "datetime",
+            "typing"
+          ],
+          "src/visualizers/__init__.py": [
+            "version_history"
+          ],
+          "src/visualizers/version_history.py": [
+            "pydantic",
+            "re",
+            "logging",
+            "organizers",
+            "typing"
+          ],
+          "src/crawler/distributed/worker.py": [
+            "platform",
+            "uuid",
+            "backends",
+            "traceback",
+            "logging",
+            "collections",
+            "os",
+            "psutil",
+            "models",
+            "asyncio",
+            "time",
+            "socket",
+            "datetime",
+            "typing"
+          ],
+          "src/crawler/distributed/models.py": [
+            "uuid",
+            "enum",
+            "pydantic",
+            "datetime",
+            "typing"
+          ],
+          "src/crawler/distributed/manager.py": [
+            "logging",
+            "collections",
+            "heapq",
+            "models",
+            "asyncio",
+            "time",
+            "datetime",
+            "typing"
+          ],
+          "src/crawler/distributed/__init__.py": [
+            "manager",
+            "models",
+            "worker"
+          ],
+          "src/crawler/distributed/runner.py": [
+            "crawler",
+            "backends",
+            "manager",
+            "worker",
+            "signal",
+            "logging",
+            "models",
+            "asyncio",
+            "typing"
+          ],
+          "src/processors/content/url_handler.py": [
+            "urllib",
+            "dataclasses",
+            "logging"
+          ],
+          "src/processors/content/metadata_extractor.py": [
+            "json",
+            "re",
+            "bs4",
+            "logging",
+            "typing"
+          ],
+          "src/processors/content/preprocessing_handler.py": [
+            "html",
+            "models",
+            "bs4"
+          ],
+          "src/processors/content/format_handlers.py": [
+            "re",
+            "abc",
+            "bs4",
+            "logging",
+            "typing",
+            "docutils"
+          ],
+          "src/processors/content/format_handler.py": [
+            "enum",
+            "src",
+            "m2r",
+            "html2text",
+            "re",
+            "io",
+            "bs4",
+            "logging",
+            "asciidocapi",
+            "markdown",
+            "asciidoc",
+            "docutils",
+            "typing"
+          ],
+          "src/processors/content/models.py": [
+            "dataclasses",
+            "datetime",
+            "typing"
+          ],
+          "src/processors/content/__init__.py": [
+            "asset_handler",
+            "metadata_extractor",
+            "models",
+            "structure_handler",
+            "url_handler"
+          ],
+          "src/processors/content/asset_handler.py": [
+            "url_handler",
+            "logging",
+            "bs4"
+          ],
+          "src/processors/content/format_detector.py": [
+            "format_handlers",
+            "logging",
+            "typing",
+            "re"
+          ],
+          "src/processors/content/code_handler.py": [
+            "textwrap",
+            "logging",
+            "typing",
+            "bs4"
+          ],
+          "src/processors/content/structure_handler.py": [
+            "code_handler",
+            "bs4",
+            "logging",
+            "url_handler",
+            "typing"
+          ],
+          "src/processors/nlp/categorizer.py": [
+            "numpy",
+            "pydantic",
+            "re",
+            "nltk",
+            "logging",
+            "os",
+            "processors",
+            "pickle",
+            "typing",
+            "sklearn"
+          ],
+          "src/processors/nlp/topic_modeling.py": [
+            "pydantic",
+            "re",
+            "nltk",
+            "logging",
+            "os",
+            "processors",
+            "pickle",
+            "typing",
+            "sklearn"
+          ],
+          "src/processors/nlp/__init__.py": [
+            "categorizer",
+            "topic_modeling"
+          ],
+          "src/utils/url/domain_parser.py": [
+            "ipaddress",
+            "types",
+            "tldextract",
+            "logging",
+            "typing"
+          ],
+          "src/utils/url/resolution.py": [
+            "urllib",
+            "typing"
+          ],
+          "src/utils/url/classification.py": [
+            "urllib",
+            "__future__",
+            "types"
+          ],
+          "src/utils/url/parsing.py": [
+            "urllib",
+            "__future__"
+          ],
+          "src/utils/url/__init__.py": [
+            "factory",
+            "src"
+          ],
+          "src/utils/url/factory.py": [
+            "normalization",
+            "types",
+            "urllib",
+            "type_determiner",
+            "domain_parser",
+            "tldextract",
+            "logging",
+            "security",
+            "validation",
+            "resolution",
+            "info",
+            "typing"
+          ],
+          "src/utils/url/validation.py": [
+            "ipaddress",
+            "src",
+            "urllib",
+            "re",
+            "logging",
+            "idna",
+            "typing"
+          ],
+          "src/utils/url/normalization.py": [
+            "ipaddress",
+            "posixpath",
+            "functools",
+            "src",
+            "urllib",
+            "re",
+            "logging",
+            "idna"
+          ],
+          "src/utils/url/type_determiner.py": [
+            "logging",
+            "typing",
+            "types"
+          ],
+          "src/utils/url/security.py": [
+            "__future__",
+            "re"
+          ],
+          "src/utils/url/info.py": [
+            "ipaddress",
+            "functools",
+            "types",
+            "urllib",
+            "factory",
+            "domain_parser",
+            "logging",
+            "typing"
+          ],
+          "src/utils/url/url_info_manipulation.py": [
+            "urllib",
+            "factory",
+            "info"
+          ],
+          "src/utils/url/types.py": [
+            "enum"
+          ],
+          "src/utils/feature_flags/watcher.py": [
+            "pathlib",
+            "typing",
+            "watchdog"
+          ],
+          "src/utils/feature_flags/manager.py": [
+            "pathlib",
+            "watcher",
+            "typing",
+            "config"
+          ],
+          "src/utils/feature_flags/__init__.py": [
+            "watcher",
+            "manager",
+            "config"
+          ],
+          "src/utils/feature_flags/config.py": [
+            "pathlib",
+            "json",
+            "typing"
+          ],
+          "src/storage/compressed/__init__.py": [
+            "storage"
+          ],
+          "src/storage/compressed/storage.py": [
+            "gzip",
+            "lzma",
+            "enum",
+            "pydantic",
+            "json",
+            "bz2",
+            "zlib",
+            "logging",
+            "os",
+            "pickle",
+            "typing"
+          ],
+          "tests/test_content_processor_advanced.py": [
+            "src"
+          ],
+          "tests/url_behavior_script.py": [
+            "src"
+          ],
+          "tests/test_crawler_fetch_and_process_with_backend.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "asyncio",
+            "datetime"
+          ],
+          "tests/test_helpers.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "logging",
+            "asyncio"
+          ],
+          "tests/test_main.py": [
+            "pytest",
+            "unittest",
+            "src",
+            "fastapi"
+          ],
+          "tests/test_crawler_url_handling.py": [
+            "pytest",
+            "unittest",
+            "typing",
+            "src"
+          ],
+          "tests/test_integration_advanced.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "logging",
+            "asyncio"
+          ],
+          "tests/test_crawler_main.py": [
+            "pytest",
+            "unittest",
+            "pytest_asyncio",
+            "src"
+          ],
+          "tests/test_crawler_generate_search_queries.py": [
+            "pytest",
+            "unittest",
+            "re",
+            "src"
+          ],
+          "tests/test_url_info_enhanced.py": [
+            "src"
+          ],
+          "tests/test_crawler_sequential.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_base.py": [
+            "src",
+            "pytest",
+            "logging",
+            "time",
+            "typing"
+          ],
+          "tests/test_crawler_edge_cases.py": [
+            "aiohttp",
+            "unittest",
+            "src",
+            "pytest",
+            "asyncio"
+          ],
+          "tests/test_quality.py": [
+            "pytest",
+            "typing",
+            "src"
+          ],
+          "tests/test_url_parsing.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_content_processor_edge.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/test_crawler_src.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/test_crawler_module.py": [
+            "pytest",
+            "unittest",
+            "pytest_asyncio",
+            "src"
+          ],
+          "tests/test_url_handling_integration.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_crawler_src_should_crawl.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/test_url_parsing_windows.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_integration.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_url_classification.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_crawl4ai.py": [
+            "src",
+            "pydantic",
+            "pytest",
+            "tests",
+            "ssl",
+            "asyncio",
+            "typing"
+          ],
+          "tests/test_gui.py": [
+            "pytest",
+            "unittest",
+            "src",
+            "fastapi"
+          ],
+          "tests/test_crawler_advanced.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "logging",
+            "pytest_asyncio",
+            "asyncio",
+            "typing"
+          ],
+          "tests/test_crawler_process_url.py": [
+            "pytest",
+            "unittest",
+            "typing",
+            "src"
+          ],
+          "tests/test_scrapy_backend.py": [
+            "src",
+            "pydantic",
+            "bs4",
+            "pytest",
+            "aioresponses",
+            "time"
+          ],
+          "tests/test_crawler_original_init.py": [
+            "unittest",
+            "inspect",
+            "src"
+          ],
+          "tests/test_url_security_extra.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_crawler_process_file_url.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/test_crawler_module_direct.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/test_main_api.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "fastapi",
+            "datetime"
+          ],
+          "tests/test_feature_flags.py": [
+            "time",
+            "json",
+            "pytest",
+            "src"
+          ],
+          "tests/test_crawler_setup_backends.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/test_backend_selector.py": [
+            "unittest",
+            "src"
+          ],
+          "tests/test_crawler_documentation.py": [
+            "asyncio",
+            "unittest",
+            "src"
+          ],
+          "tests/test_backend_selector_complete.py": [
+            "unittest",
+            "logging",
+            "src"
+          ],
+          "tests/test_organizer.py": [
+            "src"
+          ],
+          "tests/test_crawler.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "asyncio",
+            "typing"
+          ],
+          "tests/test_http_mocking.py": [
+            "aiohttp",
+            "requests",
+            "json",
+            "bs4",
+            "pytest",
+            "responses",
+            "aioresponses"
+          ],
+          "tests/test_conftest.py": [
+            "pytest",
+            "tests",
+            "src"
+          ],
+          "tests/test_crawler_cleanup.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/test_crawler_find_links_recursive.py": [
+            "typing"
+          ],
+          "tests/test_url_normalization.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_content_processor.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_crawler_config.py": [
+            "pytest",
+            "datetime",
+            "unittest",
+            "src"
+          ],
+          "tests/conftest.py": [
+            "platform",
+            "unittest",
+            "src",
+            "bs4",
+            "pytest",
+            "tests",
+            "pytest_asyncio",
+            "typing"
+          ],
+          "tests/test_crawler_original.py": [
+            "unittest",
+            "src",
+            "re",
+            "logging",
+            "inspect",
+            "asyncio"
+          ],
+          "tests/test_url_normalization_idn.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_link_processor.py": [
+            "pytest",
+            "src",
+            "bs4"
+          ],
+          "tests/test_crawler_initialize_crawl_queue.py": [
+            "pytest",
+            "unittest"
+          ],
+          "tests/test_url_classification_subdomain.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_processor.py": [
+            "pytest",
+            "src"
+          ],
+          "tests/test_crawler_crawl_integration.py": [
+            "pytest",
+            "unittest",
+            "types",
+            "src"
+          ],
+          "tests/test_crawl4ai_extended.py": [
+            "aiohttp",
+            "unittest",
+            "src",
+            "pytest",
+            "pytest_asyncio",
+            "asyncio",
+            "typing"
+          ],
+          "tests/organizers/test_library_version_tracker.py": [
+            "unittest",
+            "src",
+            "tempfile",
+            "pytest",
+            "os",
+            "datetime"
+          ],
+          "tests/fixtures/organizer_fixtures.py": [
+            "pytest",
+            "datetime",
+            "typing",
+            "src"
+          ],
+          "tests/fixtures/scrapy_fixtures.py": [
+            "pytest",
+            "unittest",
+            "json"
+          ],
+          "tests/fixtures/conftest.py": [
+            "organizer_fixtures",
+            "scrapy_fixtures",
+            "html_fixtures"
+          ],
+          "tests/fixtures/html_fixtures.py": [
+            "pytest",
+            "json",
+            "typing"
+          ],
+          "tests/versioning/test_version_manager.py": [
+            "src",
+            "tempfile",
+            "pytest",
+            "shutil",
+            "os"
+          ],
+          "tests/e2e/test_performance_benchmarks.py": [
+            "statistics",
+            "src",
+            "dataclasses",
+            "pytest",
+            "logging",
+            "psutil",
+            "asyncio",
+            "time",
+            "typing",
+            "test_sites"
+          ],
+          "tests/e2e/test_sites.py": [
+            "aiohttp",
+            "enum",
+            "urllib",
+            "dataclasses",
+            "pytest",
+            "logging",
+            "asyncio",
+            "typing"
+          ],
+          "tests/e2e/test_real_world_crawling.py": [
+            "src",
+            "pytest",
+            "logging",
+            "asyncio",
+            "time",
+            "typing",
+            "test_sites"
+          ],
+          "tests/e2e/conftest.py": [
+            "pytest",
+            "logging",
+            "os",
+            "asyncio",
+            "typing"
+          ],
+          "tests/property/test_url_properties.py": [
+            "hypothesis",
+            "urllib",
+            "src"
+          ],
+          "tests/property/test_content_processing.py": [
+            "hypothesis",
+            "pytest",
+            "re",
+            "src"
+          ],
+          "tests/property/test_backend_selection.py": [
+            "hypothesis",
+            "unittest",
+            "src"
+          ],
+          "tests/backends/test_crawl4ai_backend.py": [
+            "aiohttp",
+            "unittest",
+            "src",
+            "pytest",
+            "asyncio"
+          ],
+          "tests/backends/test_http_backend_simple.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/backends/test_lightpanda_backend.py": [
+            "aiohttp",
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/backends/test_crawl4ai_backend_complete.py": [
+            "aiohttp",
+            "unittest",
+            "src",
+            "pytest",
+            "asyncio",
+            "time"
+          ],
+          "tests/backends/test_playwright_backend_complete.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "asyncio",
+            "time"
+          ],
+          "tests/backends/test_crawl4ai.py": [
+            "aiohttp",
+            "unittest",
+            "src",
+            "pydantic",
+            "pytest",
+            "pytest_asyncio",
+            "asyncio"
+          ],
+          "tests/backends/test_scrapy_backend.py": [
+            "pytest",
+            "pytest_mock",
+            "unittest",
+            "src"
+          ],
+          "tests/backends/test_http_backend.py": [
+            "aiohttp",
+            "unittest",
+            "src",
+            "pytest",
+            "asyncio"
+          ],
+          "tests/backends/conftest.py": [
+            "pytest",
+            "unittest"
+          ],
+          "tests/backends/test_file_backend_complete.py": [
+            "unittest",
+            "src",
+            "tempfile",
+            "pytest",
+            "os"
+          ],
+          "tests/backends/test_file_backend.py": [
+            "unittest",
+            "src",
+            "tempfile",
+            "pytest",
+            "os"
+          ],
+          "tests/url/test_normalization.py": [
+            "urllib",
+            "pytest",
+            "src"
+          ],
+          "tests/url/test_security.py": [
+            "src"
+          ],
+          "tests/url/test_types.py": [
+            "src"
+          ],
+          "tests/url/test_info.py": [
+            "ipaddress",
+            "src",
+            "types",
+            "tldextract",
+            "pytest",
+            "time",
+            "pickle"
+          ],
+          "tests/url/test_validation.py": [
+            "urllib",
+            "pytest",
+            "src"
+          ],
+          "tests/crawler/test_distributed.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/models/test_crawl_target.py": [
+            "pytest",
+            "pydantic",
+            "src"
+          ],
+          "tests/models/test_crawl_config.py": [
+            "pytest",
+            "pydantic",
+            "src"
+          ],
+          "tests/models/test_crawl_stats.py": [
+            "datetime",
+            "src"
+          ],
+          "tests/models/test_project.py": [
+            "src"
+          ],
+          "tests/models/test_crawl_result.py": [
+            "pytest",
+            "pydantic",
+            "src"
+          ],
+          "tests/processors/test_format_handlers.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/processors/test_content_processor_formats.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/processors/test_content_processor_complete.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/ui/test_ui.py": [
+            "pytest",
+            "src",
+            "fastapi"
+          ],
+          "tests/ui/test_search_new.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/ui/test_ui_enhancements.py": [
+            "pytest"
+          ],
+          "tests/ui/test_doc_viewer_models.py": [
+            "pytest",
+            "pydantic",
+            "datetime",
+            "typing"
+          ],
+          "tests/ui/test_visualizations_new.py": [
+            "unittest",
+            "src"
+          ],
+          "tests/ui/test_visualizations.py": [
+            "src"
+          ],
+          "tests/ui/test_doc_viewer_new.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/ui/test_dashboard.py": [
+            "fastapi",
+            "unittest",
+            "src"
+          ],
+          "tests/ui/test_doc_viewer.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "os",
+            "fastapi",
+            "datetime"
+          ],
+          "tests/ui/test_doc_viewer_complete.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "fastapi",
+            "datetime"
+          ],
+          "tests/ui/test_search.py": [
+            "fastapi",
+            "src"
+          ],
+          "tests/ui/test_docviewer_api_endpoints.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "fastapi",
+            "datetime"
+          ],
+          "tests/ui/test_doc_viewer_init.py": [
+            "unittest"
+          ],
+          "tests/config/test_config_manager.py": [
+            "src",
+            "pydantic",
+            "tempfile",
+            "pytest",
+            "os"
+          ],
+          "tests/utils/test_url_info_tldextract.py": [
+            "unittest",
+            "src",
+            "urllib",
+            "tldextract",
+            "pytest"
+          ],
+          "tests/utils/test_domain_parser.py": [
+            "pytest",
+            "unittest",
+            "src",
+            "types"
+          ],
+          "tests/utils/test_package_manager.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/utils/test_error_handler_complete.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/utils/test_error_handler.py": [
+            "unittest",
+            "src"
+          ],
+          "tests/utils/test_circuit_breaker.py": [
+            "pytest",
+            "unittest",
+            "time",
+            "src"
+          ],
+          "tests/utils/test_retry.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/utils/test_performance_fixed.py": [
+            "asyncio",
+            "time",
+            "pytest",
+            "src"
+          ],
+          "tests/utils/test_performance.py": [
+            "threading",
+            "src",
+            "pytest",
+            "asyncio",
+            "time"
+          ],
+          "tests/utils/test_url_validation.py": [
+            "urllib",
+            "src"
+          ],
+          "tests/storage/test_compressed.py": [
+            "pytest",
+            "src",
+            "os",
+            "tempfile"
+          ],
+          "tests/performance/test_performance.py": [
+            "unittest",
+            "src",
+            "pytest",
+            "asyncio",
+            "time"
+          ],
+          "tests/crawler/distributed/test_models.py": [
+            "uuid",
+            "src",
+            "pydantic_core",
+            "pydantic",
+            "pytest",
+            "datetime"
+          ],
+          "tests/processors/content/test_format_handler.py": [
+            "src"
+          ],
+          "tests/utils/url/test_normalization.py": [
+            "pytest",
+            "unittest",
+            "src"
+          ],
+          "tests/utils/url/test_types.py": [
+            "src"
+          ],
+          "tests/utils/url/test_factory.py": [
+            "unittest",
+            "src"
+          ],
+          "tests/utils/url/test_validation.py": [
+            "urllib",
+            "unittest",
+            "os",
+            "src"
+          ]
+        },
+        "all_external": [
+          "doc_organizer",
+          "manager",
+          "version_history",
+          "bleach",
+          "types",
+          "matplotlib",
+          "security",
+          "structure_handler",
+          "idna",
+          "duckduckgo_search",
+          "ipaddress",
+          "toml",
+          "m2r",
+          "categorizer",
+          "signal",
+          "processors",
+          "heapq",
+          "topic_modeling",
+          "sklearn",
+          "code_handler",
+          "factory",
+          "markdownify",
+          "validation",
+          "networkx",
+          "io",
+          "bs4",
+          "url_handler",
+          "content",
+          "enum",
+          "playwright",
+          "content_processor",
+          "search",
+          "dataclasses",
+          "responses",
+          "certifi",
+          "difflib",
+          "websockets",
+          "uvicorn",
+          "crawler",
+          "posixpath",
+          "crawl4ai_backend",
+          "config",
+          "format_handlers",
+          "pandas",
+          "aioresponses",
+          "backend_benchmark",
+          "uuid",
+          "selector",
+          "scrapy_backend",
+          "watchdog",
+          "benchmarking",
+          "requests",
+          "utils",
+          "domain_parser",
+          "fastapi",
+          "aiohttp",
+          "visualizations",
+          "metadata_extractor",
+          "storage",
+          "statistics",
+          "platform",
+          "watcher",
+          "asciidocapi",
+          "semver",
+          "tldextract",
+          "models",
+          "markdown",
+          "info",
+          "organizers",
+          "cachetools",
+          "docutils",
+          "textwrap",
+          "asset_handler",
+          "psutil",
+          "resolution",
+          "type_determiner",
+          "pydantic",
+          "pydantic_core",
+          "html2text",
+          "base",
+          "asciidoc",
+          "aiofiles",
+          "dashboard",
+          "backends",
+          "numpy",
+          "normalization",
+          "playwright_backend",
+          "hypothesis",
+          "nltk",
+          "yaml",
+          "worker"
+        ],
+        "all_raw": [
+          "uuid",
+          "doc_organizer",
+          "manager",
+          "bleach",
+          "version_history",
+          "src",
+          "types",
+          "matplotlib",
+          "selector",
+          "traceback",
+          "bz2",
+          "subprocess",
+          "argparse",
+          "pytest",
+          "security",
+          "pytest_asyncio",
+          "structure_handler",
+          "idna",
+          "time",
+          "scrapy_backend",
+          "watchdog",
+          "duckduckgo_search",
+          "benchmarking",
+          "toml",
+          "ipaddress",
+          "requests",
+          "urllib",
+          "concurrent",
+          "m2r",
+          "utils",
+          "signal",
+          "categorizer",
+          "domain_parser",
+          "tests",
+          "processors",
+          "inspect",
+          "heapq",
+          "topic_modeling",
+          "fastapi",
+          "sklearn",
+          "aiohttp",
+          "code_handler",
+          "factory",
+          "re",
+          "sys",
+          "metadata_extractor",
+          "storage",
+          "markdownify",
+          "validation",
+          "fnmatch",
+          "socket",
+          "statistics",
+          "copy",
+          "platform",
+          "networkx",
+          "threading",
+          "json",
+          "watcher",
+          "io",
+          "bs4",
+          "asciidocapi",
+          "os",
+          "url_handler",
+          "pathlib",
+          "semver",
+          "datetime",
+          "test_sites",
+          "content",
+          "asyncio",
+          "__future__",
+          "gzip",
+          "functools",
+          "enum",
+          "unittest",
+          "playwright",
+          "content_processor",
+          "search",
+          "hashlib",
+          "abc",
+          "tldextract",
+          "dataclasses",
+          "responses",
+          "models",
+          "random",
+          "certifi",
+          "markdown",
+          "info",
+          "organizers",
+          "cachetools",
+          "html_fixtures",
+          "docutils",
+          "textwrap",
+          "difflib",
+          "lzma",
+          "websockets",
+          "asset_handler",
+          "tempfile",
+          "zlib",
+          "logging",
+          "psutil",
+          "base64",
+          "resolution",
+          "organizer_fixtures",
+          "pickle",
+          "typing",
+          "ssl",
+          "worker",
+          "uvicorn",
+          "crawler",
+          "posixpath",
+          "crawl4ai_backend",
+          "type_determiner",
+          "pydantic",
+          "pydantic_core",
+          "html2text",
+          "base",
+          "config",
+          "collections",
+          "asciidoc",
+          "aiofiles",
+          "format_handlers",
+          "dashboard",
+          "backends",
+          "scrapy_fixtures",
+          "numpy",
+          "normalization",
+          "playwright_backend",
+          "hypothesis",
+          "html",
+          "pandas",
+          "nltk",
+          "shutil",
+          "yaml",
+          "aioresponses",
+          "pytest_mock",
+          "backend_benchmark",
+          "visualizations"
+        ]
+      },
+      "installed": {},
+      "documentation_urls": {
+        "doc_organizer": "https://docorganizer.readthedocs.io/en/latest/",
+        "manager": "https://manager.readthedocs.io/en/latest/",
+        "pytest-asyncio": "https://pytestasyncio.readthedocs.io/en/latest/",
+        "bleach": "https://bleach.readthedocs.io/en/latest/",
+        "version_history": "https://versionhistory.readthedocs.io/en/latest/",
+        "types": "https://types.readthedocs.io/en/latest/",
+        "beautifulsoup4": "https://www.crummy.com/software/BeautifulSoup/bs4/doc/",
+        "pytest-cov": "https://pytestcov.readthedocs.io/en/latest/",
+        "matplotlib": "https://matplotlib.org/stable/",
+        "pytest": "https://docs.pytest.org/en/stable/",
+        "security": "https://security.readthedocs.io/en/latest/",
+        "structure_handler": "https://structurehandler.readthedocs.io/en/latest/",
+        "idna": "https://idna.readthedocs.io/en/latest/",
+        "duckduckgo_search": "https://duckduckgosearch.readthedocs.io/en/latest/",
+        "bz2file": "https://bz2file.readthedocs.io/en/latest/",
+        "ipaddress": "https://ipaddress.readthedocs.io/en/latest/",
+        "toml": "https://toml.readthedocs.io/en/latest/",
+        "m2r": "https://m2r.readthedocs.io/en/latest/",
+        "categorizer": "https://categorizer.readthedocs.io/en/latest/",
+        "signal": "https://signal.readthedocs.io/en/latest/",
+        "processors": "https://processors.readthedocs.io/en/latest/",
+        "heapq": "https://heapq.readthedocs.io/en/latest/",
+        "topic_modeling": "https://topicmodeling.readthedocs.io/en/latest/",
+        "fsspec": "https://fsspec.readthedocs.io/en/latest/",
+        "sklearn": "https://sklearn.readthedocs.io/en/latest/",
+        "code_handler": "https://codehandler.readthedocs.io/en/latest/",
+        "factory": "https://factory.readthedocs.io/en/latest/",
+        "sniffio": "https://sniffio.readthedocs.io/en/latest/",
+        "iniconfig": "https://iniconfig.readthedocs.io/en/latest/",
+        "markdownify": "https://pypi.org/project/markdownify/",
+        "validation": "https://validation.readthedocs.io/en/latest/",
+        "mypy": "https://mypy.readthedocs.io/en/latest/",
+        "packaging": "https://packaging.readthedocs.io/en/latest/",
+        "networkx": "https://networkx.readthedocs.io/en/latest/",
+        "redis": "https://redis-py.readthedocs.io/",
+        "io": "https://io.readthedocs.io/en/latest/",
+        "bs4": "https://bs4.readthedocs.io/en/latest/",
+        "url_handler": "https://urlhandler.readthedocs.io/en/latest/",
+        "content": "https://content.readthedocs.io/en/latest/",
+        "enum": "https://enum.readthedocs.io/en/latest/",
+        "playwright": "https://playwright.readthedocs.io/en/latest/",
+        "content_processor": "https://contentprocessor.readthedocs.io/en/latest/",
+        "search": "https://search.readthedocs.io/en/latest/",
+        "dataclasses": "https://dataclasses.readthedocs.io/en/latest/",
+        "black": "https://black.readthedocs.io/en/latest/",
+        "responses": "https://responses.readthedocs.io/en/latest/",
+        "certifi": "https://certifi.readthedocs.io/en/latest/",
+        "scikit-learn": "https://scikitlearn.readthedocs.io/en/latest/",
+        "pluggy": "https://pluggy.readthedocs.io/en/latest/",
+        "difflib": "https://difflib.readthedocs.io/en/latest/",
+        "websockets": "https://websockets.readthedocs.io/en/latest/",
+        "uvloop": "https://github.com/MagicStack/uvloop",
+        "uvicorn": "https://uvicorn.readthedocs.io/en/latest/",
+        "pytest-xdist": "https://pytestxdist.readthedocs.io/en/latest/",
+        "crawler": "https://crawler.readthedocs.io/en/latest/",
+        "httpx": "https://www.python-httpx.org/",
+        "posixpath": "https://posixpath.readthedocs.io/en/latest/",
+        "crawl4ai_backend": "https://crawl4aibackend.readthedocs.io/en/latest/",
+        "isort": "https://isort.readthedocs.io/en/latest/",
+        "starlette": "https://starlette.readthedocs.io/en/latest/",
+        "config": "https://config.readthedocs.io/en/latest/",
+        "format_handlers": "https://formathandlers.readthedocs.io/en/latest/",
+        "python-dateutil": "https://pythondateutil.readthedocs.io/en/latest/",
+        "pandas": "https://pandas.pydata.org/docs/",
+        "asyncio": "https://asyncio.readthedocs.io/en/latest/",
+        "aioresponses": "https://aioresponses.readthedocs.io/en/latest/",
+        "duckduckgo-search": "https://duckduckgosearch.readthedocs.io/en/latest/",
+        "backend_benchmark": "https://backendbenchmark.readthedocs.io/en/latest/",
+        "uuid": "https://uuid.readthedocs.io/en/latest/",
+        "selector": "https://selector.readthedocs.io/en/latest/",
+        "selenium": "https://selenium-python.readthedocs.io/",
+        "scrapy_backend": "https://scrapybackend.readthedocs.io/en/latest/",
+        "watchdog": "https://watchdog.readthedocs.io/en/latest/",
+        "benchmarking": "https://benchmarking.readthedocs.io/en/latest/",
+        "requests": "https://requests.readthedocs.io/en/latest/",
+        "utils": "https://utils.readthedocs.io/en/latest/",
+        "domain_parser": "https://domainparser.readthedocs.io/en/latest/",
+        "coverage": "https://coverage.readthedocs.io/en/latest/",
+        "fastapi": "https://fastapi.tiangolo.com/",
+        "aiohttp": "https://docs.aiohttp.org/en/stable/",
+        "python-dotenv": "https://pythondotenv.readthedocs.io/en/latest/",
+        "metadata_extractor": "https://metadataextractor.readthedocs.io/en/latest/",
+        "storage": "https://storage.readthedocs.io/en/latest/",
+        "sqlalchemy": "https://docs.sqlalchemy.org/",
+        "statistics": "https://statistics.readthedocs.io/en/latest/",
+        "platform": "https://platform.readthedocs.io/en/latest/",
+        "jinja2": "https://jinja.palletsprojects.com/",
+        "watcher": "https://watcher.readthedocs.io/en/latest/",
+        "asciidocapi": "https://asciidocapi.readthedocs.io/en/latest/",
+        "semver": "https://semver.readthedocs.io/en/latest/",
+        "PyYAML": "https://pyyaml.readthedocs.io/en/latest/",
+        "tldextract": "https://github.com/john-kurkowski/tldextract",
+        "protobuf": "https://protobuf.readthedocs.io/en/latest/",
+        "models": "https://models.readthedocs.io/en/latest/",
+        "markdown": "https://markdown.readthedocs.io/en/latest/",
+        "info": "https://info.readthedocs.io/en/latest/",
+        "organizers": "https://organizers.readthedocs.io/en/latest/",
+        "cachetools": "https://cachetools.readthedocs.io/en/latest/",
+        "ruff": "https://docs.astral.sh/ruff/",
+        "scrapy": "https://docs.scrapy.org/en/latest/",
+        "docutils": "https://docutils.readthedocs.io/en/latest/",
+        "textwrap": "https://textwrap.readthedocs.io/en/latest/",
+        "tqdm": "https://tqdm.readthedocs.io/en/latest/",
+        "urllib3": "https://urllib3.readthedocs.io/en/latest/",
+        "asset_handler": "https://assethandler.readthedocs.io/en/latest/",
+        "anyio": "https://anyio.readthedocs.io/en/latest/",
+        "psutil": "https://psutil.readthedocs.io/en/latest/",
+        "resolution": "https://resolution.readthedocs.io/en/latest/",
+        "worker": "https://worker.readthedocs.io/en/latest/",
+        "type_determiner": "https://typedeterminer.readthedocs.io/en/latest/",
+        "pydantic": "https://docs.pydantic.dev/latest/",
+        "pydantic_core": "https://pydanticcore.readthedocs.io/en/latest/",
+        "html2text": "https://html2text.readthedocs.io/en/latest/",
+        "base": "https://base.readthedocs.io/en/latest/",
+        "asciidoc": "https://asciidoc.readthedocs.io/en/latest/",
+        "aiofiles": "https://aiofiles.readthedocs.io/en/latest/",
+        "dashboard": "https://dashboard.readthedocs.io/en/latest/",
+        "backends": "https://backends.readthedocs.io/en/latest/",
+        "numpy": "https://numpy.org/doc/stable/",
+        "normalization": "https://normalization.readthedocs.io/en/latest/",
+        "playwright_backend": "https://playwrightbackend.readthedocs.io/en/latest/",
+        "hypothesis": "https://hypothesis.readthedocs.io/en/latest/",
+        "crawl4ai": "https://crawl4ai.readthedocs.io/en/latest/",
+        "pytest-mock": "https://pytestmock.readthedocs.io/en/latest/",
+        "lib2docscrape": "https://lib2docscrape.readthedocs.io/en/latest/",
+        "nltk": "https://nltk.readthedocs.io/en/latest/",
+        "yaml": "https://yaml.readthedocs.io/en/latest/",
+        "visualizations": "https://visualizations.readthedocs.io/en/latest/"
+      }
+    }
+  }
+}

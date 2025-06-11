@@ -3,16 +3,24 @@ URL normalization functions.
 """
 
 import functools
-import posixpath
-
+import ipaddress  # Import ipaddress
 import logging
-import re # Import re
-import ipaddress # Import ipaddress
-from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse, ParseResult, quote, unquote
+import posixpath
+import re  # Import re
+from urllib.parse import (
+    ParseResult,
+    parse_qsl,
+    quote,
+    unquote,
+    urlencode,
+    urlparse,
+    urlunparse,
+)
 
 # Try to import idna, but don't fail if it's missing for the helper function
 try:
     import idna
+
     IDNA_AVAILABLE = True
 except ImportError:
     idna = None
@@ -21,6 +29,7 @@ except ImportError:
 from src.utils.url.security import URLSecurityConfig
 
 logger = logging.getLogger(__name__)
+
 
 @functools.lru_cache(maxsize=512)
 def normalize_hostname(hostname: str) -> str:
@@ -56,27 +65,35 @@ def normalize_hostname(hostname: str) -> str:
         normalized_host = hostname.rstrip(".").lower()
 
         # Explicitly check label length (max 63 octets per label)
-        labels = normalized_host.split('.')
+        labels = normalized_host.split(".")
         for label in labels:
             if not label:
-                 if label == '' and (normalized_host.endswith('.') or normalized_host.startswith('.')):
-                      continue
-                 elif '..' in normalized_host or normalized_host.startswith('.'):
-                      raise ValueError("Invalid hostname structure (empty label)")
+                if label == "" and (
+                    normalized_host.endswith(".") or normalized_host.startswith(".")
+                ):
+                    continue
+                elif ".." in normalized_host or normalized_host.startswith("."):
+                    raise ValueError("Invalid hostname structure (empty label)")
 
             # Check basic character length first
             if len(label) > 63:
-                 raise ValueError(f"Hostname label too long (>{63} chars): '{label[:20]}...'")
+                raise ValueError(
+                    f"Hostname label too long (>{63} chars): '{label[:20]}...'"
+                )
 
             # *** ADDED CHECK ***
             # *** MODIFIED CHECK ***
             # Check only for basic structural issues like leading/trailing hyphens.
             # Allow non-ASCII characters here; IDNA encoding/validation will handle them later if available.
-            if label.startswith('-') or label.endswith('-'):
-                 raise ValueError(f"Hostname label cannot start or end with a hyphen: '{label}'")
+            if label.startswith("-") or label.endswith("-"):
+                raise ValueError(
+                    f"Hostname label cannot start or end with a hyphen: '{label}'"
+                )
             # Basic check for Punycode structure if applicable
-            if label.startswith('xn--') and not re.match(r'^xn--[a-z0-9-]{1,58}$', label, re.IGNORECASE):
-                 raise ValueError(f"Invalid Punycode label structure: '{label}'")
+            if label.startswith("xn--") and not re.match(
+                r"^xn--[a-z0-9-]{1,58}$", label, re.IGNORECASE
+            ):
+                raise ValueError(f"Invalid Punycode label structure: '{label}'")
             # Note: Character set validation is deferred to IDNA or the fallback check later.
 
         # Attempt IDNA encoding if available
@@ -87,24 +104,32 @@ def normalize_hostname(hostname: str) -> str:
                 raise ValueError(f"Invalid hostname (IDNA error): {e}") from e
 
             # Re-check label length *after* IDNA encoding (Punycode can expand length)
-            ascii_labels = ascii_host.split('.')
+            ascii_labels = ascii_host.split(".")
             for label in ascii_labels:
-                 if len(label.encode('utf-8')) > 63:
-                      raise ValueError(f"Encoded hostname label too long (>{63} bytes): '{label[:20]}...'")
+                if len(label.encode("utf-8")) > 63:
+                    raise ValueError(
+                        f"Encoded hostname label too long (>{63} bytes): '{label[:20]}...'"
+                    )
 
             # Basic check for invalid characters that might bypass idna
             if "<" in ascii_host or ">" in ascii_host:
-                 raise ValueError("Invalid characters in hostname")
+                raise ValueError("Invalid characters in hostname")
             return ascii_host
         else:
             # Fallback if idna is not available - apply stricter character validation
-            logger.warning("idna library not found. Performing basic hostname normalization.")
+            logger.warning(
+                "idna library not found. Performing basic hostname normalization."
+            )
             for label in labels:
-                 # Check for invalid characters according to basic DNS rules
-                 if not re.match(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$', label, re.IGNORECASE):
-                      if label: # Don't raise for empty label from trailing dot
-                         raise ValueError(f"Invalid characters in hostname label (no IDNA): '{label}'")
-            return normalized_host # Return the basic normalized host
+                # Check for invalid characters according to basic DNS rules
+                if not re.match(
+                    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$", label, re.IGNORECASE
+                ):
+                    if label:  # Don't raise for empty label from trailing dot
+                        raise ValueError(
+                            f"Invalid characters in hostname label (no IDNA): '{label}'"
+                        )
+            return normalized_host  # Return the basic normalized host
 
     except idna.IDNAError as e:
         # Catch specific IDNA errors and raise as ValueError for consistency
@@ -112,7 +137,9 @@ def normalize_hostname(hostname: str) -> str:
         raise ValueError(f"Invalid hostname (IDNA error): {e}") from e
     except Exception as e:
         # Catch any other unexpected errors during normalization
-        logger.error(f"Unexpected error normalizing hostname '{hostname}': {e}", exc_info=True)
+        logger.error(
+            f"Unexpected error normalizing hostname '{hostname}': {e}", exc_info=True
+        )
         # Re-raise as ValueError for consistent error handling
         raise ValueError(f"Invalid hostname: {e}") from e
 
@@ -130,10 +157,15 @@ def is_default_port(scheme: str, port: int) -> bool:
         True if the port is the default for the scheme, False otherwise
     """
     # Use URLSecurityConfig for default ports
-    return scheme in URLSecurityConfig.DEFAULT_PORTS and port == URLSecurityConfig.DEFAULT_PORTS[scheme]
+    return (
+        scheme in URLSecurityConfig.DEFAULT_PORTS
+        and port == URLSecurityConfig.DEFAULT_PORTS[scheme]
+    )
+
 
 # Regex pattern for collapsing multiple slashes - compile once for better performance
-_MULTIPLE_SLASH_PATTERN = re.compile(r'/+')
+_MULTIPLE_SLASH_PATTERN = re.compile(r"/+")
+
 
 @functools.lru_cache(maxsize=256)
 def normalize_path(path: str, preserve_trailing_slash: bool = False) -> str:
@@ -141,7 +173,7 @@ def normalize_path(path: str, preserve_trailing_slash: bool = False) -> str:
     Normalizes a URL path according to RFC 3986 and common practices.
 
     - Resolves '.' and '..' segments
-    - Collapses multiple slashes ('//') 
+    - Collapses multiple slashes ('//')
     - URL-decodes percent-encoded characters
     - Preserves a single trailing slash if present in the original path
     - Handles both absolute and relative paths correctly
@@ -158,67 +190,71 @@ def normalize_path(path: str, preserve_trailing_slash: bool = False) -> str:
     """
     # Handle empty path explicitly
     if not path:
-        return "/" # Revert to returning "/" for empty path
-    
+        return "/"  # Revert to returning "/" for empty path
+
     # Detect trailing slash
-    original_had_trailing_slash = path.endswith('/') and path != '/'
-    original_was_just_slash = path == "/"
-    
+    original_had_trailing_slash = path.endswith("/") and path != "/"
+
     # Fast path for already normalized root path
-    if path == '/':
-        return '/'
-    
+    if path == "/":
+        return "/"
+
     try:
         # Use unquote NOT unquote_plus (plus is for query strings)
         # Decode the path to handle percent-encoded chars like %20, %2F (/)
         # Decoding allows correct resolution of '.' and '..' even if encoded
         unquoted = unquote(path)
         # SECURITY: Check for potentially harmful characters after decoding
-        if '\x00' in unquoted:
+        if "\x00" in unquoted:
             raise ValueError("Null byte detected in path after decoding")
     except Exception as e:
         logger.warning(f"Path unquoting failed for '{path}': {e}")
         # If decoding fails, it might indicate malformed encoding.
         # Proceeding with original path might be unsafe.
         raise ValueError(f"Path decoding failed: {e}") from e
-    
+
     # Convert Windows-style backslashes to forward slashes
-    unquoted = unquoted.replace('\\', '/')
-    
+    unquoted = unquoted.replace("\\", "/")
+
     # Determine if this is an absolute path (starts with /)
-    is_absolute = unquoted.startswith('/')
-    
+    is_absolute = unquoted.startswith("/")
+
     # Collapse multiple consecutive slashes into one
-    cleaned_path = _MULTIPLE_SLASH_PATTERN.sub('/', unquoted)
-    
+    cleaned_path = _MULTIPLE_SLASH_PATTERN.sub("/", unquoted)
+
     # Use posixpath.normpath to properly handle directory traversal
     normalized = posixpath.normpath(cleaned_path)
-    
+
     # normpath on Unix returns '.' for empty paths or single '.' relative paths.
     # It correctly resolves '..' segments.
     # We need to preserve the absolute/relative nature based on the *original* input.
-    
+
     # If the original was absolute, ensure the result starts with / (unless it's just '/')
-    if is_absolute and normalized != '/':
-        if not normalized.startswith('/'):
-             normalized = '/' + normalized
+    if is_absolute and normalized != "/":
+        if not normalized.startswith("/"):
+            normalized = "/" + normalized
     # If the original was relative, ensure the result does NOT start with /
     # (unless normpath resolved it to an absolute path, which shouldn't happen from relative)
     elif not is_absolute:
-        if normalized.startswith('/'):
-             # This case should ideally not happen if posixpath.normpath works correctly on relative paths.
-             # If it does, maybe strip the leading slash? Or log a warning?
-             # For now, let's assume normpath preserves relativity correctly.
-             pass
-        elif normalized == '.':
-             # If original was just '.' or './', normpath gives '.'. Return empty string for consistency?
-             # Or keep '.' if that's the standard? Let's keep '.' for now.
-             pass # Keep '.' as is for relative current directory indication
+        if normalized.startswith("/"):
+            # This case should ideally not happen if posixpath.normpath works correctly on relative paths.
+            # If it does, maybe strip the leading slash? Or log a warning?
+            # For now, let's assume normpath preserves relativity correctly.
+            pass
+        elif normalized == ".":
+            # If original was just '.' or './', normpath gives '.'. Return empty string for consistency?
+            # Or keep '.' if that's the standard? Let's keep '.' for now.
+            pass  # Keep '.' as is for relative current directory indication
 
     # Add back trailing slash if requested and originally present
-    if preserve_trailing_slash and original_had_trailing_slash and not normalized.endswith('/') and normalized != '/':
-        normalized += '/'
-    
+    if (
+        preserve_trailing_slash
+        and original_had_trailing_slash
+        and not normalized.endswith("/")
+        and normalized != "/"
+    ):
+        normalized += "/"
+
     # Re-quote the path with appropriate safe characters from URLSecurityConfig
     # This ensures the final path is valid for use in a URL.
     # Characters like space, non-ASCII, etc., will be percent-encoded.
@@ -234,11 +270,12 @@ def normalize_path(path: str, preserve_trailing_slash: bool = False) -> str:
         logger.error(f"Path encoding failed for '{normalized}': {e}")
         raise ValueError(f"Path re-encoding failed: {e}") from e
 
+
 @functools.lru_cache(maxsize=128)
 def normalize_url(url: str) -> str:
     """
     Normalize a URL by handling common variations.
-    
+
     - Lowercases scheme and hostname
     - Removes default ports (80 for http, 443 for https)
     - Normalizes path component
@@ -269,22 +306,28 @@ def normalize_url(url: str) -> str:
             # Use the dedicated normalize_hostname function
             normalized_hostname = normalize_hostname(hostname)
         except ValueError as e:
-            logger.warning(f"Hostname normalization failed for '{hostname}' in URL '{url}': {e}")
+            logger.warning(
+                f"Hostname normalization failed for '{hostname}' in URL '{url}': {e}"
+            )
             # Keep original hostname for reconstruction if normalization fails
-            normalized_hostname = hostname.lower() # Fallback to lowercased original
+            normalized_hostname = hostname.lower()  # Fallback to lowercased original
 
     # 3. Port: Remove if default for the scheme
     port = parsed.port
     if port and is_default_port(scheme, port):
-        port = None # Remove default port
+        port = None  # Remove default port
 
     # Reconstruct netloc with normalized hostname and potentially removed port
     # If hostname normalization failed, fall back to the original hostname
-    netloc = normalized_hostname if normalized_hostname is not None else (hostname.lower() if hostname else '')
-    
+    netloc = (
+        normalized_hostname
+        if normalized_hostname is not None
+        else (hostname.lower() if hostname else "")
+    )
+
     # Preserve authentication info if present (username:password@host)
     if parsed.username or parsed.password:
-        auth = ''
+        auth = ""
         if parsed.username:
             auth += parsed.username
         if parsed.password:
@@ -295,18 +338,18 @@ def normalize_url(url: str) -> str:
         else:
             # If no hostname but auth info, just use auth (unusual case)
             netloc = auth
-    
+
     # Add port if non-default
     if port:
         netloc += f":{port}"
     # Explicitly remove auth info for normalization, regardless of security config
     if parsed.username or parsed.password:
-        netloc = netloc.split('@')[-1]
+        netloc = netloc.split("@")[-1]
 
     # 4. Path: Normalize using normalize_path function
     path = parsed.path
-    original_had_trailing_slash = path.endswith('/') and path != '/'
-    
+    original_had_trailing_slash = path.endswith("/") and path != "/"
+
     try:
         # Special case: If we have authority (netloc) and empty path, keep it empty
         # This ensures http://example.com -> http://example.com not http://example.com/
@@ -314,10 +357,12 @@ def normalize_url(url: str) -> str:
             normalized_path = ""
         else:
             # Otherwise normalize the path, preserving trailing slash if present
-            normalized_path = normalize_path(path, preserve_trailing_slash=original_had_trailing_slash)
+            normalized_path = normalize_path(
+                path, preserve_trailing_slash=original_had_trailing_slash
+            )
     except ValueError as e:
         logger.warning(f"Path normalization failed for '{path}' in URL '{url}': {e}")
-        normalized_path = path # Fallback to original path
+        normalized_path = path  # Fallback to original path
 
     # 5. Query: Sort parameters, re-encode
     query = parsed.query
@@ -329,10 +374,14 @@ def normalize_url(url: str) -> str:
             # Sort by key, then by value for stability
             params.sort()
             # Use QUERY_SAFE_CHARS from config for encoding
-            normalized_query = urlencode(params, safe=URLSecurityConfig.QUERY_SAFE_CHARS)
+            normalized_query = urlencode(
+                params, safe=URLSecurityConfig.QUERY_SAFE_CHARS
+            )
         except Exception as e:
-            logger.warning(f"Query normalization failed for '{query}' in URL '{url}': {e}")
-            normalized_query = query # Fallback to original query
+            logger.warning(
+                f"Query normalization failed for '{query}' in URL '{url}': {e}"
+            )
+            normalized_query = query  # Fallback to original query
 
     # Reconstruct the URL (fragment is intentionally removed)
     try:
@@ -342,27 +391,31 @@ def normalize_url(url: str) -> str:
             # Re-add port if it was non-default
             if port:
                 netloc += f":{port}"
-        
+
         normalized_parsed = ParseResult(
             scheme=scheme,
             netloc=netloc,
-            path=normalized_path, # Use path directly from normalize_path
-            params=parsed.params, # Keep original params
+            path=normalized_path,  # Use path directly from normalize_path
+            params=parsed.params,  # Keep original params
             query=normalized_query,
-            fragment="" # Fragment removed
+            fragment="",  # Fragment removed
         )
-        
+
         result = urlunparse(normalized_parsed)
         # Double-check that we didn't end up with an empty result
         if not result and url:
-            logger.warning(f"Normalization resulted in empty URL for '{url}', using fallback")
+            logger.warning(
+                f"Normalization resulted in empty URL for '{url}', using fallback"
+            )
             # Fallback to a basic normalization
             return f"{scheme}://{hostname.lower()}{normalized_path}"
         return result
     except Exception as e:
         logger.error(f"Failed to unparse normalized URL components for '{url}': {e}")
         # Fallback to a reasonable reconstruction
-        reconstructed = f"{scheme}://{hostname.lower() if hostname else netloc}{normalized_path}"
+        reconstructed = (
+            f"{scheme}://{hostname.lower() if hostname else netloc}{normalized_path}"
+        )
         if normalized_query:
             reconstructed += f"?{normalized_query}"
         return reconstructed

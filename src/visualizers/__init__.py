@@ -1,11 +1,12 @@
 """
 Visualization tools for lib2docScrape.
 """
-from .version_history import VersionHistoryVisualizer, VersionGraph, VersionNode, VersionEdge
 
-__all__ = [
-    'VersionHistoryVisualizer',
-    'VersionGraph',
-    'VersionNode',
-    'VersionEdge'
-]
+from .version_history import (
+    VersionEdge,
+    VersionGraph,
+    VersionHistoryVisualizer,
+    VersionNode,
+)
+
+__all__ = ["VersionHistoryVisualizer", "VersionGraph", "VersionNode", "VersionEdge"]

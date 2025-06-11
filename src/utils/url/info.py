@@ -1,53 +1,59 @@
 import functools
+import ipaddress  # Import ipaddress for IP checking
 import logging
-from typing import Optional, Any, Dict, List, Callable, TYPE_CHECKING
-from types import MappingProxyType # Add this import
-from urllib.parse import urlparse, parse_qsl, ParseResult, urlunparse # Removed unquote_plus
-import ipaddress # Import ipaddress for IP checking
+from types import MappingProxyType  # Add this import
+from typing import TYPE_CHECKING, Any, Callable, Optional
+from urllib.parse import ParseResult, parse_qsl, urlunparse  # Removed unquote_plus
+
+# Removed: validate_url, normalize_url, URLSecurityConfig, resolve_url, determine_url_type
+from .domain_parser import extract_domain_parts  # Keep for domain_parts property
 
 # Import necessary components
 from .types import URLType
-# Removed: validate_url, normalize_url, URLSecurityConfig, resolve_url, determine_url_type
-from .domain_parser import extract_domain_parts # Keep for domain_parts property
+
 # Removed: from .url_info_manipulation import URLInfoManipulationMixin
 
 if TYPE_CHECKING:
-    from .factory import create_url_info # For type hinting _creator_func
+    pass  # For type hinting _creator_func
 
 
 # Removed duplicate normalize_path and normalize_hostname functions
 
 logger = logging.getLogger(__name__)
 
-class URLInfo: # Removed mixin inheritance
+
+class URLInfo:  # Removed mixin inheritance
     """
     Represents processed URL information. Should be created via the `create_url_info` factory.
     Immutable after creation via the factory.
     """
+
     __slots__ = (
         "_raw_url",
         "base_url",
-        "_parsed",              # Stores the result of urlparse on the *resolved* URL (before normalization)
-        "_normalized_parsed",   # Stores the result of urlparse on the *normalized* URL
-        "_normalized_url",      # Stores the normalized URL string (without fragment)
-        "is_valid",             # Boolean indicating if the URL is considered valid after processing
-        "error_message",        # Stores the reason for invalidity, if any
-        "url_type",             # Enum indicating if the URL is INTERNAL, EXTERNAL, etc.
-        "_original_path_had_trailing_slash", # Flag for normalization logic
-        "_original_fragment",   # Stores the original fragment identifier
-        "_initialized",         # Internal flag set by the factory upon completion
-        "_creator_func",        # Stores the function used to create URLInfo instances
-        "__dict__",             # Needed for functools.cached_property
+        "_parsed",  # Stores the result of urlparse on the *resolved* URL (before normalization)
+        "_normalized_parsed",  # Stores the result of urlparse on the *normalized* URL
+        "_normalized_url",  # Stores the normalized URL string (without fragment)
+        "is_valid",  # Boolean indicating if the URL is considered valid after processing
+        "error_message",  # Stores the reason for invalidity, if any
+        "url_type",  # Enum indicating if the URL is INTERNAL, EXTERNAL, etc.
+        "_original_path_had_trailing_slash",  # Flag for normalization logic
+        "_original_fragment",  # Stores the original fragment identifier
+        "_initialized",  # Internal flag set by the factory upon completion
+        "_creator_func",  # Stores the function used to create URLInfo instances
+        "__dict__",  # Needed for functools.cached_property
     )
 
     # Note: __init__ is intentionally simple.
     # Direct instantiation of URLInfo() creates an empty, non-functional object.
     # Use the factory function `create_url_info` from `src.utils.url.factory` instead.
-    def __init__(self,
-                 raw_url: Optional[str] = None,
-                 normalized_url: Optional[str] = None,
-                 is_valid: bool = False,
-                 error_message: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        raw_url: Optional[str] = None,
+        normalized_url: Optional[str] = None,
+        is_valid: bool = False,
+        error_message: Optional[str] = None,
+    ) -> None:
         """Initializes a URLInfo object. For test or factory use."""
         logger.debug("URLInfo __init__ called (factory or direct).")
         # Basic attributes initialization
@@ -62,10 +68,9 @@ class URLInfo: # Removed mixin inheritance
         self.url_type: URLType = URLType.UNKNOWN
         self._original_path_had_trailing_slash: bool = False
         self._original_fragment: Optional[str] = None
-        self._creator_func: Optional[Callable[..., 'URLInfo']] = None
+        self._creator_func: Optional[Callable[..., URLInfo]] = None
         # Mark initialized if raw_url provided (direct instantiation) or set by factory
         self._initialized: bool = raw_url is not None
-
 
     # --- Properties --- #
 
@@ -82,7 +87,9 @@ class URLInfo: # Removed mixin inheritance
         excluding the fragment. Returns empty string if invalid.
         """
         if not self._initialized:
-            logger.warning("Accessing normalized_url before factory initialization completed.")
+            logger.warning(
+                "Accessing normalized_url before factory initialization completed."
+            )
             # Still return the actual normalized URL if it exists, even if not fully initialized
             # This allows tests to access the property before initialization is complete
         # Return the stored normalized URL (set by factory even if invalid, might be empty or fallback)
@@ -95,9 +102,9 @@ class URLInfo: # Removed mixin inheritance
         May contain the state just before validation failed, or None if resolution failed.
         """
         if not self._initialized:
-             logger.warning("Accessing parsed before factory initialization completed.")
-             return None
-        return self._parsed # Set by factory
+            logger.warning("Accessing parsed before factory initialization completed.")
+            return None
+        return self._parsed  # Set by factory
 
     @functools.cached_property
     def normalized_parsed(self) -> Optional[ParseResult]:
@@ -105,12 +112,14 @@ class URLInfo: # Removed mixin inheritance
         Returns the parsed result of the *normalized* URL (scheme, netloc, path, params, query).
         Returns None if the URL is invalid or normalization failed.
         """
-        if not self.is_valid: # Check validity first
+        if not self.is_valid:  # Check validity first
             return None
-        if not self._initialized: # Check initialization
-             logger.warning("Accessing normalized_parsed before factory initialization completed.")
-             return None
-        return self._normalized_parsed # Set by factory if valid and normalized
+        if not self._initialized:  # Check initialization
+            logger.warning(
+                "Accessing normalized_parsed before factory initialization completed."
+            )
+            return None
+        return self._normalized_parsed  # Set by factory if valid and normalized
 
     @functools.cached_property
     def scheme(self) -> Optional[str]:
@@ -165,9 +174,13 @@ class URLInfo: # Removed mixin inheritance
         Returns None if no fragment was present or initialization failed.
         """
         if not self._initialized:
-             logger.warning("Accessing fragment before factory initialization completed.")
-             return None
-        return self._original_fragment # Retrieved by factory
+            logger.warning(
+                "Accessing fragment before factory initialization completed."
+            )
+            return None
+        return (
+            self._original_fragment
+        )  # Retrieved by factory, can be None or empty string
 
     @functools.cached_property
     def hostname(self) -> Optional[str]:
@@ -175,7 +188,7 @@ class URLInfo: # Removed mixin inheritance
         Returns the hostname (lowercase) from the *parsed* (resolved but pre-normalization) URL.
         Attempts to return even if URL is ultimately invalid.
         """
-        p = self.parsed # Use pre-normalization parsed result
+        p = self.parsed  # Use pre-normalization parsed result
         return p.hostname if p else None
 
     @functools.cached_property
@@ -185,7 +198,7 @@ class URLInfo: # Removed mixin inheritance
         Attempts to return even if URL is ultimately invalid.
         Returns None if port is invalid or unspecified.
         """
-        p = self.parsed # Use pre-normalization parsed result
+        p = self.parsed  # Use pre-normalization parsed result
         try:
             port_val = p.port if p else None
             # Basic validation is done in factory, but double-check range here
@@ -196,19 +209,19 @@ class URLInfo: # Removed mixin inheritance
             return None
 
     @functools.cached_property
-    def query_params(self) -> MappingProxyType[str, List[str]]:
+    def query_params(self) -> MappingProxyType[str, list[str]]:
         """
         Returns the query string from the *normalized* URL, parsed into an immutable dictionary-like object.
         Keys are parameter names, values are lists of values.
         Returns an empty mapping if invalid or no query.
         """
-        q_str = self.query # Relies on normalized query
+        q_str = self.query  # Relies on normalized query
         if not q_str:
             return MappingProxyType({})
 
         try:
             parsed_list = parse_qsl(q_str, keep_blank_values=True, strict_parsing=False)
-            params_dict: Dict[str, List[str]] = {}
+            params_dict: dict[str, list[str]] = {}
             for key, value in parsed_list:
                 params_dict.setdefault(key, []).append(value)
             return MappingProxyType(params_dict)
@@ -223,29 +236,30 @@ class URLInfo: # Removed mixin inheritance
         Returns the (potentially non-normalized) fallback URL if invalid.
         """
         if not self._initialized:
-             logger.warning("Accessing url before factory initialization completed.")
-             # Return the raw input as the best guess if not initialized
-             return self._raw_url if self._raw_url is not None else ""
-
+            logger.warning("Accessing url before factory initialization completed.")
+            # Return the raw input as the best guess if not initialized
+            return self._raw_url if self._raw_url is not None else ""
 
         # Use the normalized URL (without fragment) if valid, otherwise use the stored fallback
         # Ensure _normalized_url is not None before using it
-        base_url = self.normalized_url if self.is_valid else (self._normalized_url if self._normalized_url is not None else "")
-
+        base_url = (
+            self.normalized_url
+            if self.is_valid
+            else (self._normalized_url if self._normalized_url is not None else "")
+        )
 
         # Append fragment if it existed originally
-        frag = self.fragment # Use fragment property
-        if frag:
+        frag = self.fragment  # Use fragment property
+        if frag is not None and frag:
             # Handle cases where base_url might be empty (e.g., invalid input was just "#frag")
             # Check raw_url as well for this edge case
-            if not base_url and self._raw_url and self._raw_url.startswith('#'):
-                 return f"#{frag}"
+            if not base_url and self._raw_url and self._raw_url.startswith("#"):
+                return f"#{frag}"
             # Ensure base_url is a string before formatting
             return f"{str(base_url)}#{frag}"
         else:
-             # Ensure base_url is a string
+            # Ensure base_url is a string
             return str(base_url)
-
 
     # --- Derived Boolean Properties --- #
 
@@ -270,12 +284,12 @@ class URLInfo: # Removed mixin inheritance
         """Checks if the hostname (from pre-normalized URL) is an IP address (v4 or v6)."""
         # Use hostname property which uses self.parsed
         hn = self.hostname
-        if not hn: # Check if hostname exists
-             return False
+        if not hn:  # Check if hostname exists
+            return False
         # The validation logic remains the same
         try:
             # Handle IPv6 addresses which may be enclosed in brackets
-            if hn.startswith('[') and hn.endswith(']'):
+            if hn.startswith("[") and hn.endswith("]"):
                 hn = hn[1:-1]
             ipaddress.ip_address(hn)
             return True
@@ -307,7 +321,7 @@ class URLInfo: # Removed mixin inheritance
     def is_secure(self) -> bool:
         """Checks if the URL uses a secure scheme (e.g., 'https', 'wss'). Based on *normalized* URL."""
         # Define secure schemes directly here as URLSecurityConfig is no longer imported
-        SECURE_SCHEMES = {'https', 'wss'}
+        SECURE_SCHEMES = {"https", "wss"}
         # scheme property uses normalized_parsed if valid
         return self.scheme in SECURE_SCHEMES
 
@@ -330,17 +344,36 @@ class URLInfo: # Removed mixin inheritance
         if not hn:
             logger.debug("domain_parts: No hostname available from self._parsed.")
             # Return empty immutable mapping
-            return MappingProxyType({"subdomain": None, "domain": None, "suffix": None, "registered_domain": None})
+            return MappingProxyType(
+                {
+                    "subdomain": None,
+                    "domain": None,
+                    "suffix": None,
+                    "registered_domain": None,
+                }
+            )
 
         try:
             # Call the imported helper function
             parts = extract_domain_parts(hn)
-            logger.debug(f"domain_parts: extract_domain_parts result for '{hn}': {parts}")
+            logger.debug(
+                f"domain_parts: extract_domain_parts result for '{hn}': {parts}"
+            )
             return MappingProxyType(parts)
         except Exception as e:
-            logger.error(f"domain_parts: Error calling extract_domain_parts for hostname '{hn}': {e}", exc_info=True)
+            logger.error(
+                f"domain_parts: Error calling extract_domain_parts for hostname '{hn}': {e}",
+                exc_info=True,
+            )
             # Return empty immutable mapping on error
-            return MappingProxyType({"subdomain": None, "domain": None, "suffix": None, "registered_domain": None})
+            return MappingProxyType(
+                {
+                    "subdomain": None,
+                    "domain": None,
+                    "suffix": None,
+                    "registered_domain": None,
+                }
+            )
 
     @functools.cached_property
     def subdomain(self) -> Optional[str]:
@@ -372,9 +405,8 @@ class URLInfo: # Removed mixin inheritance
         # Check if it's an IP *after* checking domain_parts result
         # Use the is_ip_address property which handles brackets etc.
         if not reg_domain and self.is_ip_address:
-            return self.hostname # Return IP address string (hostname property)
+            return self.hostname  # Return IP address string (hostname property)
         return reg_domain
-
 
     @functools.cached_property
     def root_domain(self) -> Optional[str]:
@@ -384,76 +416,106 @@ class URLInfo: # Removed mixin inheritance
     # --- Methods --- #
 
     # Methods moved from URLInfoManipulationMixin
-    def with_scheme(self, scheme: str) -> 'URLInfo':
+    def with_scheme(self, scheme: str) -> "URLInfo":
         """Create a new URLInfo instance with a different scheme."""
         if not self.is_valid or not self._normalized_parsed:
             # Consider raising an error or returning a new invalid URLInfo
-            from .factory import create_url_info # Local import
-            return create_url_info(self.raw_url, self.base_url) # Re-create to maintain state
+            from .factory import create_url_info  # Local import
+
+            return create_url_info(
+                self.raw_url, self.base_url
+            )  # Re-create to maintain state
 
         try:
             parts = list(self._normalized_parsed)
             parts[0] = scheme  # Replace scheme
             new_url_str_no_frag = urlunparse(tuple(parts))
             # Preserve original fragment
-            final_url_str = f"{new_url_str_no_frag}#{self.fragment}" if self.fragment else new_url_str_no_frag
-            from .factory import create_url_info # Local import
+            final_url_str = (
+                f"{new_url_str_no_frag}#{self.fragment}"
+                if self.fragment is not None and self.fragment
+                else new_url_str_no_frag
+            )
+            from .factory import create_url_info  # Local import
+
             return create_url_info(final_url_str, base_url=self.base_url)
         except Exception as e:
-            logger.warning(f"Scheme change failed: {e}") # Use logger
-            from .factory import create_url_info # Local import
-            return create_url_info(self.raw_url, self.base_url) # Fallback
+            logger.warning(f"Scheme change failed: {e}")  # Use logger
+            from .factory import create_url_info  # Local import
 
-    def with_path(self, path: str) -> 'URLInfo':
+            return create_url_info(self.raw_url, self.base_url)  # Fallback
+
+    def with_path(self, path: str) -> "URLInfo":
         """Create a new URLInfo instance with a different path."""
         if not self.is_valid or not self._normalized_parsed:
-            from .factory import create_url_info # Local import
+            from .factory import create_url_info  # Local import
+
             return create_url_info(self.raw_url, self.base_url)
 
         try:
             parts = list(self._normalized_parsed)
-            parts[2] = path if path.startswith('/') else f"/{path}"  # Replace path
+            parts[2] = path if path.startswith("/") else f"/{path}"  # Replace path
             new_url_str_no_frag = urlunparse(tuple(parts))
-            final_url_str = f"{new_url_str_no_frag}#{self.fragment}" if self.fragment else new_url_str_no_frag
-            from .factory import create_url_info # Local import
+            final_url_str = (
+                f"{new_url_str_no_frag}#{self.fragment}"
+                if self.fragment is not None and self.fragment
+                else new_url_str_no_frag
+            )
+            from .factory import create_url_info  # Local import
+
             return create_url_info(final_url_str, base_url=self.base_url)
         except Exception as e:
-            logger.warning(f"Path change failed: {e}") # Use logger
-            from .factory import create_url_info # Local import
+            logger.warning(f"Path change failed: {e}")  # Use logger
+            from .factory import create_url_info  # Local import
+
             return create_url_info(self.raw_url, self.base_url)
 
-    def with_query_params(self, params: dict) -> 'URLInfo':
+    def with_query_params(self, params: dict) -> "URLInfo":
         """Create a new URLInfo instance with updated query parameters."""
         if not self.is_valid or not self._normalized_parsed:
-            from .factory import create_url_info # Local import
+            from .factory import create_url_info  # Local import
+
             return create_url_info(self.raw_url, self.base_url)
 
         try:
-            from urllib.parse import urlencode # Import locally if needed
-            existing_params = dict(parse_qsl(self._normalized_parsed.query or "", keep_blank_values=True))
+            from urllib.parse import urlencode  # Import locally if needed
+
+            existing_params = dict(
+                parse_qsl(self._normalized_parsed.query or "", keep_blank_values=True)
+            )
             existing_params.update(params)
             new_query = urlencode(existing_params)
 
             parts = list(self._normalized_parsed)
             parts[4] = new_query  # Replace query
             new_url_str_no_frag = urlunparse(tuple(parts))
-            final_url_str = f"{new_url_str_no_frag}#{self.fragment}" if self.fragment else new_url_str_no_frag
-            from .factory import create_url_info # Local import
+            final_url_str = (
+                f"{new_url_str_no_frag}#{self.fragment}"
+                if self.fragment is not None and self.fragment
+                else new_url_str_no_frag
+            )
+            from .factory import create_url_info  # Local import
+
             return create_url_info(final_url_str, base_url=self.base_url)
         except Exception as e:
-            logger.warning(f"Query param update failed: {e}") # Use logger
-            from .factory import create_url_info # Local import
+            logger.warning(f"Query param update failed: {e}")  # Use logger
+            from .factory import create_url_info  # Local import
+
             return create_url_info(self.raw_url, self.base_url)
 
-    def without_query_params(self, param_names: list) -> 'URLInfo':
+    def without_query_params(self, param_names: list) -> "URLInfo":
         """Create a new URLInfo instance with specific query parameters removed."""
         if not self.is_valid or not self._normalized_parsed:
-            from .factory import create_url_info # Local import
+            from .factory import create_url_info  # Local import
+
             return create_url_info(self.raw_url, self.base_url)
 
         try:
-            from urllib.parse import urlencode # Import locally if needed
-            existing_params = dict(parse_qsl(self._normalized_parsed.query or "", keep_blank_values=True))
+            from urllib.parse import urlencode  # Import locally if needed
+
+            existing_params = dict(
+                parse_qsl(self._normalized_parsed.query or "", keep_blank_values=True)
+            )
             for name in param_names:
                 if name in existing_params:
                     del existing_params[name]
@@ -462,16 +524,22 @@ class URLInfo: # Removed mixin inheritance
             parts = list(self._normalized_parsed)
             parts[4] = new_query  # Replace query
             new_url_str_no_frag = urlunparse(tuple(parts))
-            final_url_str = f"{new_url_str_no_frag}#{self.fragment}" if self.fragment else new_url_str_no_frag
-            from .factory import create_url_info # Local import
+            final_url_str = (
+                f"{new_url_str_no_frag}#{self.fragment}"
+                if self.fragment is not None and self.fragment
+                else new_url_str_no_frag
+            )
+            from .factory import create_url_info  # Local import
+
             return create_url_info(final_url_str, base_url=self.base_url)
         except Exception as e:
-            logger.warning(f"Query param removal failed: {e}") # Use logger
-            from .factory import create_url_info # Local import
+            logger.warning(f"Query param removal failed: {e}")  # Use logger
+            from .factory import create_url_info  # Local import
+
             return create_url_info(self.raw_url, self.base_url)
 
     # Original join method from info.py
-    def join(self, relative_url: str) -> 'URLInfo':
+    def join(self, relative_url: str) -> "URLInfo":
         """
         Creates a new URLInfo by joining a relative URL with this URL (if valid).
         Uses the factory function for the creation of the new instance.
@@ -482,10 +550,11 @@ class URLInfo: # Removed mixin inheritance
         base = self.normalized_url
         # Import factory locally to avoid circular imports at module level
         from .factory import create_url_info
+
         return create_url_info(relative_url, base_url=base)
 
     # Original replace method from info.py
-    def replace(self, **kwargs: Any) -> 'URLInfo':
+    def replace(self, **kwargs: Any) -> "URLInfo":
         """
         Creates a new URLInfo object with specified components replaced in the *normalized* URL.
         Uses the factory function for the creation of the new instance.
@@ -493,7 +562,9 @@ class URLInfo: # Removed mixin inheritance
         """
         if not self.is_valid or not self.normalized_parsed:
             # Use normalized_parsed for replacement base
-            raise ValueError("Cannot replace components on an invalid or non-normalized URL")
+            raise ValueError(
+                "Cannot replace components on an invalid or non-normalized URL"
+            )
 
         # Use the normalized parsed result (scheme, netloc, path, params, query)
         new_parsed = self.normalized_parsed._replace(**kwargs)
@@ -501,36 +572,36 @@ class URLInfo: # Removed mixin inheritance
 
         # Add the original fragment back before creating the new instance
         final_url_str = new_url_str_no_frag
-        original_frag = self.fragment # Use property to get original fragment
-        if original_frag:
+        original_frag = self.fragment  # Use property to get original fragment
+        if original_frag is not None and original_frag:
             final_url_str = f"{new_url_str_no_frag}#{original_frag}"
-
 
         # Re-create using the factory
         from .factory import create_url_info
+
         # Pass the *original* base_url that this instance was created with.
         # The factory will handle parsing the fragment from final_url_str again.
         return create_url_info(final_url_str, base_url=self.base_url)
-
 
     # --- Dunder Methods --- #
 
     def __str__(self) -> str:
         """Returns the reconstructed, normalized URL string (including fragment)."""
-        return self.url # Use the url property
+        return self.url  # Use the url property
 
     def __repr__(self) -> str:
         """Returns a developer-friendly representation."""
-        status = 'valid' if self.is_valid else f'invalid ({self.error_message})'
+        status = "valid" if self.is_valid else f"invalid ({self.error_message})"
         # Use url property for normalized output in repr if valid
         norm_repr = self.url if self.is_valid else self._normalized_url
         # Ensure raw_url and base_url are strings for repr
         raw_repr = self._raw_url if self._raw_url is not None else "None"
         base_repr = self.base_url if self.base_url is not None else "None"
 
-        return (f"URLInfo(raw='{raw_repr}', base='{base_repr}', "
-                f"normalized='{norm_repr}', status='{status}')")
-
+        return (
+            f"URLInfo(raw='{raw_repr}', base='{base_repr}', "
+            f"normalized='{norm_repr}', status='{status}')"
+        )
 
     def __eq__(self, other: object) -> bool:
         """
@@ -539,17 +610,19 @@ class URLInfo: # Removed mixin inheritance
         """
         if isinstance(other, URLInfo):
             # Ensure both objects are initialized before comparison
-            if not self._initialized or not getattr(other, '_initialized', False):
-                 return False # Cannot compare uninitialized objects reliably
+            if not self._initialized or not getattr(other, "_initialized", False):
+                return False  # Cannot compare uninitialized objects reliably
 
             if self.is_valid and other.is_valid:
                 # Compare the full .url property (normalized + fragment)
                 return self.url == other.url
             elif not self.is_valid and not other.is_valid:
                 # Compare inputs for invalid instances
-                return self._raw_url == other._raw_url and self.base_url == other.base_url
+                return (
+                    self._raw_url == other._raw_url and self.base_url == other.base_url
+                )
             else:
-                return False # One valid, one invalid
+                return False  # One valid, one invalid
         elif isinstance(other, str):
             # Compare full .url property with the string, only if valid and initialized
             return self._initialized and self.is_valid and self.url == other
@@ -560,11 +633,11 @@ class URLInfo: # Removed mixin inheritance
         Computes hash based on the full reconstructed URL (.url) for valid instances,
         or the tuple (raw_url, base_url) for invalid instances. Consistent with __eq__.
         """
-         # Ensure initialized before hashing
+        # Ensure initialized before hashing
         if not self._initialized:
-             # Hash based on input if not initialized, similar to invalid case
-             logger.warning(f"Hashing uninitialized URLInfo(raw='{self._raw_url}')")
-             return hash((self._raw_url, self.base_url))
+            # Hash based on input if not initialized, similar to invalid case
+            logger.warning(f"Hashing uninitialized URLInfo(raw='{self._raw_url}')")
+            return hash((self._raw_url, self.base_url))
 
         if self.is_valid:
             return hash(self.url)
@@ -577,7 +650,7 @@ class URLInfo: # Removed mixin inheritance
         # Also consider initialization status? No, validity implies initialization.
         return self.is_valid
 
-    def __getstate__(self) -> Dict[str, Any]:
+    def __getstate__(self) -> dict[str, Any]:
         """Prepare the object for pickling. Converts MappingProxyType to dict."""
         state = {}
         for slot in self.__slots__:
@@ -586,13 +659,15 @@ class URLInfo: # Removed mixin inheritance
                 # Convert MappingProxyType in slots to dict for pickling
                 if isinstance(value, MappingProxyType):
                     state[slot] = dict(value)
-                elif slot == '__dict__':
+                elif slot == "__dict__":
                     # Only include __dict__ if it's not empty and convert internal MappingProxyTypes
-                    if value: # value here is self.__dict__
+                    if value:  # value here is self.__dict__
                         dict_copy = {}
                         for k, v in value.items():
                             if isinstance(v, MappingProxyType):
-                                dict_copy[k] = dict(v) # Convert MappingProxyType to dict
+                                dict_copy[k] = dict(
+                                    v
+                                )  # Convert MappingProxyType to dict
                             else:
                                 dict_copy[k] = v
                         # Only add __dict__ to state if it's not empty after potential conversions
@@ -602,46 +677,54 @@ class URLInfo: # Removed mixin inheritance
                     state[slot] = value
         return state
 
-
-    def __setstate__(self, state: Dict[str, Any]) -> None:
+    def __setstate__(self, state: dict[str, Any]) -> None:
         """Restore the object state from pickling."""
         # Restore __dict__ first if present in state
-        if '__dict__' in state:
+        if "__dict__" in state:
             # Ensure self.__dict__ exists before updating
-            if not hasattr(self, '__dict__'):
-                 super().__setattr__('__dict__', {}) # Initialize __dict__ if missing
-            self.__dict__.update(state['__dict__'])
+            if not hasattr(self, "__dict__"):
+                super().__setattr__("__dict__", {})  # Initialize __dict__ if missing
+            self.__dict__.update(state["__dict__"])
             # No need to delete from state, loop below will skip it
 
         # Restore slotted attributes using super to bypass our __setattr__
         for slot in self.__slots__:
             if slot in state:
                 # Skip __dict__ as it was handled above
-                if slot != '__dict__':
+                if slot != "__dict__":
                     super().__setattr__(slot, state[slot])
             else:
                 # If a slot is missing in the state, initialize it to a default value
                 # This handles unpickling older versions that might lack a slot.
                 if not hasattr(self, slot):
-                    logger.warning(f"__setstate__: Slot '{slot}' missing in state. Initializing to default.")
-                    default_value = None # Or determine appropriate default based on slot type
-                    if slot == '_initialized': default_value = False
-                    elif slot == 'is_valid': default_value = False
-                    elif slot == 'url_type': default_value = URLType.UNKNOWN
-                    elif slot == '_raw_url': default_value = ""
-                    elif slot == '_original_path_had_trailing_slash': default_value = False
+                    logger.warning(
+                        f"__setstate__: Slot '{slot}' missing in state. Initializing to default."
+                    )
+                    default_value = (
+                        None  # Or determine appropriate default based on slot type
+                    )
+                    if slot == "_initialized":
+                        default_value = False
+                    elif slot == "is_valid":
+                        default_value = False
+                    elif slot == "url_type":
+                        default_value = URLType.UNKNOWN
+                    elif slot == "_raw_url":
+                        default_value = ""
+                    elif slot == "_original_path_had_trailing_slash":
+                        default_value = False
                     # Add other defaults as needed
                     super().__setattr__(slot, default_value)
 
-
         # Ensure _initialized is set correctly after restoring state
         # It should be present in the state if saved correctly by __getstate__
-        if not hasattr(self, '_initialized'):
+        if not hasattr(self, "_initialized"):
             # Fallback: Assume initialized if it was valid, otherwise not.
             # This might be incorrect if an object was pickled mid-factory-creation.
-            logger.warning("Restoring URLInfo state: _initialized flag was missing. Inferring from is_valid.")
-            super().__setattr__('_initialized', getattr(self, 'is_valid', False))
-
+            logger.warning(
+                "Restoring URLInfo state: _initialized flag was missing. Inferring from is_valid."
+            )
+            super().__setattr__("_initialized", getattr(self, "is_valid", False))
 
     def __setattr__(self, name: str, value: Any) -> None:
         """
@@ -649,15 +732,17 @@ class URLInfo: # Removed mixin inheritance
         Allows modification only if _initialized is False.
         """
         # Check if '_initialized' exists and is True. Use getattr for safety.
-        initialized = getattr(self, '_initialized', False)
+        initialized = getattr(self, "_initialized", False)
 
         # Allow setting attributes only if not initialized yet.
         # This includes setting __dict__ for cached_property during its first access.
         if not initialized:
             super().__setattr__(name, value)
         # If initialized, only allow internal setting of __dict__ itself (by cached_property)
-        elif name == '__dict__':
-             super().__setattr__(name, value)
+        elif name == "__dict__":
+            super().__setattr__(name, value)
         else:
             # Raise error for any other attribute setting attempt after initialization
-            raise AttributeError(f"Cannot set attribute '{name}' on immutable URLInfo object after creation by factory")
+            raise AttributeError(
+                f"Cannot set attribute '{name}' on immutable URLInfo object after creation by factory"
+            )

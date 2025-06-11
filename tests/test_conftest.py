@@ -1,7 +1,9 @@
 """Tests for conftest.py fixtures and mocks."""
 
 import pytest
-from tests.conftest import MockSuccessBackend, MockFailureBackend
+
+from tests.conftest import MockFailureBackend, MockSuccessBackend
+
 
 def test_mock_success_backend():
     """Test that MockSuccessBackend can be instantiated."""
@@ -22,15 +24,17 @@ def test_mock_failure_backend():
 async def test_mock_success_backend_crawl():
     """Test the crawl method of MockSuccessBackend."""
     backend = MockSuccessBackend()
-    
+
     # Import here to avoid potential circular imports
     from src.utils.url.factory import create_url_info
+
     url_info = create_url_info("https://example.com/test")
-    
+
     result = await backend.crawl(url_info)
     assert result.status == 200
     assert result.content_type == "text/html"
-    assert "Sample Document" in result.content.get("html", "")
+    # URL ending with /test returns "Discovered Page" content
+    assert "Discovered Page" in result.content.get("html", "")
     assert not result.error
     assert len(result.documents) > 0
 
@@ -39,11 +43,12 @@ async def test_mock_success_backend_crawl():
 async def test_mock_failure_backend_crawl():
     """Test the crawl method of MockFailureBackend."""
     backend = MockFailureBackend()
-    
+
     # Import here to avoid potential circular imports
     from src.utils.url.factory import create_url_info
+
     url_info = create_url_info("https://example.com/test")
-    
+
     result = await backend.crawl(url_info)
     assert result.status == 500
     assert result.error == "Simulated failure"
@@ -57,9 +62,9 @@ def test_sample_html_factory(sample_html_factory):
         title="Custom Title",
         heading="Custom Heading",
         paragraph="Custom paragraph text.",
-        link="/custom-link"
+        link="/custom-link",
     )
-    
+
     assert "Custom Title" in html
     assert "Custom Heading" in html
     assert "Custom paragraph text." in html
@@ -86,15 +91,16 @@ async def test_content_processor(content_processor):
     assert content_processor is not None
     # Test that the mock returns the expected processed content
     from src.backends.base import CrawlResult
+
     # Create a minimal CrawlResult for testing
     crawl_result = CrawlResult(
         url="https://example.com/test",
         content={"html": "<html><body>Test</body></html>"},
         status=200,
         content_type="text/html",
-        metadata={"title": "Test Page"}  # Adding required metadata field
+        metadata={"title": "Test Page"},  # Adding required metadata field
     )
-    
+
     processed = await content_processor.process(crawl_result)
     assert processed.content.get("formatted_content") == "Processed content"
     assert processed.metadata.get("title") == "Sample Document"

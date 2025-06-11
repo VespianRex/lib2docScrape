@@ -1,6 +1,7 @@
-import pytest
-from datetime import datetime, timedelta
 import uuid
+from datetime import datetime, timedelta
+
+import pytest
 
 # Pydantic v1/v2 compatibility
 try:
@@ -8,16 +9,20 @@ try:
 except ImportError:
     from pydantic import ValidationError
 
+# Import the core validation error for pytest.raises
+from pydantic_core import ValidationError as PydanticCoreValidationError
+
 from src.crawler.distributed.models import (
-    TaskStatus,
-    WorkerStatus,
     DistributedConfig,
-    WorkerTask,
+    ManagerStatus,
     TaskResult,
-    WorkerInfo,
+    TaskStatus,
     WorkerHeartbeat,
-    ManagerStatus
+    WorkerInfo,
+    WorkerStatus,
+    WorkerTask,
 )
+
 
 def test_task_status_enum():
     assert TaskStatus.PENDING == "pending"
@@ -25,14 +30,16 @@ def test_task_status_enum():
     assert TaskStatus.COMPLETED == "completed"
     assert TaskStatus.FAILED == "failed"
     assert TaskStatus.CANCELED == "canceled"
-    with pytest.raises(AttributeError): # Or check __members__
-        TaskStatus.UNKNOWN 
+    with pytest.raises(AttributeError):  # Or check __members__
+        _ = TaskStatus.UNKNOWN
+
 
 def test_worker_status_enum():
     assert WorkerStatus.IDLE == "idle"
     assert WorkerStatus.BUSY == "busy"
     assert WorkerStatus.OFFLINE == "offline"
     assert WorkerStatus.ERROR == "error"
+
 
 def test_distributed_config_defaults():
     config = DistributedConfig()
@@ -44,22 +51,20 @@ def test_distributed_config_defaults():
     assert config.metrics_enabled is True
     assert config.metrics_interval == 30
 
+
 def test_distributed_config_custom():
-    custom_values = {
-        "max_workers": 10,
-        "task_timeout": 60,
-        "metrics_enabled": False
-    }
+    custom_values = {"max_workers": 10, "task_timeout": 60, "metrics_enabled": False}
     config = DistributedConfig(**custom_values)
     assert config.max_workers == 10
     assert config.task_timeout == 60
     assert config.metrics_enabled is False
 
+
 def test_worker_task_defaults():
     url = "http://example.com/task"
     task = WorkerTask(url=url)
     assert isinstance(task.task_id, str)
-    assert len(task.task_id) == 36 # UUID length
+    assert len(task.task_id) == 36  # UUID length
     assert task.url == url
     assert task.max_depth == 1
     assert task.priority == 0
@@ -67,6 +72,7 @@ def test_worker_task_defaults():
     assert isinstance(task.created_at, datetime)
     assert task.retry_count == 0
     assert task.metadata == {}
+
 
 def test_worker_task_custom():
     uid = str(uuid.uuid4())
@@ -82,7 +88,7 @@ def test_worker_task_custom():
         worker_id="worker-1",
         retry_count=1,
         parent_task_id="parent-123",
-        metadata={"key": "value"}
+        metadata={"key": "value"},
     )
     assert task.task_id == uid
     assert task.url == url
@@ -95,12 +101,14 @@ def test_worker_task_custom():
     assert task.parent_task_id == "parent-123"
     assert task.metadata == {"key": "value"}
 
+
 def test_worker_task_url_validation():
-    with pytest.raises(ValidationError):
+    # We need to catch either ValidationError (pydantic) or PydanticCoreValidationError
+    with pytest.raises((ValidationError, PydanticCoreValidationError)):
         WorkerTask(url="ftp://invalid.com")
-    with pytest.raises(ValidationError):
+    with pytest.raises((ValidationError, PydanticCoreValidationError)):
         WorkerTask(url="example.com")
-    
+
     task_http = WorkerTask(url="http://example.com")
     assert task_http.url == "http://example.com"
     task_https = WorkerTask(url="https://example.com")
@@ -111,9 +119,9 @@ def test_task_result_defaults():
     task_id = "task-abc"
     worker_id = "worker-xyz"
     url = "http://example.com/result"
-    
+
     result = TaskResult(task_id=task_id, worker_id=worker_id, url=url, success=True)
-    
+
     assert result.task_id == task_id
     assert result.worker_id == worker_id
     assert result.url == url
@@ -129,6 +137,7 @@ def test_task_result_defaults():
     assert result.result_data is None
     assert result.child_tasks == []
 
+
 def test_task_result_custom():
     result = TaskResult(
         task_id="task-001",
@@ -143,13 +152,14 @@ def test_task_result_custom():
         content_type="text/plain",
         metadata={"source": "test"},
         result_data={"raw": "error data"},
-        child_tasks=[WorkerTask(url="https://test.com/child1")]
+        child_tasks=[WorkerTask(url="https://test.com/child1")],
     )
     assert result.success is False
     assert result.error_message == "Timeout"
     assert result.crawl_time == 1.23
     assert len(result.child_tasks) == 1
     assert result.child_tasks[0].url == "https://test.com/child1"
+
 
 def test_worker_info_defaults():
     hostname = "test-host"
@@ -186,13 +196,14 @@ def test_worker_info_custom():
         memory_usage=0.55,
         last_heartbeat=last_hb,
         capabilities={"gpu": True, "os": "linux"},
-        metadata={"region": "us-east"}
+        metadata={"region": "us-east"},
     )
     assert info.worker_id == "custom-worker-id"
     assert info.status == WorkerStatus.BUSY
     assert info.current_task_id == "task-current"
     assert info.cpu_usage == 0.75
     assert info.capabilities == {"gpu": True, "os": "linux"}
+
 
 def test_worker_heartbeat_defaults():
     worker_id = "worker-hb-test"
@@ -207,6 +218,7 @@ def test_worker_heartbeat_defaults():
     assert hb.memory_usage == 0.0
     assert hb.metadata == {}
 
+
 def test_worker_heartbeat_custom():
     ts = datetime.now() - timedelta(seconds=5)
     hb = WorkerHeartbeat(
@@ -216,13 +228,14 @@ def test_worker_heartbeat_custom():
         current_task_id="task-active-on-worker-002",
         cpu_usage=0.9,
         memory_usage=0.2,
-        metadata={"load_avg": 0.8}
+        metadata={"load_avg": 0.8},
     )
     assert hb.timestamp == ts
     assert hb.status == WorkerStatus.BUSY
     assert hb.current_task_id == "task-active-on-worker-002"
     assert hb.cpu_usage == 0.9
     assert hb.metadata == {"load_avg": 0.8}
+
 
 def test_manager_status_defaults():
     status = ManagerStatus()
@@ -232,13 +245,14 @@ def test_manager_status_defaults():
     assert status.running_tasks == 0
     assert status.completed_tasks == 0
     assert status.failed_tasks == 0
-    assert status.canceled_tasks == 0 # Make sure this field is tested
+    assert status.canceled_tasks == 0  # Make sure this field is tested
     assert status.total_tasks == 0
     assert isinstance(status.start_time, datetime)
     assert status.uptime == 0.0
     assert status.task_throughput == 0.0
     assert status.average_task_time == 0.0
     assert status.metadata == {}
+
 
 def test_manager_status_custom():
     st = datetime.now() - timedelta(minutes=10)
@@ -250,12 +264,12 @@ def test_manager_status_custom():
         completed_tasks=50,
         failed_tasks=5,
         canceled_tasks=1,
-        total_tasks=158, # 100+2+50+5+1
+        total_tasks=158,  # 100+2+50+5+1
         start_time=st,
         uptime=600.0,
-        task_throughput=0.0833, # 50 tasks / 600s
+        task_throughput=0.0833,  # 50 tasks / 600s
         average_task_time=10.5,
-        metadata={"cluster_name": "prod"}
+        metadata={"cluster_name": "prod"},
     )
     assert status.active_workers == 2
     assert status.total_tasks == 158

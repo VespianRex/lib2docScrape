@@ -1,5 +1,6 @@
 from typing import Optional
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
+
 
 def resolve_url(url: str, base: Optional[str], keep_fragment: bool = False) -> str:
     """
@@ -18,21 +19,22 @@ def resolve_url(url: str, base: Optional[str], keep_fragment: bool = False) -> s
     """
     try:
         # Use urljoin for robust relative URL resolution
-        resolved_url = urljoin(base or '', url)
+        resolved_url = urljoin(base or "", url)
     except ValueError as e:
         # Catch errors during urljoin (e.g., malformed base or relative part)
         raise ValueError(f"URL resolution failed: {e}") from e
 
     # Remove fragment identifier (#...) only if keep_fragment is False
     if not keep_fragment:
-        resolved_url = resolved_url.split('#', 1)[0]
+        resolved_url = resolved_url.split("#", 1)[0]
 
     # Userinfo (user:pass@) is handled during validation, not removed here.
 
     # Return the resolved URL string.
     return resolved_url
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Example Usage
     base = "https://example.com/docs/current/"
     urls_to_test = [
@@ -45,23 +47,29 @@ if __name__ == '__main__':
         "http://192.168.1.1/admin",
         "http://example.com/path%00null",
         "http://user:pass@example.com/",
-        "http://xn--mnchen-3ya.de/", # IDN
+        "http://xn--mnchen-3ya.de/",  # IDN
         "http://localhost:8080/test",
         "file:///etc/passwd",
-        "http://[::1]/", # IPv6 Loopback
+        "http://[::1]/",  # IPv6 Loopback
         "",
         None,
         "invalid url string",
     ]
 
     for url_str in urls_to_test:
-        print(f"--- Testing URL: {url_str} (Base: {base if url_str and not urlparse(str(url_str)).scheme else 'None'}) ---")
+        print(
+            f"--- Testing URL: {url_str} (Base: {base if url_str and not urlparse(str(url_str)).scheme else 'None'}) ---"
+        )
         try:
-            # Need urlparse for the base check in the print statement, but not in resolve_url itself
-            from urllib.parse import urlparse
-            resolved = resolve_url(url_str, base if url_str and not urlparse(str(url_str)).scheme else None)
+            resolved = resolve_url(
+                url_str, base if url_str and not urlparse(str(url_str)).scheme else None
+            )
             print(f"  Resolved: {resolved}")
-            resolved_with_frag = resolve_url(url_str, base if url_str and not urlparse(str(url_str)).scheme else None, keep_fragment=True)
+            resolved_with_frag = resolve_url(
+                url_str,
+                base if url_str and not urlparse(str(url_str)).scheme else None,
+                keep_fragment=True,
+            )
             print(f"  Resolved (with fragment): {resolved_with_frag}")
         except ValueError as e:
             print(f"  Resolution failed: {e}")

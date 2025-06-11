@@ -1,7 +1,9 @@
 # Technology Stack
+Last Updated: 2025-05-23 12:05
 
 ## Testing Framework
 - pytest - Main testing framework
+- coverage.py - Code coverage measurement
 - UV - Package manager for dependency management
 
 ## Main Project Technologies

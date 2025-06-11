@@ -1,10 +1,11 @@
 """Simple tests for the HTTP backend."""
 
-import pytest
-from unittest.mock import MagicMock, AsyncMock
+from unittest.mock import AsyncMock
 
-from src.backends.http_backend import HTTPBackend, HTTPBackendConfig
+import pytest
+
 from src.backends.base import CrawlResult
+from src.backends.http_backend import HTTPBackend, HTTPBackendConfig
 
 
 @pytest.fixture
@@ -14,7 +15,7 @@ def http_config():
         timeout=10.0,
         verify_ssl=True,
         follow_redirects=True,
-        headers={"User-Agent": "TestAgent/1.0"}
+        headers={"User-Agent": "TestAgent/1.0"},
     )
 
 
@@ -31,7 +32,7 @@ async def test_validate_valid_content(http_backend):
         url="https://example.com",
         content={"html": "<html></html>"},
         metadata={},
-        status=200
+        status=200,
     )
     assert await http_backend.validate(valid_content) is True
 
@@ -43,7 +44,7 @@ async def test_validate_invalid_content_status(http_backend):
         url="https://example.com",
         content={"html": "<html></html>"},
         metadata={},
-        status=404
+        status=404,
     )
     assert await http_backend.validate(invalid_content) is False
 
@@ -52,10 +53,7 @@ async def test_validate_invalid_content_status(http_backend):
 async def test_validate_invalid_content_no_html(http_backend):
     """Test validating content with no HTML."""
     invalid_content = CrawlResult(
-        url="https://example.com",
-        content={},
-        metadata={},
-        status=200
+        url="https://example.com", content={}, metadata={}, status=200
     )
     assert await http_backend.validate(invalid_content) is False
 
@@ -73,7 +71,7 @@ async def test_process_valid_content(http_backend):
         url="https://example.com",
         content={"html": "<html></html>"},
         metadata={"content-type": "text/html"},
-        status=200
+        status=200,
     )
     processed = await http_backend.process(valid_content)
     assert processed["url"] == valid_content.url
@@ -85,10 +83,7 @@ async def test_process_valid_content(http_backend):
 async def test_process_invalid_content(http_backend):
     """Test processing invalid content."""
     invalid_content = CrawlResult(
-        url="https://example.com",
-        content={},
-        metadata={},
-        status=404
+        url="https://example.com", content={}, metadata={}, status=404
     )
     processed = await http_backend.process(invalid_content)
     assert processed == {}
@@ -100,10 +95,10 @@ async def test_close(http_backend):
     # Create a mock session
     mock_session = AsyncMock()
     http_backend.session = mock_session
-    
+
     # Call the method
     await http_backend.close()
-    
+
     # Verify the session was closed
     mock_session.close.assert_called_once()
     assert http_backend.session is None

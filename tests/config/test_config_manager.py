@@ -1,39 +1,44 @@
 """
 Tests for the configuration management system.
 """
+
 import os
 import tempfile
-from pathlib import Path
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from src.config.config_manager import (
     ConfigFormat,
     ConfigManager,
-    ConfigPreset,
     get_config,
     load_config,
-    load_preset,
-    register_config_model
+    register_config_model,
 )
+
 
 class TestConfigModel(BaseModel):
     """Test configuration model."""
+
     test_string: str = "default"
     test_int: int = 42
     test_bool: bool = True
 
+
 class TestNestedConfigModel(BaseModel):
     """Test nested configuration model."""
+
     nested_string: str = "nested"
     nested_int: int = 100
 
+
 class TestComplexConfigModel(BaseModel):
     """Test complex configuration model."""
+
     complex_string: str = "complex"
     complex_int: int = 200
     nested: TestNestedConfigModel = TestNestedConfigModel()
+
 
 def test_config_manager_init():
     """Test ConfigManager initialization."""
@@ -45,6 +50,7 @@ def test_config_manager_init():
     custom_dir = "/tmp/config"
     manager = ConfigManager(config_dir=custom_dir)
     assert manager.config_dir == custom_dir
+
 
 def test_register_model():
     """Test registering configuration models."""
@@ -60,13 +66,15 @@ def test_register_model():
     assert "complex" in manager.model_registry
     assert manager.model_registry["complex"] == TestComplexConfigModel
 
+
 def test_load_config():
     """Test loading configuration from a file."""
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create a test YAML config
         yaml_path = os.path.join(temp_dir, "test.yaml")
         with open(yaml_path, "w") as f:
-            f.write("""
+            f.write(
+                """
             test:
               test_string: "yaml_value"
               test_int: 123
@@ -76,19 +84,22 @@ def test_load_config():
               nested:
                 nested_string: "nested_value"
                 nested_int: 789
-            """)
+            """
+            )
 
         # Create a test JSON config
         json_path = os.path.join(temp_dir, "test.json")
         with open(json_path, "w") as f:
-            f.write("""
+            f.write(
+                """
             {
                 "test": {
                     "test_string": "json_value",
                     "test_int": 321
                 }
             }
-            """)
+            """
+            )
 
         # Load YAML config
         manager = ConfigManager()
@@ -107,6 +118,7 @@ def test_load_config():
         with pytest.raises(FileNotFoundError):
             manager.load_config(os.path.join(temp_dir, "nonexistent.yaml"))
 
+
 def test_validate_config():
     """Test validating configuration against models."""
     manager = ConfigManager()
@@ -117,19 +129,12 @@ def test_validate_config():
 
     # Valid configuration
     valid_config = {
-        "test": {
-            "test_string": "valid",
-            "test_int": 123,
-            "test_bool": False
-        },
+        "test": {"test_string": "valid", "test_int": 123, "test_bool": False},
         "complex": {
             "complex_string": "valid_complex",
             "complex_int": 456,
-            "nested": {
-                "nested_string": "valid_nested",
-                "nested_int": 789
-            }
-        }
+            "nested": {"nested_string": "valid_nested", "nested_int": 789},
+        },
     }
 
     validated = manager.validate_config(valid_config)
@@ -144,7 +149,7 @@ def test_validate_config():
         "test": {
             "test_string": "valid",
             "test_int": "not_an_int",  # Should be an int
-            "test_bool": False
+            "test_bool": False,
         }
     }
 
@@ -153,11 +158,7 @@ def test_validate_config():
 
     # Missing section (should use defaults)
     missing_section = {
-        "test": {
-            "test_string": "valid",
-            "test_int": 123,
-            "test_bool": False
-        }
+        "test": {"test_string": "valid", "test_int": 123, "test_bool": False}
         # Missing "complex" section
     }
 
@@ -166,6 +167,7 @@ def test_validate_config():
     assert "complex" in validated
     assert validated["complex"]["complex_string"] == "complex"  # Default value
     assert validated["complex"]["nested"]["nested_string"] == "nested"  # Default value
+
 
 def test_get_config():
     """Test getting configuration sections."""
@@ -177,19 +179,12 @@ def test_get_config():
 
     # Load a test config
     manager.configs["main"] = {
-        "test": {
-            "test_string": "get_test",
-            "test_int": 123,
-            "test_bool": False
-        },
+        "test": {"test_string": "get_test", "test_int": 123, "test_bool": False},
         "complex": {
             "complex_string": "get_complex",
             "complex_int": 456,
-            "nested": {
-                "nested_string": "get_nested",
-                "nested_int": 789
-            }
-        }
+            "nested": {"nested_string": "get_nested", "nested_int": 789},
+        },
     }
 
     # Get entire config
@@ -223,30 +218,23 @@ def test_get_config():
     assert isinstance(empty_model, TestConfigModel)
     assert empty_model.test_string == "default"  # Default value
 
+
 def test_merge_configs():
     """Test merging configuration dictionaries."""
     manager = ConfigManager()
 
     base_config = {
-        "test": {
-            "test_string": "base",
-            "test_int": 100,
-            "test_bool": True
-        },
-        "base_only": {
-            "value": "base_value"
-        }
+        "test": {"test_string": "base", "test_int": 100, "test_bool": True},
+        "base_only": {"value": "base_value"},
     }
 
     override_config = {
         "test": {
             "test_string": "override",
-            "test_int": 200
+            "test_int": 200,
             # test_bool not specified, should keep base value
         },
-        "override_only": {
-            "value": "override_value"
-        }
+        "override_only": {"value": "override_value"},
     }
 
     merged = manager.merge_configs(base_config, override_config)
@@ -258,17 +246,20 @@ def test_merge_configs():
     assert merged["base_only"]["value"] == "base_value"  # Kept from base
     assert merged["override_only"]["value"] == "override_value"  # Added from override
 
+
 def test_global_functions():
     """Test the global configuration functions."""
     # Create a test config file
     with tempfile.TemporaryDirectory() as temp_dir:
         config_path = os.path.join(temp_dir, "test.yaml")
         with open(config_path, "w") as f:
-            f.write("""
+            f.write(
+                """
             test:
               test_string: "global_test"
               test_int: 999
-            """)
+            """
+            )
 
         # Register a model
         register_config_model("test", TestConfigModel)

@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name="lib2docscrape",
@@ -14,7 +14,7 @@ setup(
         "requests>=2.31.0",
         "tldextract>=3.1.0",
         "scrapy>=2.11.0",
-        "duckduckgo-search>=4.4.1"
+        "duckduckgo-search>=4.4.1",
     ],
     extras_require={
         "test": [
@@ -28,7 +28,7 @@ setup(
             "nltk>=3.8.1",
             "psutil>=5.9.0",
             "jinja2>=3.1.2",
-            "bz2file>=0.98"
+            "bz2file>=0.98",
         ]
-    }
+    },
 )

@@ -1,30 +1,37 @@
 """
 Models for distributed crawling.
 """
+
 import uuid
-from enum import Enum
-from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
+from enum import Enum
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, validator
 
+
 class TaskStatus(str, Enum):
     """Status of a crawl task."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELED = "canceled"
 
+
 class WorkerStatus(str, Enum):
     """Status of a crawl worker."""
+
     IDLE = "idle"
     BUSY = "busy"
     OFFLINE = "offline"
     ERROR = "error"
 
+
 class DistributedConfig(BaseModel):
     """Configuration for distributed crawling."""
+
     max_workers: int = 5
     task_timeout: int = 300  # seconds
     retry_count: int = 3
@@ -45,8 +52,10 @@ class DistributedConfig(BaseModel):
     metrics_enabled: bool = True
     metrics_interval: int = 30  # seconds
 
+
 class WorkerTask(BaseModel):
     """Model for a crawl task assigned to a worker."""
+
     task_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     url: str
     max_depth: int = 1
@@ -59,17 +68,19 @@ class WorkerTask(BaseModel):
     worker_id: Optional[str] = None
     retry_count: int = 0
     parent_task_id: Optional[str] = None
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    
-    @validator('url')
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @validator("url")
     def validate_url(cls, v):
         """Validate URL format."""
-        if not v.startswith(('http://', 'https://')):
-            raise ValueError('URL must start with http:// or https://')
+        if not v.startswith(("http://", "https://")):
+            raise ValueError("URL must start with http:// or https://")
         return v
+
 
 class TaskResult(BaseModel):
     """Model for a crawl task result."""
+
     task_id: str
     worker_id: str
     url: str
@@ -81,12 +92,14 @@ class TaskResult(BaseModel):
     status_code: Optional[int] = None
     content_type: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.now)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
-    result_data: Optional[Dict[str, Any]] = None
-    child_tasks: List[WorkerTask] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    result_data: Optional[dict[str, Any]] = None
+    child_tasks: list[WorkerTask] = Field(default_factory=list)
+
 
 class WorkerInfo(BaseModel):
     """Model for worker information."""
+
     worker_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     hostname: str
     ip_address: str
@@ -98,21 +111,25 @@ class WorkerInfo(BaseModel):
     cpu_usage: float = 0.0
     memory_usage: float = 0.0
     last_heartbeat: datetime = Field(default_factory=datetime.now)
-    capabilities: Dict[str, Any] = Field(default_factory=dict)
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    capabilities: dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
 
 class WorkerHeartbeat(BaseModel):
     """Model for worker heartbeat."""
+
     worker_id: str
     timestamp: datetime = Field(default_factory=datetime.now)
     status: WorkerStatus
     current_task_id: Optional[str] = None
     cpu_usage: float = 0.0
     memory_usage: float = 0.0
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
 
 class ManagerStatus(BaseModel):
     """Model for manager status."""
+
     active_workers: int = 0
     idle_workers: int = 0
     pending_tasks: int = 0
@@ -125,4 +142,4 @@ class ManagerStatus(BaseModel):
     uptime: float = 0.0
     task_throughput: float = 0.0  # tasks per second
     average_task_time: float = 0.0  # seconds
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)

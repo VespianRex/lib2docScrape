@@ -1,13 +1,24 @@
 import functools
-import idna
-import re
 import ipaddress
-import posixpath
 import logging
-import tldextract
+import posixpath
+import re
 from enum import Enum, auto
-from typing import Optional, Tuple, Any, Dict
-from urllib.parse import urlparse, urljoin, urlunparse, parse_qsl, urlencode, ParseResult, quote, unquote_plus
+from typing import Any, Optional
+from urllib.parse import (
+    ParseResult,
+    parse_qsl,
+    quote,
+    unquote_plus,
+    urlencode,
+    urljoin,
+    urlparse,
+    urlunparse,
+)
+
+import idna
+import tldextract
+
 
 # Define URLType Enum
 class URLType(Enum):
@@ -15,22 +26,24 @@ class URLType(Enum):
     EXTERNAL = auto()
     UNKNOWN = auto()
 
+
 # Security Configuration
 class URLSecurityConfig:
     """Security configuration for URL validation and sanitization."""
-    ALLOWED_SCHEMES = {'http', 'https', 'file', 'ftp'}
+
+    ALLOWED_SCHEMES = {"http", "https", "file", "ftp"}
     MAX_PATH_LENGTH = 2048
     MAX_QUERY_LENGTH = 2048
     PATH_SAFE_CHARS = "/:@-._~!$&'()*+,;="  # RFC 3986 + common allowed chars
     INVALID_CHARS = re.compile(r'[<>"\'\'\']')
-    INVALID_PATH_TRAVERSAL = re.compile(r'(?:^|/)\.\.\.(?:/|$)')  # Detects /../ or ../
+    INVALID_PATH_TRAVERSAL = re.compile(r"(?:^|/)\.\.\.(?:/|$)")  # Detects /../ or ../
     XSS_PATTERNS = re.compile(
-        r'<script|javascript:|vbscript:|data:text/html|onerror=|onload=|onmouseover=|onclick=|alert\(|eval\(|Function\(|setTimeout\(|setInterval\(|document\.|window\.|fromCharCode|String\.fromCodePoint|base64',
-        re.IGNORECASE
+        r"<script|javascript:|vbscript:|data:text/html|onerror=|onload=|onmouseover=|onclick=|alert\(|eval\(|Function\(|setTimeout\(|setInterval\(|document\.|window\.|fromCharCode|String\.fromCodePoint|base64",
+        re.IGNORECASE,
     )
     SQLI_PATTERNS = re.compile(r"'\s*OR\s*'|'\s*--|\s*UNION\s+SELECT", re.IGNORECASE)
-    CMD_INJECTION_PATTERNS = re.compile(r'[;`|&]')
-    NULL_BYTE_PATTERN = re.compile(r'%00|\x00')
+    CMD_INJECTION_PATTERNS = re.compile(r"[;`|&]")
+    NULL_BYTE_PATTERN = re.compile(r"%00|\x00")
 
 
 class URLInfo:
@@ -38,6 +51,7 @@ class URLInfo:
     Represents a URL, providing validation, normalization, and resolution using tldextract.
     This class is immutable after creation.
     """
+
     __slots__ = (
         "_raw_url",
         "base_url",
@@ -86,8 +100,8 @@ class URLInfo:
             return
 
         try:
-            url_part = url.split('?', 1)[0].split('#', 1)[0]
-            self._original_path_had_trailing_slash = url_part.endswith('/')
+            url_part = url.split("?", 1)[0].split("#", 1)[0]
+            self._original_path_had_trailing_slash = url_part.endswith("/")
 
             self._parse_and_resolve()
 
@@ -96,7 +110,9 @@ class URLInfo:
                 if validation_passed:
                     self.is_valid = True
                     self._normalize()
-                    self.url_type = self._determine_url_type(self._normalized_url, self.base_url)
+                    self.url_type = self._determine_url_type(
+                        self._normalized_url, self.base_url
+                    )
                 else:
                     self.error_message = error
             else:
@@ -123,15 +139,15 @@ class URLInfo:
         base_for_join = self.base_url
 
         # Early check for disallowed schemes
-        if ':' in temp_raw_url:
-            raw_scheme = temp_raw_url.split(':', 1)[0].lower()
-            if raw_scheme in ['javascript', 'data']:
+        if ":" in temp_raw_url:
+            raw_scheme = temp_raw_url.split(":", 1)[0].lower()
+            if raw_scheme in ["javascript", "data"]:
                 self.error_message = f"Disallowed scheme: {raw_scheme}"
                 return
 
         # Handle protocol-relative URLs (default to http)
-        if temp_raw_url.startswith('//'):
-            base_scheme = 'http'
+        if temp_raw_url.startswith("//"):
+            base_scheme = "http"
             if base_for_join:
                 parsed_base_scheme = urlparse(base_for_join).scheme
                 if parsed_base_scheme:
@@ -139,10 +155,16 @@ class URLInfo:
             temp_raw_url = f"{base_scheme}:{temp_raw_url}"
 
         # Add default scheme (http) if missing and looks like a host
-        elif not urlparse(temp_raw_url).scheme and not base_for_join and not temp_raw_url.startswith('file:'):
-            if not temp_raw_url.startswith('/') and not re.match(r'^[a-zA-Z]:[\\\\]', temp_raw_url):
-                potential_host = temp_raw_url.split('/')[0].split('?')[0].split(':')[0]
-                if '.' in potential_host or potential_host.lower() == 'localhost':
+        elif (
+            not urlparse(temp_raw_url).scheme
+            and not base_for_join
+            and not temp_raw_url.startswith("file:")
+        ):
+            if not temp_raw_url.startswith("/") and not re.match(
+                r"^[a-zA-Z]:[\\\\]", temp_raw_url
+            ):
+                potential_host = temp_raw_url.split("/")[0].split("?")[0].split(":")[0]
+                if "." in potential_host or potential_host.lower() == "localhost":
                     temp_raw_url = "http://" + temp_raw_url  # Default HTTP
 
         # Resolve relative URLs
@@ -153,16 +175,19 @@ class URLInfo:
                 parsed_base = urlparse(base_for_join)
                 if not parsed_base.scheme:
                     base_for_join = "http://" + base_for_join
-                
+
                 # Ensure base URL has proper trailing slash for directory-like paths
                 if parsed_base.path:
                     # If path doesn't end with slash and doesn't look like a file (no extension)
-                    if not parsed_base.path.endswith('/') and '.' not in parsed_base.path.split('/')[-1]:
-                        base_for_join = base_for_join.rstrip('/') + '/'
+                    if (
+                        not parsed_base.path.endswith("/")
+                        and "." not in parsed_base.path.split("/")[-1]
+                    ):
+                        base_for_join = base_for_join.rstrip("/") + "/"
                     # If path is empty, add a trailing slash
                     elif not parsed_base.path:
-                        base_for_join = base_for_join.rstrip('/') + '/'
-                
+                        base_for_join = base_for_join.rstrip("/") + "/"
+
                 # Join URLs properly
                 resolved_url = urljoin(base_for_join, temp_raw_url)
             except ValueError as e:
@@ -171,35 +196,43 @@ class URLInfo:
 
         # Parse the resolved URL (remove fragment, remove auth)
         try:
-            resolved_url_no_frag = resolved_url.split('#', 1)[0]
+            resolved_url_no_frag = resolved_url.split("#", 1)[0]
             parsed_temp = urlparse(resolved_url_no_frag)
             netloc = parsed_temp.netloc
-            if '@' in netloc:
-                netloc = netloc.split('@', 1)[1]
+            if "@" in netloc:
+                netloc = netloc.split("@", 1)[1]
             self._parsed = parsed_temp._replace(netloc=netloc)
-            
+
             # Parse with tldextract only if we have a hostname that is NOT an IP or localhost
             if self._parsed.netloc:
-                hostname = self._parsed.hostname.lower() if self._parsed.hostname else None
+                hostname = (
+                    self._parsed.hostname.lower() if self._parsed.hostname else None
+                )
                 is_ip = False
                 if hostname:
                     try:
-                        ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                        ip_check_host = (
+                            hostname.strip("[]")
+                            if hostname.startswith("[") and hostname.endswith("]")
+                            else hostname
+                        )
                         ipaddress.ip_address(ip_check_host)
                         is_ip = True
                     except ValueError:
-                        pass # Not an IP
-                
-                if hostname and hostname != 'localhost' and not is_ip:
+                        pass  # Not an IP
+
+                if hostname and hostname != "localhost" and not is_ip:
                     self._tld_extract_result = tldextract.extract(self._parsed.netloc)
                 else:
-                    self._tld_extract_result = None # Explicitly set to None for IP/localhost
-            
+                    self._tld_extract_result = (
+                        None  # Explicitly set to None for IP/localhost
+                    )
+
         except ValueError as e:
             self.error_message = f"Parsing failed: {e}"
             self._parsed = None
 
-    def _validate(self, parsed: ParseResult) -> Tuple[bool, Optional[str]]:
+    def _validate(self, parsed: ParseResult) -> tuple[bool, Optional[str]]:
         """Orchestrates validation checks."""
         checks = [
             (self._validate_scheme, parsed),
@@ -207,7 +240,7 @@ class URLInfo:
             (self._validate_port, parsed),
             (self._validate_path, parsed),
             (self._validate_query, parsed),
-            (self._validate_security_patterns, parsed)
+            (self._validate_security_patterns, parsed),
         ]
         for check_func, data in checks:
             is_ok, error = check_func(data)
@@ -216,23 +249,23 @@ class URLInfo:
         return True, None
 
     # --- Validation Helpers ---
-    def _validate_scheme(self, p: ParseResult) -> Tuple[bool, Optional[str]]:
-        scheme = p.scheme.lower() if p.scheme else ''
+    def _validate_scheme(self, p: ParseResult) -> tuple[bool, Optional[str]]:
+        scheme = p.scheme.lower() if p.scheme else ""
         if not scheme or scheme not in self.ALLOWED_SCHEMES:
             return False, f"Invalid scheme: {p.scheme or 'None'}"
         return True, None
 
-    def _validate_netloc(self, p: ParseResult) -> Tuple[bool, Optional[str]]:
-        scheme = p.scheme.lower() if p.scheme else ''
-        if not p.netloc and scheme != 'file':
+    def _validate_netloc(self, p: ParseResult) -> tuple[bool, Optional[str]]:
+        scheme = p.scheme.lower() if p.scheme else ""
+        if not p.netloc and scheme != "file":
             return False, "Missing netloc"
-        if '@' in p.netloc:
+        if "@" in p.netloc:
             return False, "Auth info not allowed"
         hostname = p.hostname.lower() if p.hostname else None
-        if not hostname and scheme != 'file':
+        if not hostname and scheme != "file":
             return False, "Missing host"
         if hostname:
-            if hostname == 'localhost':
+            if hostname == "localhost":
                 return True, None
             try:
                 ip = ipaddress.ip_address(hostname)
@@ -250,38 +283,38 @@ class URLInfo:
                 extract_result = self._tld_extract_result
                 if not extract_result:
                     extract_result = tldextract.extract(hostname)
-                    
+
                 # Check domain and suffix
                 if not extract_result.domain:
                     return False, f"Invalid domain (no domain): {hostname}"
-                    
+
                 # If using a non-private domain, must have a valid suffix
                 if not extract_result.suffix and not extract_result.is_private:
                     return False, f"Invalid domain (no valid suffix): {hostname}"
 
-                # Additional validation for domain length etc.                    
+                # Additional validation for domain length etc.
                 if len(hostname) > 253:
                     return False, "Domain too long"
-                    
-                labels = hostname.split('.')
-                if any(not l or len(l) > 63 for l in labels):
+
+                labels = hostname.split(".")
+                if any(not label or len(label) > 63 for label in labels):
                     return False, "Invalid domain label"
-                    
+
                 # Validate IDNA for non-ASCII hostnames
                 if not all(ord(c) < 128 for c in hostname):
                     try:
                         idna.encode(hostname)
                     except idna.IDNAError as e:
                         return False, f"Invalid IDNA: {hostname} ({e})"
-                    
+
         return True, None
 
-    def _validate_port(self, p: ParseResult) -> Tuple[bool, Optional[str]]:
+    def _validate_port(self, p: ParseResult) -> tuple[bool, Optional[str]]:
         if p.port is not None and not (0 <= p.port <= 65535):
             return False, f"Invalid port: {p.port}"
         return True, None
 
-    def _validate_path(self, p: ParseResult) -> Tuple[bool, Optional[str]]:
+    def _validate_path(self, p: ParseResult) -> tuple[bool, Optional[str]]:
         if len(p.path) > self.MAX_PATH_LENGTH:
             return False, "Path too long"
         try:
@@ -289,13 +322,13 @@ class URLInfo:
             if self.INVALID_CHARS.search(decoded_path):
                 return False, "Invalid chars in decoded path"
             norm_decoded = posixpath.normpath(decoded_path)
-            if norm_decoded.startswith('../') or '/../' in norm_decoded:
+            if norm_decoded.startswith("../") or "/../" in norm_decoded:
                 return False, "Path traversal attempt detected"
         except Exception as e:
             return False, f"Path decode/validation error: {e}"
         return True, None
 
-    def _validate_query(self, p: ParseResult) -> Tuple[bool, Optional[str]]:
+    def _validate_query(self, p: ParseResult) -> tuple[bool, Optional[str]]:
         if len(p.query) > self.MAX_QUERY_LENGTH:
             return False, "Query too long"
         try:
@@ -306,45 +339,60 @@ class URLInfo:
             return False, f"Query decode/validation error: {e}"
         return True, None
 
-    def _validate_security_patterns(self, p: ParseResult) -> Tuple[bool, Optional[str]]:
+    def _validate_security_patterns(self, p: ParseResult) -> tuple[bool, Optional[str]]:
         """Check decoded path and query for other security patterns."""
         try:
             decoded_path = unquote_plus(p.path)
             decoded_query = unquote_plus(p.query)
-            
+
             # Check for directory traversal attempts - more comprehensive check
             normalized_path = posixpath.normpath(decoded_path)
-            if (normalized_path.startswith('../') or 
-                '/../' in normalized_path or 
-                normalized_path == '/..' or 
-                self.INVALID_PATH_TRAVERSAL.search(decoded_path) or
-                '..' in decoded_path.split('/')):
+            if (
+                normalized_path.startswith("../")
+                or "/../" in normalized_path
+                or normalized_path == "/.."
+                or self.INVALID_PATH_TRAVERSAL.search(decoded_path)
+                or ".." in decoded_path.split("/")
+            ):
                 return False, "Directory traversal attempt"
-                
+
             # Check for XSS patterns
-            if self.XSS_PATTERNS.search(decoded_path) or self.XSS_PATTERNS.search(decoded_query):
+            if self.XSS_PATTERNS.search(decoded_path) or self.XSS_PATTERNS.search(
+                decoded_query
+            ):
                 return False, "XSS pattern"
-                
+
             # Check for SQL injection patterns
-            if self.SQLI_PATTERNS.search(decoded_path) or self.SQLI_PATTERNS.search(decoded_query):
+            if self.SQLI_PATTERNS.search(decoded_path) or self.SQLI_PATTERNS.search(
+                decoded_query
+            ):
                 return False, "SQLi pattern"
-                
+
             # Check for command injection patterns
-            if self.CMD_INJECTION_PATTERNS.search(decoded_path) or self.CMD_INJECTION_PATTERNS.search(decoded_query):
+            if self.CMD_INJECTION_PATTERNS.search(
+                decoded_path
+            ) or self.CMD_INJECTION_PATTERNS.search(decoded_query):
                 return False, "Cmd Injection pattern"
-                
+
             # Check for null byte injection
-            if self.NULL_BYTE_PATTERN.search(p.path) or self.NULL_BYTE_PATTERN.search(decoded_path):
+            if self.NULL_BYTE_PATTERN.search(p.path) or self.NULL_BYTE_PATTERN.search(
+                decoded_path
+            ):
                 return False, "Null byte in path"
-                
-            if self.NULL_BYTE_PATTERN.search(p.query) or self.NULL_BYTE_PATTERN.search(decoded_query):
+
+            if self.NULL_BYTE_PATTERN.search(p.query) or self.NULL_BYTE_PATTERN.search(
+                decoded_query
+            ):
                 return False, "Null byte in query"
-                
+
             # Check for disallowed schemes in the path or query
-            if 'javascript:' in decoded_path.lower() or 'javascript:' in decoded_query.lower():
+            if (
+                "javascript:" in decoded_path.lower()
+                or "javascript:" in decoded_query.lower()
+            ):
                 return False, "JavaScript scheme in path or query"
-                
-            if 'data:' in decoded_path.lower() or 'data:' in decoded_query.lower():
+
+            if "data:" in decoded_path.lower() or "data:" in decoded_query.lower():
                 return False, "Data scheme in path or query"
         except Exception as e:
             return False, f"Security check decode error: {e}"
@@ -356,7 +404,7 @@ class URLInfo:
             return "/"
 
         original_had_trailing_slash = self._original_path_had_trailing_slash
-        is_absolute = path.startswith('/')
+        is_absolute = path.startswith("/")
 
         try:
             unquoted = unquote_plus(path)
@@ -365,40 +413,44 @@ class URLInfo:
             unquoted = path
 
         # First, split the path into segments
-        segments = unquoted.split('/')
+        segments = unquoted.split("/")
         result = []
-        
+
         # Process each segment according to RFC 3986
         for i, segment in enumerate(segments):
             # Skip empty segments except for the first one in absolute paths
-            if segment == '' and (i > 0 or not is_absolute):
+            if segment == "" and (i > 0 or not is_absolute):
                 continue
             # Skip '.' segments
-            elif segment == '.':
+            elif segment == ".":
                 continue
             # Handle '..' segments
-            elif segment == '..':
-                if result and result[-1] != '' and result[-1] != '..':
+            elif segment == "..":
+                if result and result[-1] != "" and result[-1] != "..":
                     result.pop()
                 elif not is_absolute:
                     # For relative paths, keep '..' at the beginning
-                    result.append('..')
+                    result.append("..")
             else:
                 result.append(segment)
-        
+
         # Reconstruct the path
         if is_absolute:
             # Ensure absolute paths start with /
-            if not result or result[0] != '':
-                result.insert(0, '')
-            normalized = '/' + '/'.join(result[1:]) if len(result) > 1 else '/'
+            if not result or result[0] != "":
+                result.insert(0, "")
+            normalized = "/" + "/".join(result[1:]) if len(result) > 1 else "/"
         else:
-            normalized = '/'.join(result) if result else '.'
-        
+            normalized = "/".join(result) if result else "."
+
         # Preserve trailing slash if original had one
-        if original_had_trailing_slash and not normalized.endswith('/') and normalized != '/':
-            normalized += '/'
-        
+        if (
+            original_had_trailing_slash
+            and not normalized.endswith("/")
+            and normalized != "/"
+        ):
+            normalized += "/"
+
         # Re-quote the path with appropriate safe characters
         try:
             path_safe = self.PATH_SAFE_CHARS
@@ -406,7 +458,7 @@ class URLInfo:
             return encoded_path
         except Exception as e:
             self.logger.error(f"Path encoding failed for '{normalized}': {e}")
-            raise ValueError(f"Path encoding failed for '{normalized}': {e}")
+            raise ValueError(f"Path encoding failed for '{normalized}': {e}") from e
 
     # --- Normalization ---
     def _normalize(self) -> None:
@@ -418,24 +470,29 @@ class URLInfo:
         try:
             p = self._parsed
             scheme = p.scheme.lower()
-            
+
             # Normalize hostname - convert to lowercase and handle IDN domains
             hostname = p.hostname
             port = p.port
             netloc_norm = ""
-            
+
             if hostname:
                 hostname_lower = hostname.lower()
                 is_ip = False
                 try:
-                    ip_check_host = hostname_lower.strip('[]') if hostname_lower.startswith('[') and hostname_lower.endswith(']') else hostname_lower
+                    ip_check_host = (
+                        hostname_lower.strip("[]")
+                        if hostname_lower.startswith("[")
+                        and hostname_lower.endswith("]")
+                        else hostname_lower
+                    )
                     ipaddress.ip_address(ip_check_host)
                     is_ip = True
                 except ValueError:
-                    pass # Not an IP
+                    pass  # Not an IP
 
                 # If it's an IP or localhost, use the hostname directly (lowercase)
-                if is_ip or hostname_lower == 'localhost':
+                if is_ip or hostname_lower == "localhost":
                     netloc_norm = hostname_lower
                 # Otherwise, use tldextract result for normalizing the domain name
                 elif self._tld_extract_result:
@@ -444,30 +501,40 @@ class URLInfo:
                     hostname_parts = []
                     if extract_result.subdomain:
                         hostname_parts.append(extract_result.subdomain)
-                    if extract_result.domain: # Ensure domain part exists
+                    if extract_result.domain:  # Ensure domain part exists
                         hostname_parts.append(extract_result.domain)
                     if extract_result.suffix:
                         hostname_parts.append(extract_result.suffix)
-                    
+
                     # Join to form hostname, handle cases where parts might be missing
-                    hostname_norm_from_tld = '.'.join(filter(None, hostname_parts)).lower()
-                    
+                    hostname_norm_from_tld = ".".join(
+                        filter(None, hostname_parts)
+                    ).lower()
+
                     # Apply IDNA encoding if needed (check if non-ASCII chars exist)
                     if not all(ord(c) < 128 for c in hostname_norm_from_tld):
                         try:
-                            netloc_norm = idna.encode(hostname_norm_from_tld).decode('ascii')
+                            netloc_norm = idna.encode(hostname_norm_from_tld).decode(
+                                "ascii"
+                            )
                         except idna.IDNAError as e:
-                            self.logger.warning(f"IDNA encoding failed for {hostname_norm_from_tld}: {e}. Falling back.")
+                            self.logger.warning(
+                                f"IDNA encoding failed for {hostname_norm_from_tld}: {e}. Falling back."
+                            )
                             netloc_norm = hostname_norm_from_tld
                     else:
                         netloc_norm = hostname_norm_from_tld
                 else:
                     # Fallback if tldextract wasn't run (shouldn't happen for valid domains)
-                    self.logger.warning(f"Missing tldextract result for non-IP/localhost hostname: {hostname_lower}. Using raw lowercase.")
+                    self.logger.warning(
+                        f"Missing tldextract result for non-IP/localhost hostname: {hostname_lower}. Using raw lowercase."
+                    )
                     netloc_norm = hostname_lower
-            
+
             # Add port if it's not the default for the scheme
-            if port is not None and not ((scheme == 'http' and port == 80) or (scheme == 'https' and port == 443)):
+            if port is not None and not (
+                (scheme == "http" and port == 80) or (scheme == "https" and port == 443)
+            ):
                 netloc_norm += f":{port}"
 
             # Normalize path
@@ -483,7 +550,9 @@ class URLInfo:
                 path_norm = "/"
 
             # Reconstruct normalized URL using urlunparse
-            self._normalized_parsed = ParseResult(scheme, netloc_norm, path_norm, p.params, query_norm, '')
+            self._normalized_parsed = ParseResult(
+                scheme, netloc_norm, path_norm, p.params, query_norm, ""
+            )
             self._normalized_url = urlunparse(self._normalized_parsed)
 
         except Exception as e:
@@ -494,7 +563,9 @@ class URLInfo:
 
     # --- Type Determination ---
     @staticmethod
-    def _determine_url_type(normalized_url: Optional[str], base_url: Optional[str]) -> URLType:
+    def _determine_url_type(
+        normalized_url: Optional[str], base_url: Optional[str]
+    ) -> URLType:
         if not normalized_url or not base_url:
             return URLType.UNKNOWN
         try:
@@ -523,7 +594,7 @@ class URLInfo:
     def url(self) -> str:
         """Alias for normalized_url for compatibility."""
         return self.normalized_url
-        
+
     @property
     def scheme(self) -> str:
         if not self.is_valid:
@@ -533,15 +604,27 @@ class URLInfo:
 
     @functools.cached_property
     def netloc(self) -> str:
-        return self._normalized_parsed.netloc if self.is_valid and self._normalized_parsed else ""
+        return (
+            self._normalized_parsed.netloc
+            if self.is_valid and self._normalized_parsed
+            else ""
+        )
 
     @functools.cached_property
     def path(self) -> str:
-        return self._normalized_parsed.path if self.is_valid and self._normalized_parsed else ""
+        return (
+            self._normalized_parsed.path
+            if self.is_valid and self._normalized_parsed
+            else ""
+        )
 
     @functools.cached_property
     def query(self) -> str:
-        return self._normalized_parsed.query if self.is_valid and self._normalized_parsed else ""
+        return (
+            self._normalized_parsed.query
+            if self.is_valid and self._normalized_parsed
+            else ""
+        )
 
     @property
     def port(self) -> Optional[int]:
@@ -554,10 +637,10 @@ class URLInfo:
             return ""
         # Extract username from the original parsed URL
         netloc = self._parsed.netloc
-        if '@' in netloc:
-            auth_part = netloc.split('@', 1)[0]
-            if ':' in auth_part:
-                return auth_part.split(':', 1)[0]
+        if "@" in netloc:
+            auth_part = netloc.split("@", 1)[0]
+            if ":" in auth_part:
+                return auth_part.split(":", 1)[0]
             return auth_part
         return ""
 
@@ -568,10 +651,10 @@ class URLInfo:
             return ""
         # Extract password from the original parsed URL
         netloc = self._parsed.netloc
-        if '@' in netloc:
-            auth_part = netloc.split('@', 1)[0]
-            if ':' in auth_part:
-                return auth_part.split(':', 1)[1]
+        if "@" in netloc:
+            auth_part = netloc.split("@", 1)[0]
+            if ":" in auth_part:
+                return auth_part.split(":", 1)[1]
         return ""
 
     @property
@@ -580,64 +663,80 @@ class URLInfo:
         if not self.is_valid or not self._parsed:
             return ""
         # We need to get the fragment from the original URL since we strip it during parsing
-        if '#' in self._raw_url:
-            return self._raw_url.split('#', 1)[1]
+        if "#" in self._raw_url:
+            return self._raw_url.split("#", 1)[1]
         return ""
 
     # --- TLDExtract specific properties ---
     @property
     def domain(self) -> str:
         """Returns the domain part (e.g., 'example' in 'www.example.com').
-           For IPs/localhost, returns the hostname itself.
+        For IPs/localhost, returns the hostname itself.
         """
         if not self.is_valid:
             return ""
         # Handle IP/localhost case where tldextract wasn't run or is None
-        hostname = self._parsed.hostname.lower() if self._parsed and self._parsed.hostname else None
+        hostname = (
+            self._parsed.hostname.lower()
+            if self._parsed and self._parsed.hostname
+            else None
+        )
         if hostname:
             is_ip = False
             try:
-                ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                ip_check_host = (
+                    hostname.strip("[]")
+                    if hostname.startswith("[") and hostname.endswith("]")
+                    else hostname
+                )
                 ipaddress.ip_address(ip_check_host)
                 is_ip = True
             except ValueError:
-                pass # Not an IP
-            
-            if is_ip or hostname == 'localhost':
-                 return hostname # Return the IP/localhost itself as the 'domain'
+                pass  # Not an IP
+
+            if is_ip or hostname == "localhost":
+                return hostname  # Return the IP/localhost itself as the 'domain'
 
         # Proceed with tldextract result if available
         if self._tld_extract_result:
             return self._tld_extract_result.domain
-            
-        return "" # Fallback
+
+        return ""  # Fallback
 
     @property
     def registered_domain(self) -> str:
         """Returns the registered domain (e.g., 'example.com').
-           For IPs/localhost, returns the hostname itself.
+        For IPs/localhost, returns the hostname itself.
         """
         if not self.is_valid:
             return ""
         # Handle IP/localhost case
-        hostname = self._parsed.hostname.lower() if self._parsed and self._parsed.hostname else None
+        hostname = (
+            self._parsed.hostname.lower()
+            if self._parsed and self._parsed.hostname
+            else None
+        )
         if hostname:
             is_ip = False
             try:
-                ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                ip_check_host = (
+                    hostname.strip("[]")
+                    if hostname.startswith("[") and hostname.endswith("]")
+                    else hostname
+                )
                 ipaddress.ip_address(ip_check_host)
                 is_ip = True
             except ValueError:
-                pass # Not an IP
-            
-            if is_ip or hostname == 'localhost':
-                return hostname # Return the IP/localhost itself
+                pass  # Not an IP
+
+            if is_ip or hostname == "localhost":
+                return hostname  # Return the IP/localhost itself
 
         # Proceed with tldextract result if available
         if self._tld_extract_result:
             return self._tld_extract_result.registered_domain
-            
-        return "" # Fallback
+
+        return ""  # Fallback
 
     @property
     def subdomain(self) -> Optional[str]:
@@ -645,51 +744,67 @@ class URLInfo:
         if not self.is_valid:
             return None
         # Handle IP/localhost case
-        hostname = self._parsed.hostname.lower() if self._parsed and self._parsed.hostname else None
+        hostname = (
+            self._parsed.hostname.lower()
+            if self._parsed and self._parsed.hostname
+            else None
+        )
         if hostname:
             is_ip = False
             try:
-                ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                ip_check_host = (
+                    hostname.strip("[]")
+                    if hostname.startswith("[") and hostname.endswith("]")
+                    else hostname
+                )
                 ipaddress.ip_address(ip_check_host)
                 is_ip = True
             except ValueError:
-                pass # Not an IP
-            
-            if is_ip or hostname == 'localhost':
-                return None # No subdomain for IP/localhost
+                pass  # Not an IP
+
+            if is_ip or hostname == "localhost":
+                return None  # No subdomain for IP/localhost
 
         # Proceed with tldextract result if available
         if self._tld_extract_result:
             return self._tld_extract_result.subdomain
-            
-        return None # Fallback
+
+        return None  # Fallback
 
     @property
     def suffix(self) -> Optional[str]:
         """Returns the TLD suffix of the domain.
-           Returns None for IPs/localhost.
+        Returns None for IPs/localhost.
         """
         if not self.is_valid:
-             return None
+            return None
         # Handle IP/localhost case
-        hostname = self._parsed.hostname.lower() if self._parsed and self._parsed.hostname else None
+        hostname = (
+            self._parsed.hostname.lower()
+            if self._parsed and self._parsed.hostname
+            else None
+        )
         if hostname:
             is_ip = False
             try:
-                ip_check_host = hostname.strip('[]') if hostname.startswith('[') and hostname.endswith(']') else hostname
+                ip_check_host = (
+                    hostname.strip("[]")
+                    if hostname.startswith("[") and hostname.endswith("]")
+                    else hostname
+                )
                 ipaddress.ip_address(ip_check_host)
                 is_ip = True
             except ValueError:
-                pass # Not an IP
-            
-            if is_ip or hostname == 'localhost':
-                return None # No suffix for IP/localhost
+                pass  # Not an IP
+
+            if is_ip or hostname == "localhost":
+                return None  # No suffix for IP/localhost
 
         # Proceed with tldextract result if available
         if self._tld_extract_result:
             return self._tld_extract_result.suffix
-            
-        return None # Fallback
+
+        return None  # Fallback
 
     @property
     def root_domain(self) -> str:

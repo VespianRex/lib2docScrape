@@ -8,7 +8,6 @@ It is intentionally minimal – higher‑level modules add validation.
 
 from __future__ import annotations
 
-from typing import Optional
 from urllib.parse import urljoin, urlparse
 
 __all__ = ["resolve_url"]
@@ -25,7 +24,7 @@ def _looks_like_domain_no_scheme(raw: str) -> bool:
     return "." in raw and "://" not in raw and not raw.startswith("//")
 
 
-def resolve_url(url: str, base_url: Optional[str] = None) -> Optional[str]:
+def resolve_url(url: str, base_url: str | None = None) -> str | None:
     """
     Resolve *url* against *base_url*.
 

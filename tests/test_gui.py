@@ -1,23 +1,23 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
-import asyncio
-from unittest.mock import MagicMock, patch, AsyncMock
-from pathlib import Path
 from fastapi.testclient import TestClient
 
-from src.main import app, ConnectionManager, LibraryOperation
-from src.processors.quality_checker import QualityIssue, IssueType, IssueLevel
-from src.processors.content_processor import ProcessedContent
 from src.backends.base import CrawlResult
+from src.main import ConnectionManager, app
+
 
 @pytest.fixture
 def client():
     """Create a test client."""
     return TestClient(app)
 
+
 @pytest.fixture
 def connection_manager():
     """Create a connection manager."""
     return ConnectionManager()
+
 
 def test_home_page(client):
     """Test home page returns successfully."""
@@ -25,15 +25,16 @@ def test_home_page(client):
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
 
+
 def test_crawl_request(client):
     """Test crawl request endpoint."""
     test_url = "https://example.com"
-    with patch('src.main.Crawl4AIBackend.crawl', new_callable=AsyncMock) as mock_crawl:
+    with patch("src.main.Crawl4AIBackend.crawl", new_callable=AsyncMock) as mock_crawl:
         mock_result_obj = CrawlResult(
             url=test_url,
             content={"text": "Mocked content", "title": "Mock Title"},
             metadata={},
-            status=200
+            status=200,
         )
 
         async def mock_side_effect(*args, **kwargs):
@@ -49,6 +50,7 @@ def test_crawl_request(client):
         assert response_json["results"][0]["url"] == test_url
         assert response_json["results"][0]["status"] == 200
 
+
 def test_connection_manager():
     """Test connection manager functionality."""
     manager = ConnectionManager()
@@ -56,6 +58,7 @@ def test_connection_manager():
     assert manager.scraping_metrics["current_depth"] == 0
     assert manager.scraping_metrics["successful_requests"] == 0
     assert manager.scraping_metrics["failed_requests"] == 0
+
 
 def test_get_available_backends(client):
     """Test retrieving available backend types."""
@@ -66,6 +69,7 @@ def test_get_available_backends(client):
     assert "crawl4ai" in backends
     assert "file" in backends
 
+
 def test_get_scraping_status(client):
     """Test retrieving scraping status."""
     response = client.get("/api/scraping/status")
@@ -75,6 +79,7 @@ def test_get_scraping_status(client):
     assert "is_running" in status
     assert "current_url" in status
     assert "progress" in status
+
 
 @pytest.mark.asyncio
 async def test_websocket_scraping_updates():
@@ -92,13 +97,14 @@ async def test_websocket_scraping_updates():
                 "data": {
                     "is_running": True,
                     "current_url": "https://example.com",
-                    "progress": 50
-                }
+                    "progress": 50,
+                },
             }
             websocket.send_json(test_update)
             response = websocket.receive_json()
             assert response["type"] == "scraping_progress"
             assert response["data"]["progress"] == 50
+
 
 def test_store_scraping_results(client):
     """Test storing and retrieving scraping results."""
@@ -106,19 +112,15 @@ def test_store_scraping_results(client):
         "scraping_id": "scrape123",
         "timestamp": "2025-05-14T15:30:00",
         "results": [
-            {
-                "url": "https://example.com",
-                "content": "Test content",
-                "status": 200
-            }
-        ]
+            {"url": "https://example.com", "content": "Test content", "status": 200}
+        ],
     }
-    
+
     # Store results
     response = client.post("/api/scraping/results", json=scraping_results)
     assert response.status_code == 200
     assert response.json()["status"] == "success"
-    
+
     # Retrieve results
     response = client.get("/api/scraping/results/scrape123")
     assert response.status_code == 200
@@ -126,6 +128,7 @@ def test_store_scraping_results(client):
     assert stored_results["scraping_id"] == "scrape123"
     assert len(stored_results["results"]) == 1
     assert stored_results["results"][0]["status"] == 200
+
 
 def test_scraping_dashboard_template(client):
     """Test the scraping dashboard HTML template."""
@@ -137,6 +140,7 @@ def test_scraping_dashboard_template(client):
     assert "Scraping Configuration" in content
     assert "Scraping Status" in content
     assert "Results" in content
+
 
 def test_library_operations(client):
     """Test library management operations."""

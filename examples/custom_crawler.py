@@ -6,11 +6,8 @@ with custom configurations and handlers.
 
 import asyncio
 import logging
-from typing import Dict, List
 
-from pydantic import BaseModel
-
-from src.backends.crawl4ai import Crawl4AIBackend, Crawl4AIConfig
+from src.backends.crawl4ai_backend import Crawl4AIBackend, Crawl4AIConfig
 from src.backends.selector import BackendCriteria, BackendSelector
 from src.crawler import CrawlerConfig, CrawlTarget, DocumentationCrawler
 from src.organizers.doc_organizer import DocumentOrganizer, OrganizationConfig
@@ -21,15 +18,15 @@ from src.utils.helpers import Timer, setup_logging
 
 class CustomDocumentHandler:
     """Example custom handler for processed documents."""
-    
+
     def __init__(self, output_dir: str = "output"):
         self.output_dir = output_dir
-        self.processed_docs: List[Dict] = []
+        self.processed_docs: list[dict] = []
 
     async def handle_document(self, content: ProcessedContent) -> None:
         """
         Handle a processed document.
-        
+
         Args:
             content: Processed document content
         """
@@ -38,46 +35,46 @@ class CustomDocumentHandler:
             "url": content.url,
             "title": content.title,
             "metadata": content.metadata,
-            "assets": content.assets
+            "assets": content.assets,
         }
         self.processed_docs.append(doc_info)
-        
+
         # Log processing
         logging.info(f"Processed document: {content.title} ({content.url})")
 
-    def get_statistics(self) -> Dict:
+    def get_statistics(self) -> dict:
         """
         Get processing statistics.
-        
+
         Returns:
             Dictionary of statistics
         """
         return {
             "total_documents": len(self.processed_docs),
-            "unique_urls": len(set(doc["url"] for doc in self.processed_docs)),
+            "unique_urls": len({doc["url"] for doc in self.processed_docs}),
             "total_assets": sum(
-                len(doc["assets"].get("images", [])) +
-                len(doc["assets"].get("scripts", [])) +
-                len(doc["assets"].get("stylesheets", []))
+                len(doc["assets"].get("images", []))
+                + len(doc["assets"].get("scripts", []))
+                + len(doc["assets"].get("stylesheets", []))
                 for doc in self.processed_docs
-            )
+            ),
         }
 
 
 class CustomQualityHandler:
     """Example custom handler for quality issues."""
-    
+
     def __init__(self):
-        self.issues_by_severity: Dict[str, List[Dict]] = {
+        self.issues_by_severity: dict[str, list[dict]] = {
             "error": [],
             "warning": [],
-            "info": []
+            "info": [],
         }
 
-    async def handle_issue(self, doc_url: str, issue: Dict) -> None:
+    async def handle_issue(self, doc_url: str, issue: dict) -> None:
         """
         Handle a quality issue.
-        
+
         Args:
             doc_url: URL of the document with the issue
             issue: Quality issue details
@@ -86,18 +83,18 @@ class CustomQualityHandler:
             "url": doc_url,
             "message": issue["message"],
             "location": issue.get("location"),
-            "context": issue.get("context")
+            "context": issue.get("context"),
         }
         self.issues_by_severity[issue["severity"]].append(issue_info)
-        
+
         # Log severe issues
         if issue["severity"] == "error":
             logging.error(f"Quality issue in {doc_url}: {issue['message']}")
 
-    def get_summary(self) -> Dict:
+    def get_summary(self) -> dict:
         """
         Get issue summary.
-        
+
         Returns:
             Dictionary summarizing quality issues
         """
@@ -111,28 +108,25 @@ async def main():
     """Example usage of the documentation crawler."""
     # Setup logging
     setup_logging(level="INFO")
-    
+
     # Initialize custom handlers
     doc_handler = CustomDocumentHandler()
     quality_handler = CustomQualityHandler()
-    
+
     # Configure crawler components
     crawler_config = CrawlerConfig(
         concurrent_requests=3,
         requests_per_second=1.0,
         max_retries=2,
-        request_timeout=20.0
+        request_timeout=20.0,
     )
-    
+
     # Configure backend
     backend_selector = BackendSelector()
     crawl4ai_backend = Crawl4AIBackend(
-        config=Crawl4AIConfig(
-            max_retries=2,
-            timeout=20.0
-        )
+        config=Crawl4AIConfig(max_retries=2, timeout=20.0)
     )
-    
+
     # Register backend with criteria
     backend_selector.register_backend(
         crawl4ai_backend,
@@ -141,29 +135,23 @@ async def main():
             content_types=["text/html"],
             url_patterns=["*"],
             max_load=0.8,
-            min_success_rate=0.7
-        )
+            min_success_rate=0.7,
+        ),
     )
-    
+
     # Initialize crawler with components
     crawler = DocumentationCrawler(
         config=crawler_config,
         backend_selector=backend_selector,
         content_processor=ContentProcessor(),
         quality_checker=QualityChecker(
-            config=QualityConfig(
-                min_content_length=50,
-                max_broken_links_ratio=0.2
-            )
+            config=QualityConfig(min_content_length=50, max_broken_links_ratio=0.2)
         ),
         document_organizer=DocumentOrganizer(
-            config=OrganizationConfig(
-                min_similarity_score=0.3,
-                max_versions_to_keep=5
-            )
-        )
+            config=OrganizationConfig(min_similarity_score=0.3, max_versions_to_keep=5)
+        ),
     )
-    
+
     # Define crawl targets
     targets = [
         CrawlTarget(
@@ -173,7 +161,7 @@ async def main():
             content_types=["text/html"],
             exclude_patterns=["/download/", "/bugs/"],
             required_patterns=["/library/"],
-            max_pages=10
+            max_pages=10,
         ),
         CrawlTarget(
             url="https://docs.aiohttp.org/en/stable/client.html",
@@ -182,25 +170,25 @@ async def main():
             content_types=["text/html"],
             exclude_patterns=["/contributing/"],
             required_patterns=["/client/"],
-            max_pages=5
-        )
+            max_pages=5,
+        ),
     ]
-    
+
     try:
         # Process each target
         for target in targets:
             logging.info(f"Starting crawl for {target.url}")
-            
-            with Timer(f"Crawling {target.url}") as timer:
+
+            with Timer(f"Crawling {target.url}"):
                 result = await crawler.crawl(target)
-            
+
             logging.info(
                 f"Completed crawl of {target.url}:"
                 f" {result.stats.pages_crawled} pages,"
                 f" {result.stats.successful_crawls} successful,"
                 f" {result.stats.failed_crawls} failed"
             )
-            
+
             # Process documents and quality issues
             for doc_id in result.documents:
                 # Example: Get document from organizer and process it
@@ -212,19 +200,19 @@ async def main():
                         title=doc.title,
                         content={},  # Would contain actual content
                         metadata=doc.versions[-1].changes,
-                        assets={}
+                        assets={},
                     )
                     await doc_handler.handle_document(content)
-            
+
             # Handle quality issues
             for issue in result.issues:
                 await quality_handler.handle_issue(target.url, issue.model_dump())
-        
+
         # Output results
         logging.info("\nProcessing Statistics:")
         logging.info(f"Documents: {doc_handler.get_statistics()}")
         logging.info(f"Quality Issues: {quality_handler.get_summary()}")
-        
+
     finally:
         # Cleanup
         await crawler.close()

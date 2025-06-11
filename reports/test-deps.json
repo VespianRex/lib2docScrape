@@ -1,0 +1,79 @@
+{
+  "start_time": "2025-06-03T17:14:35.788298",
+  "config": {
+    "timeout": 120,
+    "max_concurrent": 3,
+    "verbose": true
+  },
+  "dependencies": {
+    "main": [
+      "aiohttp",
+      "requests",
+      "beautifulsoup4",
+      "scrapy",
+      "pydantic",
+      "markdownify",
+      "bleach",
+      "tldextract",
+      "certifi",
+      "duckduckgo-search"
+    ],
+    "dev": [
+      "pytest",
+      "pytest-cov",
+      "pytest-asyncio",
+      "pytest-mock",
+      "hypothesis",
+      "coverage[toml]",
+      "ruff",
+      "uvloop",
+      "fastapi",
+      "httpx",
+      "jinja2",
+      "scikit-learn",
+      "nltk",
+      "psutil",
+      "bz2file"
+    ]
+  },
+  "crawl_results": {
+    "pydantic": {
+      "package": "pydantic",
+      "url": "https://docs.pydantic.dev/latest/",
+      "backend": "crawl4ai",
+      "success": false,
+      "duration": 0.0002002716064453125,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "documents_found": 0,
+      "successful_crawls": 0,
+      "failed_crawls": 1,
+      "success_rate": 0.0,
+      "pages_per_second": 0.0
+    },
+    "scrapy": {
+      "package": "scrapy",
+      "url": "https://docs.scrapy.org/en/latest/",
+      "backend": "crawl4ai",
+      "success": false,
+      "duration": 5.14984130859375e-05,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "documents_found": 0,
+      "successful_crawls": 0,
+      "failed_crawls": 1,
+      "success_rate": 0.0,
+      "pages_per_second": 0.0
+    }
+  },
+  "performance_metrics": {},
+  "summary": {
+    "total_packages_tested": 2,
+    "successful_tests": 0,
+    "failed_tests": 2,
+    "success_rate": 0.0,
+    "total_documents_crawled": 0,
+    "total_duration": 0.00025177001953125,
+    "avg_crawl_success_rate": 0.0,
+    "overall_pages_per_second": 0.0
+  },
+  "end_time": "2025-06-03T17:14:35.822602"
+}

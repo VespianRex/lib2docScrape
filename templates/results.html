@@ -28,8 +28,44 @@
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
-        <h1>Test Results</h1>
-        <p class="lead">View and analyze documentation scraping results</p>
+        <h1><i class="bi bi-folder-open"></i> Documentation Results</h1>
+        <p class="lead">Browse, analyze, and manage your scraped documentation with advanced features</p>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card bg-primary text-white">
+            <div class="card-body text-center">
+                <h3 class="mb-0" id="totalLibraries">0</h3>
+                <small>Libraries Scraped</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-success text-white">
+            <div class="card-body text-center">
+                <h3 class="mb-0" id="totalDocuments">0</h3>
+                <small>Total Documents</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-info text-white">
+            <div class="card-body text-center">
+                <h3 class="mb-0" id="avgQualityScore">-</h3>
+                <small>Avg Quality Score</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card bg-warning text-dark">
+            <div class="card-body text-center">
+                <h3 class="mb-0" id="totalSize">0 MB</h3>
+                <small>Total Content Size</small>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -40,43 +76,114 @@
             <div class="card-body filter-section">
                 <h3 class="card-title h5">Filters</h3>
                 <div class="row g-3">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
+                        <label class="form-label">Library</label>
+                        <select class="form-select" id="libraryFilter">
+                            <option value="all">All Libraries</option>
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">Backend</label>
+                        <select class="form-select" id="backendFilter">
+                            <option value="all">All Backends</option>
+                            <option value="http">HTTP</option>
+                            <option value="crawl4ai">Crawl4AI</option>
+                            <option value="lightpanda">Lightpanda</option>
+                            <option value="playwright">Playwright</option>
+                            <option value="scrapy">Scrapy</option>
+                            <option value="file">File</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">Quality</label>
+                        <select class="form-select" id="qualityFilter">
+                            <option value="all">All Quality</option>
+                            <option value="excellent">Excellent (90-100%)</option>
+                            <option value="good">Good (70-89%)</option>
+                            <option value="fair">Fair (50-69%)</option>
+                            <option value="poor">Poor (<50%)</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2">
                         <label class="form-label">Date Range</label>
                         <select class="form-select" id="dateFilter">
                             <option value="all">All Time</option>
                             <option value="today">Today</option>
                             <option value="week">Last 7 Days</option>
                             <option value="month">Last 30 Days</option>
-                            <option value="custom">Custom Range</option>
                         </select>
                     </div>
 
-                    <div class="col-md-3">
-                        <label class="form-label">Backend</label>
-                        <select class="form-select" id="backendFilter">
-                            <option value="all">All Backends</option>
-                            <option value="crawl4ai">Crawl4AI</option>
-                            <option value="file">File</option>
-                        </select>
-                    </div>
-
-                    <div class="col-md-3">
-                        <label class="form-label">Status</label>
-                        <select class="form-select" id="statusFilter">
-                            <option value="all">All Status</option>
-                            <option value="success">Success</option>
-                            <option value="failed">Failed</option>
-                        </select>
-                    </div>
-
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label">Sort By</label>
                         <select class="form-select" id="sortBy">
                             <option value="date_desc">Date (Newest)</option>
-                            <option value="date_asc">Date (Oldest)</option>
-                            <option value="duration_desc">Duration (Longest)</option>
-                            <option value="duration_asc">Duration (Shortest)</option>
+                            <option value="quality_desc">Quality (Best)</option>
+                            <option value="size_desc">Size (Largest)</option>
+                            <option value="pages_desc">Pages (Most)</option>
                         </select>
+                    </div>
+
+                    <div class="col-md-2">
+                        <label class="form-label">Search</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="searchFilter" placeholder="Search...">
+                            <button class="btn btn-outline-secondary" type="button" onclick="clearSearch()">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Filters Toggle -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="collapse"
+                                data-bs-target="#advancedFilters">
+                            <i class="bi bi-funnel"></i> Advanced Filters
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Advanced Filters -->
+                <div class="collapse mt-3" id="advancedFilters">
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Version Tracking</label>
+                            <select class="form-select" id="versionFilter">
+                                <option value="all">All Versions</option>
+                                <option value="latest">Latest Only</option>
+                                <option value="multiple">Multiple Versions</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Content Type</label>
+                            <select class="form-select" id="contentTypeFilter">
+                                <option value="all">All Types</option>
+                                <option value="api">API Reference</option>
+                                <option value="guide">User Guide</option>
+                                <option value="tutorial">Tutorial</option>
+                                <option value="examples">Examples</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Min Pages</label>
+                            <input type="number" class="form-control" id="minPagesFilter" placeholder="0" min="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Processing Features</label>
+                            <select class="form-select" id="featuresFilter">
+                                <option value="all">All Features</option>
+                                <option value="nlp">NLP Processed</option>
+                                <option value="quality">Quality Checked</option>
+                                <option value="indexed">Indexed</option>
+                                <option value="toc">Has TOC</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -94,12 +201,14 @@
                     <table class="table table-hover" id="resultsTable">
                         <thead>
                             <tr>
-                                <th>Date</th>
-                                <th>Test ID</th>
+                                <th>Library</th>
+                                <th>Version</th>
                                 <th>Backend</th>
-                                <th>Duration</th>
                                 <th>Pages</th>
-                                <th>Status</th>
+                                <th>Quality</th>
+                                <th>Size</th>
+                                <th>Features</th>
+                                <th>Date</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -168,7 +277,7 @@
     let currentPage = 1;
     let resultsPerPage = parseInt(localStorage.getItem('appConfig'))?.resultsPerPage || 25;
     let filteredResults = [];
-    
+
     // Initialize filters
     const filters = {
         dateRange: 'all',
@@ -207,17 +316,17 @@
         try {
             const response = await fetch('/api/test-results');
             if (!response.ok) throw new Error('Failed to fetch results');
-            
+
             let results = await response.json();
-            
+
             // Apply filters
             filteredResults = results.filter(result => {
                 if (filters.backend !== 'all' && result.backend !== filters.backend) return false;
                 if (filters.status !== 'all' && result.status !== filters.status) return false;
-                
+
                 const resultDate = new Date(result.timestamp);
                 const now = new Date();
-                
+
                 switch (filters.dateRange) {
                     case 'today':
                         return resultDate.toDateString() === now.toDateString();
@@ -324,9 +433,9 @@
         try {
             const response = await fetch(`/api/test-results/${testId}`);
             if (!response.ok) throw new Error('Failed to fetch result details');
-            
+
             const result = await response.json();
-            
+
             // Populate overview
             document.getElementById('resultOverview').innerHTML = `
                 <div class="col-md-6">
@@ -336,7 +445,7 @@
                 </div>
                 <div class="col-md-6">
                     <p class="mb-1"><strong>Duration:</strong> ${result.duration}s</p>
-                    <p class="mb-1"><strong>Status:</strong> 
+                    <p class="mb-1"><strong>Status:</strong>
                         <span class="badge bg-${result.status === 'success' ? 'success' : 'danger'}">
                             ${result.status}
                         </span>
@@ -386,13 +495,13 @@
                     ${result.contents.map((content, index) => `
                         <div class="accordion-item">
                             <h2 class="accordion-header">
-                                <button class="accordion-button collapsed" type="button" 
-                                        data-bs-toggle="collapse" 
+                                <button class="accordion-button collapsed" type="button"
+                                        data-bs-toggle="collapse"
                                         data-bs-target="#content${index}">
                                     ${content.url}
                                 </button>
                             </h2>
-                            <div id="content${index}" class="accordion-collapse collapse" 
+                            <div id="content${index}" class="accordion-collapse collapse"
                                  data-bs-parent="#contentAccordion">
                                 <div class="accordion-body">
                                     <pre class="border rounded p-3 bg-light">${content.text}</pre>

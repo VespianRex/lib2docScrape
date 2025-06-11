@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Search Page</title>
+</head>
+<body>
+    <h1>Search Page</h1>
+    <p>This is a test template for the search page.</p>
+    {% if libraries %}
+    <ul>
+    {% for library in libraries %}
+        <li>{{ library }}</li>
+    {% endfor %}
+    </ul>
+    {% endif %}
+</body>
+</html>

@@ -1,0 +1,28 @@
+{
+  "timestamp": "2025-06-03T17:15:38.203063",
+  "results": {
+    "requests": {
+      "success": false,
+      "url": "https://requests.readthedocs.io/en/latest/",
+      "error": "HTTPBackend.__init__() missing 1 required positional argument: 'config'",
+      "duration": 0
+    },
+    "beautifulsoup4": {
+      "success": false,
+      "url": "https://www.crummy.com/software/BeautifulSoup/bs4/doc/",
+      "error": "HTTPBackend.__init__() missing 1 required positional argument: 'config'",
+      "duration": 0
+    },
+    "pytest": {
+      "success": false,
+      "url": "https://docs.pytest.org/en/stable/",
+      "error": "HTTPBackend.__init__() missing 1 required positional argument: 'config'",
+      "duration": 0
+    }
+  },
+  "summary": {
+    "total": 3,
+    "successful": 0,
+    "success_rate": 0.0
+  }
+}

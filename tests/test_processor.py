@@ -1,12 +1,12 @@
 """Tests for the content processor component."""
 
 import pytest
-from bs4 import BeautifulSoup
 
-from src.processors.content_processor import (ContentProcessor, ProcessedContent,
-                                            ProcessorConfig)
-from src.processors.content.url_handler import URLInfo # Keep for type hinting if needed
-from src.utils.url.factory import create_url_info # Added import for factory
+from src.processors.content_processor import (
+    ContentProcessor,
+    ProcessedContent,
+    ProcessorConfig,
+)
 
 
 def test_content_processor_initialization():
@@ -15,7 +15,7 @@ def test_content_processor_initialization():
     processor = ContentProcessor()
     assert processor.config is not None
     assert len(processor.config.allowed_tags) > 0
-    
+
     # Test with custom config
     custom_config = ProcessorConfig(
         allowed_tags=["p", "a"],
@@ -23,7 +23,7 @@ def test_content_processor_initialization():
         code_languages=["python"],
         max_heading_level=2,
         max_content_length=500,
-        min_content_length=10
+        min_content_length=10,
     )
     processor = ContentProcessor(config=custom_config)
     assert processor.config == custom_config
@@ -41,30 +41,41 @@ def test_content_processor_initialization():
 
 
 @pytest.mark.asyncio
-async def test_full_content_processing(content_processor: ContentProcessor, sample_html_factory): # Use factory fixture
+async def test_full_content_processing(
+    content_processor: ContentProcessor, sample_html_factory
+):  # Use factory fixture
     """Test complete content processing pipeline."""
     # Call the factory to get the HTML content
     html_content = sample_html_factory(
         title="Sample Document for https://example.com/test",
-        heading="Sample Document for https://example.com/test"
+        heading="Sample Document for https://example.com/test",
     )
     # The process method in ContentProcessor now expects a URL string, not URLInfo
     # The URLInfo creation happens internally in the processor or crawler.
-    processed = await content_processor.process(html_content, "https://example.com/test")
+    # Use a URL that doesn't trigger special mock behavior
+    processed = await content_processor.process(
+        html_content, "https://example.com/sample"
+    )
 
     assert isinstance(processed, ProcessedContent)
     # Since we're using a Mock, we need to check the return value that we configured in the fixture
-    assert processed.metadata.get('title') == 'Sample Document'  # This comes from the mock
+    assert (
+        processed.metadata.get("title") == "Sample Document"
+    )  # This comes from the mock
     assert len(processed.content.get("headings", [])) > 0
-    assert processed.content['headings'][0]['text'] == 'Sample Document'  # From the mock
+    assert (
+        processed.content["headings"][0]["text"] == "Sample Document"
+    )  # From the mock
     assert len(processed.content.get("code_blocks", [])) > 0
     assert len(processed.content.get("links", [])) > 0
-    assert processed.content['links'][0]['text'] == 'Test Link'  # From the mock
+    assert processed.content["links"][0]["text"] == "Test Link"  # From the mock
     assert len(processed.assets.get("images", [])) > 0
 
 
 @pytest.mark.asyncio
-async def test_content_size_limits(processor_config: ProcessorConfig): # Use processor_config fixture
+async def test_content_size_limits(
+    processor_config: ProcessorConfig,
+):  # Use processor_config fixture
     """Test content size limit handling."""
     # Create a real processor instance for this test
     processor = ContentProcessor(config=processor_config)
@@ -75,7 +86,9 @@ async def test_content_size_limits(processor_config: ProcessorConfig): # Use pro
 
     processed_large = await processor.process(large_html, "https://example.com/large")
     assert not processed_large.content  # Should be empty due to size limit
-    assert any("too long" in e for e in processed_large.errors) # Check for specific error message part
+    assert any(
+        "too long" in e for e in processed_large.errors
+    )  # Check for specific error message part
     # Metadata might not contain 'error' key if processing fails early
     # assert processed_large.metadata.get("error") == "Content exceeds maximum size limit"
 
@@ -86,8 +99,10 @@ async def test_content_size_limits(processor_config: ProcessorConfig): # Use pro
     processed_small = await processor.process(small_html, "https://example.com/small")
     # Assert that content IS processed because cleaned HTML length >= min_content_length
     assert processed_small.content
-    assert processed_small.content.get('formatted_content').strip() == small_content # Check formatted content, stripping whitespace
-    assert not processed_small.errors # Should be no errors
+    assert (
+        processed_small.content.get("formatted_content").strip() == small_content
+    )  # Check formatted content, stripping whitespace
+    assert not processed_small.errors  # Should be no errors
     # Metadata should not contain an error
     assert "error" not in processed_small.metadata
 
@@ -96,10 +111,12 @@ async def test_content_size_limits(processor_config: ProcessorConfig): # Use pro
 async def test_malformed_html_handling(content_processor: ContentProcessor):
     """Test handling of malformed HTML."""
     # Test unclosed tags
-    malformed_html = "<html><body><p>Unclosed paragraph<div>Nested</p></div></body></html>"
+    malformed_html = (
+        "<html><body><p>Unclosed paragraph<div>Nested</p></div></body></html>"
+    )
     processed = await content_processor.process(malformed_html, "https://example.com")
     assert processed.content  # Should still process despite malformed HTML
-    
+
     # Test invalid nesting
     invalid_html = "<html><body><h1><p>Invalid nesting</h1></p></body></html>"
     processed = await content_processor.process(invalid_html, "https://example.com")
@@ -122,10 +139,12 @@ async def test_special_content_handling(content_processor: ContentProcessor):
         </body>
     </html>
     """
-    processed = await content_processor.process(html_with_scripts, "https://example.com")
+    processed = await content_processor.process(
+        html_with_scripts, "https://example.com"
+    )
     assert "alert" not in str(processed.content)  # Scripts should be removed
     assert "color: red" not in str(processed.content)  # Styles should be removed
-    
+
     # Test content with comments
     html_with_comments = """
     <html>
@@ -136,12 +155,16 @@ async def test_special_content_handling(content_processor: ContentProcessor):
         </body>
     </html>
     """
-    processed = await content_processor.process(html_with_comments, "https://example.com")
+    processed = await content_processor.process(
+        html_with_comments, "https://example.com"
+    )
     assert "Comment" not in str(processed.content)  # Comments should be removed
 
 
 @pytest.mark.asyncio
-async def test_content_structure_preservation(processor_config: ProcessorConfig): # Use processor_config fixture
+async def test_content_structure_preservation(
+    processor_config: ProcessorConfig,
+):  # Use processor_config fixture
     """Test preservation of content structure."""
     # Create a real processor instance for this test
     processor = ContentProcessor(config=processor_config)
@@ -158,7 +181,9 @@ async def test_content_structure_preservation(processor_config: ProcessorConfig)
         </body>
     </html>
     """
-    processed = await processor.process(html, "https://example.com") # Use the real processor
+    processed = await processor.process(
+        html, "https://example.com"
+    )  # Use the real processor
 
     # Check structure preservation
     # Headings are now stored at the top level of ProcessedContent
@@ -166,10 +191,10 @@ async def test_content_structure_preservation(processor_config: ProcessorConfig)
     assert len(headings) == 2
     assert headings[0]["level"] == 1
     assert headings[1]["level"] == 2
-    
+
     # Check content order
     # Check content order using the formatted markdown content
-    content_text = processed.content.get('formatted_content', '')
+    content_text = processed.content.get("formatted_content", "")
     title_pos = content_text.find("Title")
     subtitle_pos = content_text.find("Subtitle")
     assert title_pos < subtitle_pos  # Original order should be preserved

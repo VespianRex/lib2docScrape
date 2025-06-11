@@ -2,30 +2,32 @@
 Lightpanda backend module for using the Lightpanda headless browser.
 This backend is optimized for JavaScript-heavy documentation sites.
 """
+
 import asyncio
 import json
 import logging
 import os
 import subprocess
-import tempfile
 import time
-from typing import Any, Dict, List, Optional, Union, Set
+from typing import Any, Optional
 from urllib.parse import urljoin
 
 import aiohttp
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, Field
 
+from ..processors.content_processor import ContentProcessor
+from ..utils.circuit_breaker import CircuitBreaker
+from ..utils.retry import ExponentialBackoff
 from ..utils.url import URLInfo
 from .base import CrawlerBackend, CrawlResult
-from ..processors.content_processor import ContentProcessor
-from ..utils.retry import ExponentialBackoff, RetryWithStrategy
-from ..utils.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
+
 class LightpandaConfig(BaseModel):
     """Configuration for the Lightpanda backend."""
+
     executable_path: str = "lightpanda"
     host: str = "127.0.0.1"
     port: int = 9222
@@ -35,10 +37,10 @@ class LightpandaConfig(BaseModel):
     wait_time: float = 2.0
     javascript_enabled: bool = True
     user_agent: str = "Lib2DocScrape/1.0 (Lightpanda) Documentation Crawler"
-    headers: Dict[str, str] = Field(default_factory=dict)
+    headers: dict[str, str] = Field(default_factory=dict)
     viewport_width: int = 1280
     viewport_height: int = 800
-    extra_args: List[str] = Field(default_factory=list)
+    extra_args: list[str] = Field(default_factory=list)
     circuit_breaker_threshold: int = 5
     circuit_breaker_reset_timeout: float = 60.0
     rate_limit: float = 2.0
@@ -49,6 +51,7 @@ class LightpandaConfig(BaseModel):
     extract_code_blocks: bool = True
     screenshots: bool = False
     screenshot_path: str = "screenshots"
+
 
 class LightpandaBackend(CrawlerBackend):
     """
@@ -68,20 +71,18 @@ class LightpandaBackend(CrawlerBackend):
         self._processing_semaphore = asyncio.Semaphore(self.config.concurrent_requests)
         self._rate_limiter = asyncio.Lock()
         self._last_request = 0.0
-        self._crawled_urls: Set[str] = set()
+        self._crawled_urls: set[str] = set()
         self.content_processor = ContentProcessor()
 
         # Initialize retry strategy
         self.retry_strategy = ExponentialBackoff(
-            base_delay=1.0,
-            max_delay=30.0,
-            jitter=True
+            base_delay=1.0, max_delay=30.0, jitter=True
         )
 
         # Initialize circuit breaker
         self.circuit_breaker = CircuitBreaker(
             failure_threshold=self.config.circuit_breaker_threshold,
-            reset_timeout=self.config.circuit_breaker_reset_timeout
+            reset_timeout=self.config.circuit_breaker_reset_timeout,
         )
 
     async def _start_browser(self) -> str:
@@ -90,15 +91,21 @@ class LightpandaBackend(CrawlerBackend):
             return self._ws_endpoint
 
         # Check if executable exists
-        if not os.path.exists(self.config.executable_path) and not self._is_in_path(self.config.executable_path):
-            raise RuntimeError(f"Lightpanda executable not found at {self.config.executable_path}")
+        if not os.path.exists(self.config.executable_path) and not self._is_in_path(
+            self.config.executable_path
+        ):
+            raise RuntimeError(
+                f"Lightpanda executable not found at {self.config.executable_path}"
+            )
 
         # Start Lightpanda process
         cmd = [
             self.config.executable_path,
             "serve",
-            "--host", self.config.host,
-            "--port", str(self.config.port)
+            "--host",
+            self.config.host,
+            "--port",
+            str(self.config.port),
         ]
         cmd.extend(self.config.extra_args)
 
@@ -106,22 +113,23 @@ class LightpandaBackend(CrawlerBackend):
 
         # Start process with stdout/stderr redirection
         self._process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
         )
 
         # Wait for browser to start
         for _ in range(10):  # Try 10 times with 0.5s delay
             try:
                 async with aiohttp.ClientSession() as session:
-                    async with session.get(f"http://{self.config.host}:{self.config.port}/json/version") as response:
+                    async with session.get(
+                        f"http://{self.config.host}:{self.config.port}/json/version"
+                    ) as response:
                         if response.status == 200:
                             data = await response.json()
                             self._ws_endpoint = data.get("webSocketDebuggerUrl")
                             if self._ws_endpoint:
-                                logger.info(f"Lightpanda started with WebSocket endpoint: {self._ws_endpoint}")
+                                logger.info(
+                                    f"Lightpanda started with WebSocket endpoint: {self._ws_endpoint}"
+                                )
                                 return self._ws_endpoint
             except aiohttp.ClientError:
                 pass
@@ -175,17 +183,15 @@ class LightpandaBackend(CrawlerBackend):
         context_response = await self._send_command("Target.createBrowserContext")
         self._browser_context_id = context_response.get("browserContextId")
 
-    async def _send_command(self, method: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def _send_command(
+        self, method: str, params: dict[str, Any] = None
+    ) -> dict[str, Any]:
         """Send a command to the browser and wait for the response."""
         if self._ws is None:
             raise RuntimeError("WebSocket connection not established")
 
         command_id = id(method) + id(params or {})
-        message = {
-            "id": command_id,
-            "method": method,
-            "params": params or {}
-        }
+        message = {"id": command_id, "method": method, "params": params or {}}
 
         await self._ws.send_json(message)
 
@@ -195,13 +201,15 @@ class LightpandaBackend(CrawlerBackend):
                 data = json.loads(msg.data)
                 if data.get("id") == command_id:
                     if "error" in data:
-                        logger.error(f"Error executing command {method}: {data['error']}")
+                        logger.error(
+                            f"Error executing command {method}: {data['error']}"
+                        )
                         raise RuntimeError(f"Command error: {data['error']}")
                     return data.get("result", {})
 
         raise RuntimeError(f"No response received for command {method}")
 
-    async def _navigate_with_retry(self, url: str) -> Dict[str, Any]:
+    async def _navigate_with_retry(self, url: str) -> dict[str, Any]:
         """Navigate to a URL with retry logic and circuit breaker protection."""
         # Check if circuit breaker is open
         if self.circuit_breaker.is_open():
@@ -211,7 +219,7 @@ class LightpandaBackend(CrawlerBackend):
                 "error": "Circuit breaker open",
                 "status": 503,  # Service Unavailable
                 "content": None,
-                "screenshot": None
+                "screenshot": None,
             }
 
         await self._connect_browser()
@@ -225,19 +233,16 @@ class LightpandaBackend(CrawlerBackend):
                         "Target.createTarget",
                         {
                             "url": "about:blank",
-                            "browserContextId": self._browser_context_id
-                        }
+                            "browserContextId": self._browser_context_id,
+                        },
                     )
                     target_id = create_target_response.get("targetId")
 
                     try:
                         # Attach to the page
-                        session_response = await self._send_command(
+                        await self._send_command(
                             "Target.attachToTarget",
-                            {
-                                "targetId": target_id,
-                                "flatten": True
-                            }
+                            {"targetId": target_id, "flatten": True},
                         )
 
                         # Set viewport size
@@ -247,25 +252,18 @@ class LightpandaBackend(CrawlerBackend):
                                 "width": self.config.viewport_width,
                                 "height": self.config.viewport_height,
                                 "deviceScaleFactor": 1,
-                                "mobile": False
-                            }
+                                "mobile": False,
+                            },
                         )
 
                         # Set user agent
                         await self._send_command(
                             "Network.setUserAgentOverride",
-                            {
-                                "userAgent": self.config.user_agent
-                            }
+                            {"userAgent": self.config.user_agent},
                         )
 
                         # Navigate to URL
-                        navigate_response = await self._send_command(
-                            "Page.navigate",
-                            {
-                                "url": url
-                            }
-                        )
+                        await self._send_command("Page.navigate", {"url": url})
 
                         # Wait for page to load
                         if self.config.wait_for_load:
@@ -276,11 +274,13 @@ class LightpandaBackend(CrawlerBackend):
                             "Runtime.evaluate",
                             {
                                 "expression": "document.documentElement.outerHTML",
-                                "returnByValue": True
-                            }
+                                "returnByValue": True,
+                            },
                         )
 
-                        html_content = content_response.get("result", {}).get("value", "")
+                        html_content = content_response.get("result", {}).get(
+                            "value", ""
+                        )
 
                         # Take screenshot if configured
                         screenshot = None
@@ -288,21 +288,20 @@ class LightpandaBackend(CrawlerBackend):
                             os.makedirs(self.config.screenshot_path, exist_ok=True)
                             screenshot_response = await self._send_command(
                                 "Page.captureScreenshot",
-                                {
-                                    "format": "png",
-                                    "quality": 80,
-                                    "fromSurface": True
-                                }
+                                {"format": "png", "quality": 80, "fromSurface": True},
                             )
 
                             if "data" in screenshot_response:
                                 import base64
+
                                 screenshot_file = os.path.join(
                                     self.config.screenshot_path,
-                                    f"{hash(url)}_{int(time.time())}.png"
+                                    f"{hash(url)}_{int(time.time())}.png",
                                 )
                                 with open(screenshot_file, "wb") as f:
-                                    f.write(base64.b64decode(screenshot_response["data"]))
+                                    f.write(
+                                        base64.b64decode(screenshot_response["data"])
+                                    )
                                 screenshot = screenshot_file
 
                         # Record success in circuit breaker
@@ -313,16 +312,13 @@ class LightpandaBackend(CrawlerBackend):
                             "status": 200,
                             "content": html_content,
                             "screenshot": screenshot,
-                            "target_id": target_id
+                            "target_id": target_id,
                         }
                     finally:
                         # Always close the page to avoid leaking resources
                         try:
                             await self._send_command(
-                                "Target.closeTarget",
-                                {
-                                    "targetId": target_id
-                                }
+                                "Target.closeTarget", {"targetId": target_id}
                             )
                         except Exception as close_error:
                             logger.warning(f"Error closing target: {str(close_error)}")
@@ -330,7 +326,9 @@ class LightpandaBackend(CrawlerBackend):
                 # Record failure in circuit breaker
                 self.circuit_breaker.record_failure()
 
-                logger.warning(f"Attempt {attempt + 1}/{self.config.max_retries + 1} failed for {url}: {str(e)}")
+                logger.warning(
+                    f"Attempt {attempt + 1}/{self.config.max_retries + 1} failed for {url}: {str(e)}"
+                )
 
                 if attempt < self.config.max_retries:
                     # Use retry strategy for delay
@@ -343,7 +341,7 @@ class LightpandaBackend(CrawlerBackend):
                         "error": f"Failed after {self.config.max_retries} retries: {str(e)}",
                         "status": 500,
                         "content": None,
-                        "screenshot": None
+                        "screenshot": None,
                     }
 
     async def crawl(self, url_info: URLInfo, config=None) -> CrawlResult:
@@ -363,7 +361,7 @@ class LightpandaBackend(CrawlerBackend):
                 content={},
                 metadata={},
                 status=400,
-                error=f"Invalid URL: {url_info.error_message}"
+                error=f"Invalid URL: {url_info.error_message}",
             )
 
         url = url_info.normalized_url
@@ -377,7 +375,7 @@ class LightpandaBackend(CrawlerBackend):
                 content={},
                 metadata={"cached": True},
                 status=304,  # Not Modified
-                error="URL already crawled"
+                error="URL already crawled",
             )
 
         # Navigate to URL with retry logic
@@ -389,10 +387,10 @@ class LightpandaBackend(CrawlerBackend):
                 content={},
                 metadata={
                     "error_details": result.get("error", "Unknown error"),
-                    "backend": "lightpanda"
+                    "backend": "lightpanda",
                 },
                 status=result.get("status", 500),
-                error=result.get("error", "Failed to navigate to URL")
+                error=result.get("error", "Failed to navigate to URL"),
             )
 
         # Add to crawled URLs
@@ -405,10 +403,10 @@ class LightpandaBackend(CrawlerBackend):
             metadata={
                 "screenshot": result.get("screenshot"),
                 "backend": "lightpanda",
-                "javascript_enabled": self.config.javascript_enabled
+                "javascript_enabled": self.config.javascript_enabled,
             },
             status=result.get("status", 200),
-            content_type="text/html"
+            content_type="text/html",
         )
 
     async def validate(self, content: CrawlResult) -> bool:
@@ -428,7 +426,9 @@ class LightpandaBackend(CrawlerBackend):
 
         # Check if content is too short (likely an error page)
         if len(html) < 100:
-            logger.warning(f"Content for {content.url} is too short ({len(html)} bytes)")
+            logger.warning(
+                f"Content for {content.url} is too short ({len(html)} bytes)"
+            )
             return False
 
         # Check if content contains common error indicators
@@ -438,7 +438,7 @@ class LightpandaBackend(CrawlerBackend):
             "500 Internal Server Error",
             "Service Unavailable",
             "Page Not Found",
-            "Access Denied"
+            "Access Denied",
         ]
 
         soup = BeautifulSoup(html, "html.parser")
@@ -446,12 +446,14 @@ class LightpandaBackend(CrawlerBackend):
 
         for indicator in error_indicators:
             if indicator in title:
-                logger.warning(f"Error indicator '{indicator}' found in title for {content.url}")
+                logger.warning(
+                    f"Error indicator '{indicator}' found in title for {content.url}"
+                )
                 return False
 
         return True
 
-    async def process(self, content: CrawlResult) -> Dict[str, Any]:
+    async def process(self, content: CrawlResult) -> dict[str, Any]:
         """
         Process the crawled content.
 
@@ -469,9 +471,7 @@ class LightpandaBackend(CrawlerBackend):
         try:
             # Process content using ContentProcessor
             processed_content = await self.content_processor.process(
-                content=html_text,
-                base_url=content.url,
-                content_type="text/html"
+                content=html_text, base_url=content.url, content_type="text/html"
             )
 
             # Extract links if configured
@@ -482,11 +482,13 @@ class LightpandaBackend(CrawlerBackend):
                     href = a_tag.get("href")
                     if href:
                         absolute_url = urljoin(content.url, href)
-                        links.append({
-                            "url": absolute_url,
-                            "text": a_tag.get_text(strip=True),
-                            "title": a_tag.get("title", "")
-                        })
+                        links.append(
+                            {
+                                "url": absolute_url,
+                                "text": a_tag.get_text(strip=True),
+                                "title": a_tag.get("title", ""),
+                            }
+                        )
 
             return {
                 "title": processed_content.title,
@@ -495,7 +497,7 @@ class LightpandaBackend(CrawlerBackend):
                 "metadata": {**processed_content.metadata, **content.metadata},
                 "headings": processed_content.headings,
                 "assets": processed_content.assets,
-                "structure": processed_content.structure
+                "structure": processed_content.structure,
             }
         except Exception as e:
             logger.error(f"Error processing content for {content.url}: {str(e)}")
@@ -506,7 +508,7 @@ class LightpandaBackend(CrawlerBackend):
         logger.info("Closing Lightpanda backend resources")
 
         # Close WebSocket connection
-        if hasattr(self, '_ws') and self._ws:
+        if hasattr(self, "_ws") and self._ws:
             try:
                 await self._ws.close()
             except Exception as e:

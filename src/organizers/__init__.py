@@ -1,7 +1,7 @@
 """
 Document organizers for lib2docScrape.
 """
-from .doc_organizer import DocumentOrganizer
-from .aliases import DocOrganizer
 
-__all__ = ['DocumentOrganizer', 'DocOrganizer']
+from .doc_organizer import DocumentOrganizer
+
+__all__ = ["DocumentOrganizer"]

@@ -1,48 +1,19 @@
 {% extends "base.html" %}
 
-{% block title %}Library Management - Lib2DocScrape{% endblock %}
-
-{% block extra_css %}
-<style>
-    .library-card {
-        transition: transform 0.2s;
-    }
-    .library-card:hover {
-        transform: translateY(-2px);
-    }
-    .operation-badge {
-        font-size: 0.8rem;
-    }
-    .search-box {
-        max-width: 300px;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h1>Library Management</h1>
-        <p class="lead">Install, update, and manage your Python libraries</p>
-    </div>
-</div>
-
-<!-- Library Operations Panel -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <h3 class="card-title">Install New Library</h3>
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="packageName" 
-                                   placeholder="Enter package name">
-                            <button class="btn btn-primary" id="installBtn">
-                                Install
-                            </button>
-                        </div>
-                        <div class="form-text">Example: requests, beautifulsoup4, pandas</div>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h1>Library Documentation</h1>
+            <p class="lead">Browse and manage scraped library documentation</p>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title">Available Libraries</h5>
+                </div>
+                <div class="card-body">
+                    <div id="libraries-list">
+                        <p>Loading libraries...</p>
                     </div>
                 </div>
             </div>
@@ -50,270 +21,31 @@
     </div>
 </div>
 
-<!-- Active Operations -->
-<div class="row mb-4" id="activeOperations" style="display: none;">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <h3 class="card-title">Active Operations</h3>
-                <div id="operationsList">
-                    <!-- Active operations will be inserted here -->
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Installed Libraries -->
-<div class="row mb-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h3 class="card-title mb-0">Installed Libraries</h3>
-                    <div class="search-box">
-                        <input type="text" class="form-control" id="searchLibrary" 
-                               placeholder="Search libraries...">
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover" id="librariesTable">
-                        <thead>
-                            <tr>
-                                <th>Package Name</th>
-                                <th>Version</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <!-- Libraries will be populated dynamically -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Library Details Modal -->
-<div class="modal fade" id="libraryDetailsModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Library Details</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <h6>Package Information</h6>
-                    <dl class="row" id="libraryInfo">
-                        <!-- Library details will be populated dynamically -->
-                    </dl>
-                </div>
-                <div class="mb-3">
-                    <h6>Dependencies</h6>
-                    <ul class="list-unstyled" id="libraryDependencies">
-                        <!-- Dependencies will be populated dynamically -->
-                    </ul>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
 <script>
-    // Initialize WebSocket connection for library operations
-    const ws = new WebSocketManager('/ws/library-updates');
-    const activeOperations = new Map();
-    
-    // UI Elements
-    const packageInput = document.getElementById('packageName');
-    const installBtn = document.getElementById('installBtn');
-    const operationsPanel = document.getElementById('activeOperations');
-    const operationsList = document.getElementById('operationsList');
-    const searchInput = document.getElementById('searchLibrary');
-    const librariesTable = document.getElementById('librariesTable');
-    
-    // Library Installation
-    installBtn.addEventListener('click', async () => {
-        const packageName = packageInput.value.trim();
-        if (!packageName) return;
-        
-        showLoading();
-        try {
-            const response = await fetch(`/api/libraries/${packageName}`, {
-                method: 'POST'
-            });
-            
-            if (!response.ok) throw new Error('Installation failed');
-            
-            const data = await response.json();
-            updateOperationUI(data.operation_id, {
-                operation: 'install',
-                package_name: packageName,
-                status: 'pending',
-                progress: 0
-            });
-            
-            packageInput.value = '';
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to start installation: ' + error.message);
-        }
-        hideLoading();
-    });
-
-    // Operation updates via WebSocket
-    ws.on('library_operation', (data) => {
-        updateOperationUI(data.operation_id, data.data);
-        if (data.data.status === 'completed' || data.data.status === 'failed') {
-            loadInstalledLibraries();
-        }
-    });
-
-    function updateOperationUI(operationId, data) {
-        activeOperations.set(operationId, data);
-        refreshOperationsPanel();
-    }
-
-    function refreshOperationsPanel() {
-        if (activeOperations.size === 0) {
-            operationsPanel.style.display = 'none';
-            return;
-        }
-        
-        operationsPanel.style.display = 'block';
-        operationsList.innerHTML = '';
-        
-        for (const [id, operation] of activeOperations) {
-            const div = document.createElement('div');
-            div.className = 'mb-3';
-            div.innerHTML = `
-                <h6>${operation.operation === 'install' ? 'Installing' : 'Uninstalling'} ${operation.package_name}</h6>
-                <div class="progress">
-                    <div class="progress-bar ${operation.status === 'failed' ? 'bg-danger' : ''}" 
-                         role="progressbar" 
-                         style="width: ${operation.progress}%">
-                        ${operation.progress}%
+// Load libraries list when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    fetch('/api/libraries')
+        .then(response => response.json())
+        .then(data => {
+            const librariesList = document.getElementById('libraries-list');
+            if (data.length === 0) {
+                librariesList.innerHTML = '<p>No libraries available. Start by scraping a library from the <a href="/">home page</a>.</p>';
+            } else {
+                librariesList.innerHTML = data.map(lib => `
+                    <div class="card mb-2">
+                        <div class="card-body">
+                            <h6 class="card-title">${lib.name}</h6>
+                            <p class="card-text">${lib.description || 'No description available'}</p>
+                            <small class="text-muted">Last updated: ${new Date(lib.updated).toLocaleString()}</small>
+                        </div>
                     </div>
-                </div>
-                ${operation.error ? `<div class="text-danger mt-1">${operation.error}</div>` : ''}
-            `;
-            operationsList.appendChild(div);
-            
-            if (operation.status === 'completed' || operation.status === 'failed') {
-                setTimeout(() => {
-                    activeOperations.delete(id);
-                    refreshOperationsPanel();
-                }, 5000);
+                `).join('');
             }
-        }
-    }
-
-    // Library Search
-    searchInput.addEventListener('input', () => {
-        const searchTerm = searchInput.value.toLowerCase();
-        const rows = librariesTable.querySelectorAll('tbody tr');
-        
-        rows.forEach(row => {
-            const packageName = row.querySelector('td').textContent.toLowerCase();
-            row.style.display = packageName.includes(searchTerm) ? '' : 'none';
-        });
-    });
-
-    // Load installed libraries
-    async function loadInstalledLibraries() {
-        showLoading();
-        try {
-            const response = await fetch('/api/libraries');
-            if (!response.ok) throw new Error('Failed to fetch libraries');
-            
-            const libraries = await response.json();
-            const tbody = librariesTable.querySelector('tbody');
-            tbody.innerHTML = '';
-            
-            libraries.forEach(lib => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${lib.name}</td>
-                    <td>${lib.version}</td>
-                    <td>
-                        <span class="badge bg-success">Installed</span>
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-info me-1" onclick="viewLibraryDetails('${lib.name}')">
-                            Details
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="uninstallLibrary('${lib.name}')">
-                            Uninstall
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-        } catch (error) {
+        })
+        .catch(error => {
             console.error('Error loading libraries:', error);
-        }
-        hideLoading();
-    }
-
-    // View library details
-    async function viewLibraryDetails(packageName) {
-        showLoading();
-        try {
-            const response = await fetch(`/api/libraries/${packageName}/info`);
-            if (!response.ok) throw new Error('Failed to fetch library info');
-            
-            const info = await response.json();
-            const infoContainer = document.getElementById('libraryInfo');
-            infoContainer.innerHTML = Object.entries(info)
-                .map(([key, value]) => `
-                    <dt class="col-sm-3">${key.charAt(0).toUpperCase() + key.slice(1)}</dt>
-                    <dd class="col-sm-9">${value}</dd>
-                `)
-                .join('');
-            
-            new bootstrap.Modal(document.getElementById('libraryDetailsModal')).show();
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to fetch library details: ' + error.message);
-        }
-        hideLoading();
-    }
-
-    // Uninstall library
-    async function uninstallLibrary(packageName) {
-        if (!confirm(`Are you sure you want to uninstall ${packageName}?`)) return;
-        
-        showLoading();
-        try {
-            const response = await fetch(`/api/libraries/${packageName}`, {
-                method: 'DELETE'
-            });
-            
-            if (!response.ok) throw new Error('Uninstallation failed');
-            
-            const data = await response.json();
-            updateOperationUI(data.operation_id, {
-                operation: 'uninstall',
-                package_name: packageName,
-                status: 'pending',
-                progress: 0
-            });
-        } catch (error) {
-            console.error('Error:', error);
-            alert('Failed to start uninstallation: ' + error.message);
-        }
-        hideLoading();
-    }
-
-    // Initial load
-    loadInstalledLibraries();
+            document.getElementById('libraries-list').innerHTML = '<p class="text-danger">Error loading libraries.</p>';
+        });
+});
 </script>
 {% endblock %}

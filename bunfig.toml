@@ -1,0 +1,15 @@
+# Bun Configuration for lib2docScrape Testing
+
+[test]
+# Basic test configuration
+coverage = true
+timeout = 30000
+
+[install]
+# Faster installs
+cache = true
+registry = "https://registry.npmjs.org/"
+
+[run]
+# Better error handling
+bun = true

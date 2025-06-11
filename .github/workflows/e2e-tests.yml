@@ -1,0 +1,213 @@
+name: End-to-End Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of tests to run'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+        - all
+        - performance
+        - real-world
+        - unit
+      skip_slow:
+        description: 'Skip slow tests'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+        test-suite: ["unit", "integration", "performance"]
+      fail-fast: false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install UV
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+    
+    - name: Install dependencies
+      run: |
+        uv venv
+        source .venv/bin/activate
+        uv pip install -e .
+        uv pip install pytest pytest-asyncio pytest-timeout pytest-html pytest-cov psutil
+    
+    - name: Check site availability
+      run: |
+        source .venv/bin/activate
+        python -c "
+        import asyncio
+        import sys
+        sys.path.insert(0, 'src')
+        from tests.e2e.test_sites import site_manager
+        async def check():
+            availability = await site_manager.refresh_availability()
+            available = sum(availability.values())
+            total = len(availability)
+            print(f'Sites available: {available}/{total}')
+            return available > 0
+        result = asyncio.run(check())
+        if not result:
+            print('Warning: No test sites available')
+        "
+    
+    - name: Run unit tests
+      if: matrix.test-suite == 'unit'
+      run: |
+        source .venv/bin/activate
+        python -m pytest tests/ -m "not slow and not real_world and not performance" \
+          --timeout=30 \
+          --junit-xml=reports/junit-unit.xml \
+          --cov=src \
+          --cov-report=xml:reports/coverage-unit.xml \
+          --cov-report=html:reports/htmlcov-unit \
+          -v
+    
+    - name: Run integration tests
+      if: matrix.test-suite == 'integration'
+      run: |
+        source .venv/bin/activate
+        python scripts/run_e2e_tests.py \
+          --timeout=60 \
+          --skip-performance \
+          --report=reports/e2e-integration.json \
+          --junit-xml=reports/junit-integration.xml \
+          --html-report=reports/integration-report.html \
+          --coverage
+    
+    - name: Run performance tests
+      if: matrix.test-suite == 'performance'
+      run: |
+        source .venv/bin/activate
+        python scripts/run_e2e_tests.py \
+          --performance-only \
+          --timeout=120 \
+          --report=reports/e2e-performance.json \
+          --junit-xml=reports/junit-performance.xml \
+          --html-report=reports/performance-report.html
+    
+    - name: Upload test reports
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: test-reports-${{ matrix.python-version }}-${{ matrix.test-suite }}
+        path: |
+          reports/
+          htmlcov/
+        retention-days: 30
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      if: matrix.test-suite == 'unit' || matrix.test-suite == 'integration'
+      with:
+        file: reports/coverage-*.xml
+        flags: ${{ matrix.test-suite }}
+        name: codecov-${{ matrix.python-version }}-${{ matrix.test-suite }}
+    
+    - name: Comment PR with results
+      uses: actions/github-script@v6
+      if: github.event_name == 'pull_request' && always()
+      with:
+        script: |
+          const fs = require('fs');
+          const path = 'reports/e2e-*.json';
+          
+          try {
+            const reportFiles = require('glob').sync(path);
+            if (reportFiles.length === 0) return;
+            
+            const report = JSON.parse(fs.readFileSync(reportFiles[0], 'utf8'));
+            const summary = report.summary;
+            
+            const body = `## E2E Test Results - Python ${{ matrix.python-version }} - ${{ matrix.test-suite }}
+            
+            **Site Availability:** ${summary.available_sites}/${summary.total_sites} (${(summary.availability_rate * 100).toFixed(1)}%)
+            **Test Success:** ${summary.test_success ? '✅' : '❌'}
+            
+            <details>
+            <summary>Site Status</summary>
+            
+            ${Object.entries(report.site_availability).map(([site, available]) => 
+              `- ${available ? '✅' : '❌'} ${site}`
+            ).join('\n')}
+            
+            </details>`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+          } catch (error) {
+            console.log('Could not post comment:', error);
+          }
+
+  performance-benchmark:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event.inputs.test_type == 'performance'
+    timeout-minutes: 45
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+    
+    - name: Install dependencies
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        uv venv
+        source .venv/bin/activate
+        uv pip install -e .
+        uv pip install pytest pytest-asyncio pytest-timeout psutil
+    
+    - name: Run performance benchmarks
+      run: |
+        source .venv/bin/activate
+        python scripts/run_e2e_tests.py \
+          --performance-only \
+          --timeout=180 \
+          --report=reports/benchmark-results.json
+    
+    - name: Store benchmark results
+      uses: benchmark-action/github-action-benchmark@v1
+      if: github.ref == 'refs/heads/main'
+      with:
+        tool: 'customSmallerIsBetter'
+        output-file-path: reports/benchmark-results.json
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
+        comment-on-alert: true
+        alert-threshold: '150%'
+        fail-on-alert: true

@@ -1,0 +1,72 @@
+{
+  "timestamp": "2025-06-03T17:20:56.789666",
+  "summary": {
+    "total_tested": 8,
+    "successful": 0,
+    "failed": 8,
+    "success_rate": 0.0,
+    "total_documents": 0,
+    "total_content_length": 0,
+    "total_duration": 0.0013134479522705078,
+    "avg_docs_per_package": 0.0,
+    "pages_per_second": 0.0
+  },
+  "results": {
+    "aiohttp": {
+      "package": "aiohttp",
+      "url": "https://docs.aiohttp.org/en/stable/",
+      "success": false,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "duration": 0.0002899169921875
+    },
+    "requests": {
+      "package": "requests",
+      "url": "https://requests.readthedocs.io/en/latest/",
+      "success": false,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "duration": 0.00019240379333496094
+    },
+    "beautifulsoup4": {
+      "package": "beautifulsoup4",
+      "url": "https://www.crummy.com/software/BeautifulSoup/bs4/doc/",
+      "success": false,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "duration": 0.00011038780212402344
+    },
+    "scrapy": {
+      "package": "scrapy",
+      "url": "https://docs.scrapy.org/en/latest/",
+      "success": false,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "duration": 0.00016760826110839844
+    },
+    "pydantic": {
+      "package": "pydantic",
+      "url": "https://docs.pydantic.dev/latest/",
+      "success": false,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "duration": 0.00014352798461914062
+    },
+    "markdownify": {
+      "package": "markdownify",
+      "url": "https://pypi.org/project/markdownify/",
+      "success": false,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "duration": 0.0001227855682373047
+    },
+    "bleach": {
+      "package": "bleach",
+      "url": "https://bleach.readthedocs.io/en/latest/",
+      "success": false,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "duration": 0.00011563301086425781
+    },
+    "tldextract": {
+      "package": "tldextract",
+      "url": "https://github.com/john-kurkowski/tldextract",
+      "success": false,
+      "error": "2 validation errors for CrawlTarget\ncontent_types\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type\nexclude_patterns\n  Input should be a valid list [type=list_type, input_value=None, input_type=NoneType]\n    For further information visit https://errors.pydantic.dev/2.10/v/list_type",
+      "duration": 0.00017118453979492188
+    }
+  }
+}

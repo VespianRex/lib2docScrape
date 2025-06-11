@@ -1,15 +1,29 @@
 {
   "name": "lib2docscrape",
   "version": "1.0.0",
-  "description": "An autonomous documentation crawler system built around Crawl4AI, with support for multiple backends and adaptive crawling capabilities. This system automatically discovers, crawls, processes, and organizes technical documentation from various sources, with intelligent backend selection and self-optimization capabilities.",
-  "main": "index.js",
+  "description": "A comprehensive web scraping tool for library documentation with multiple backend support. Designed to efficiently crawl, process, and organize technical documentation from various sources with intelligent content extraction and quality assurance.",
+  "main": "playwright.config.js",
   "directories": {
-    "test": "tests",
     "doc": "docs",
-    "example": "examples"
+    "example": "examples",
+    "test": "tests"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^17.6.1",
+    "@playwright/test": "^1.52.0",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@types/bun": "latest",
+    "happy-dom": "^17.6.1"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "test:gui": "bun test tests/gui/",
+    "test:e2e": "bunx playwright test",
+    "test:all": "bun run test && bun run test:e2e",
+    "playwright:install": "bunx playwright install"
   },
   "repository": {
     "type": "git",
@@ -21,5 +35,9 @@
   "bugs": {
     "url": "https://github.com/VespianRex/lib2docScrape/issues"
   },
-  "homepage": "https://github.com/VespianRex/lib2docScrape#readme"
+  "homepage": "https://github.com/VespianRex/lib2docScrape#readme",
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5"
+  }
 }

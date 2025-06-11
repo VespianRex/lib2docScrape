@@ -1,0 +1,240 @@
+# GitLab CI/CD Pipeline for lib2docScrape
+# Open-source alternative to GitHub Actions
+
+stages:
+  - setup
+  - quality
+  - test
+  - integration
+  - performance
+  - deploy
+
+variables:
+  PYTHON_VERSION: "3.11"
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  REPORTS_DIR: "reports"
+
+# Cache configuration
+cache:
+  paths:
+    - .cache/pip
+    - .venv/
+
+# Setup stage
+setup:
+  stage: setup
+  image: python:${PYTHON_VERSION}
+  before_script:
+    - curl -LsSf https://astral.sh/uv/install.sh | sh
+    - export PATH="$HOME/.cargo/bin:$PATH"
+  script:
+    - uv venv .venv
+    - source .venv/bin/activate
+    - uv pip install -e .
+    - uv pip install pytest pytest-asyncio pytest-timeout pytest-html pytest-cov psutil ruff mypy
+  artifacts:
+    paths:
+      - .venv/
+    expire_in: 1 hour
+
+# Code quality checks
+lint:
+  stage: quality
+  image: python:${PYTHON_VERSION}
+  dependencies:
+    - setup
+  script:
+    - source .venv/bin/activate
+    - mkdir -p ${REPORTS_DIR}
+    - ruff check src/ tests/ --output-format=junit > ${REPORTS_DIR}/ruff-report.xml || true
+  artifacts:
+    reports:
+      junit: ${REPORTS_DIR}/ruff-report.xml
+    paths:
+      - ${REPORTS_DIR}/
+    expire_in: 1 week
+
+type_check:
+  stage: quality
+  image: python:${PYTHON_VERSION}
+  dependencies:
+    - setup
+  script:
+    - source .venv/bin/activate
+    - mkdir -p ${REPORTS_DIR}
+    - mypy src/ --junit-xml ${REPORTS_DIR}/mypy-report.xml || true
+  artifacts:
+    reports:
+      junit: ${REPORTS_DIR}/mypy-report.xml
+    expire_in: 1 week
+
+# Unit tests
+unit_tests:
+  stage: test
+  image: python:${PYTHON_VERSION}
+  dependencies:
+    - setup
+  script:
+    - source .venv/bin/activate
+    - mkdir -p ${REPORTS_DIR}
+    - python -m pytest tests/ 
+        -m "not slow and not real_world and not performance"
+        --timeout=30
+        --junit-xml=${REPORTS_DIR}/junit-unit.xml
+        --cov=src
+        --cov-report=xml:${REPORTS_DIR}/coverage-unit.xml
+        --cov-report=html:${REPORTS_DIR}/htmlcov-unit
+        --html=${REPORTS_DIR}/unit-report.html
+        --self-contained-html
+        -v
+  artifacts:
+    reports:
+      junit: ${REPORTS_DIR}/junit-unit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: ${REPORTS_DIR}/coverage-unit.xml
+    paths:
+      - ${REPORTS_DIR}/
+    expire_in: 1 week
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+
+# Integration tests
+integration_tests:
+  stage: integration
+  image: python:${PYTHON_VERSION}
+  dependencies:
+    - setup
+  script:
+    - source .venv/bin/activate
+    - mkdir -p ${REPORTS_DIR}
+    - python scripts/run_e2e_tests.py
+        --timeout=90
+        --skip-performance
+        --report=${REPORTS_DIR}/e2e-integration-${CI_PIPELINE_ID}.json
+        --junit-xml=${REPORTS_DIR}/junit-integration.xml
+        --html-report=${REPORTS_DIR}/integration-report.html
+        --coverage
+  artifacts:
+    reports:
+      junit: ${REPORTS_DIR}/junit-integration.xml
+    paths:
+      - ${REPORTS_DIR}/
+    expire_in: 1 week
+  allow_failure: true
+
+# Library documentation scraping tests
+dependency_docs_test:
+  stage: integration
+  image: python:${PYTHON_VERSION}
+  dependencies:
+    - setup
+  script:
+    - source .venv/bin/activate
+    - mkdir -p ${REPORTS_DIR}
+    - python scripts/test_project_dependencies.py
+        --output=${REPORTS_DIR}/dependency-docs-${CI_PIPELINE_ID}.json
+        --html-report=${REPORTS_DIR}/dependency-report.html
+        --timeout=120
+        --verbose
+  artifacts:
+    paths:
+      - ${REPORTS_DIR}/
+    expire_in: 1 week
+  allow_failure: true
+
+# Performance benchmarks (only on main branch or scheduled)
+performance_tests:
+  stage: performance
+  image: python:${PYTHON_VERSION}
+  dependencies:
+    - setup
+  script:
+    - source .venv/bin/activate
+    - mkdir -p ${REPORTS_DIR}
+    - python scripts/run_e2e_tests.py
+        --performance-only
+        --timeout=180
+        --report=${REPORTS_DIR}/performance-${CI_PIPELINE_ID}.json
+        --junit-xml=${REPORTS_DIR}/junit-performance.xml
+        --html-report=${REPORTS_DIR}/performance-report.html
+  artifacts:
+    reports:
+      junit: ${REPORTS_DIR}/junit-performance.xml
+    paths:
+      - ${REPORTS_DIR}/
+    expire_in: 1 month
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  allow_failure: true
+
+# Multi-version testing
+.test_template: &test_template
+  stage: test
+  dependencies:
+    - setup
+  script:
+    - source .venv/bin/activate
+    - python -m pytest tests/
+        -m "not slow and not real_world"
+        --timeout=30
+        --junit-xml=${REPORTS_DIR}/junit-py${PYTHON_VERSION}.xml
+        -v
+  artifacts:
+    reports:
+      junit: ${REPORTS_DIR}/junit-py${PYTHON_VERSION}.xml
+    expire_in: 1 week
+
+test_python39:
+  <<: *test_template
+  image: python:3.9
+  variables:
+    PYTHON_VERSION: "3.9"
+
+test_python310:
+  <<: *test_template
+  image: python:3.10
+  variables:
+    PYTHON_VERSION: "3.10"
+
+test_python311:
+  <<: *test_template
+  image: python:3.11
+  variables:
+    PYTHON_VERSION: "3.11"
+
+# Pages deployment for reports
+pages:
+  stage: deploy
+  dependencies:
+    - unit_tests
+    - integration_tests
+    - dependency_docs_test
+    - performance_tests
+  script:
+    - mkdir public
+    - cp -r ${REPORTS_DIR}/* public/ || true
+    - echo "Test reports deployed to GitLab Pages"
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 month
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+# Scheduled pipeline for daily testing
+daily_full_test:
+  stage: integration
+  image: python:${PYTHON_VERSION}
+  dependencies:
+    - setup
+  script:
+    - source .venv/bin/activate
+    - ./scripts/test_runner.sh all --coverage --output ${REPORTS_DIR}/daily
+  artifacts:
+    paths:
+      - ${REPORTS_DIR}/daily/
+    expire_in: 1 month
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  allow_failure: true

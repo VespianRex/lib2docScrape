@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Document Page - {{ doc.title }}</title>
+</head>
+<body>
+    <h1>Document: {{ doc.title }}</h1>
+    <p>Library: {{ library }} - Version: {{ version }}</p>
+    <div class="content">
+        {{ doc.content | safe }}
+    </div>
+</body>
+</html>
