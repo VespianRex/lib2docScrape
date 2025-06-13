@@ -59,7 +59,12 @@ dependencies = [
     "pytest-asyncio>=0.25.3",
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.14.0",
+    "pytest-xdist>=3.6.0",
     "pre-commit>=4.2.0",
+    "python-multipart>=0.0.20",
+    "html2text>=2025.4.15",
+    "uvicorn>=0.34.3",
+    "jinja2>=3.1.6",
 ]
 
 [project.optional-dependencies]
@@ -69,6 +74,7 @@ dev = [
     "pytest-cov>=6.0.0",
     "pytest-asyncio>=0.24.0",
     "pytest-mock>=3.10.0",
+    "pytest-xdist>=3.6.0",
     "hypothesis>=6.92.1",
 
     # HTTP mocking for tests
@@ -128,6 +134,9 @@ testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# For parallel execution, use: pytest -n auto or pytest -n 2
+# Parallel execution is beneficial for larger test suites or slower tests
 addopts = [
     "--strict-markers",
     "--strict-config",

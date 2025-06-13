@@ -43,7 +43,7 @@ A comprehensive web scraping tool for library documentation with multiple backen
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone the repository
-git clone https://github.com/yourusername/lib2docscrape.git
+git clone https://github.com/VespianRex/lib2docscrape.git
 cd lib2docscrape
 
 # Install with development dependencies
@@ -312,4 +312,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 **lib2docScrape** - *Comprehensive documentation scraping made simple*
 
-*Last Updated: January 27, 2025*

@@ -301,9 +301,8 @@ class Crawler:
             ddg_discovered_urls: set[str] = set()
             for query in search_queries:
                 try:
-                    # Assuming self.duckduckgo.search is synchronous based on previous errors
-                    # If it's async, it should be `await self.duckduckgo.search(query)`
-                    urls_result = self.duckduckgo.search(query)
+                    # DuckDuckGoSearch.search is async, so we need to await it
+                    urls_result = await self.duckduckgo.search(query)
                     if urls_result:
                         for url_item_ddg in urls_result:
                             url_to_add = None

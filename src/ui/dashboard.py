@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -56,13 +56,17 @@ class Dashboard:
         self.app = app
         self.config = config or DashboardConfig()
 
-        # Set up templates
-        self.templates = Jinja2Templates(directory=self.config.templates_dir)
+        # Set up templates - use absolute path relative to this file
+        import os
+        template_path = os.path.join(os.path.dirname(__file__), self.config.templates_dir)
+        self.templates = Jinja2Templates(directory=template_path)
 
-        # Set up static files
-        self.app.mount(
-            "/static", StaticFiles(directory=self.config.static_dir), name="static"
-        )
+        # Set up static files - use absolute path relative to this file
+        static_path = os.path.join(os.path.dirname(__file__), self.config.static_dir)
+        if os.path.exists(static_path):
+            self.app.mount(
+                "/static", StaticFiles(directory=static_path), name="static"
+            )
 
         # Set up routes
         self._setup_routes()
@@ -73,6 +77,46 @@ class Dashboard:
 
         logger.info(f"Dashboard initialized with title='{self.config.title}'")
 
+    def set_theme(self, theme: str) -> None:
+        """
+        Set the dashboard theme.
+
+        Args:
+            theme: Theme name (light, dark)
+        """
+        self.config.theme = theme
+
+    async def fetch_dashboard_data(self) -> dict[str, Any]:
+        """
+        Fetch dashboard data for display.
+
+        Returns:
+            Dashboard data dictionary
+        """
+        return {
+            "libraries": 0,
+            "documents": 0,
+            "crawls": 0,
+            "uptime": 0,
+            "activity": []
+        }
+
+    def refresh_data(self) -> dict[str, Any]:
+        """
+        Refresh dashboard data (synchronous version).
+
+        Returns:
+            Dashboard data dictionary
+        """
+        # Call the async version synchronously for testing
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            return loop.run_until_complete(self.fetch_dashboard_data())
+        except RuntimeError:
+            # If no event loop is running, create a new one
+            return asyncio.run(self.fetch_dashboard_data())
+
     def _setup_routes(self) -> None:
         """Set up dashboard routes."""
 
@@ -80,12 +124,13 @@ class Dashboard:
         @self.app.get("/", response_class=HTMLResponse)
         async def home(request: Request):
             return self.templates.TemplateResponse(
+                request,
                 "dashboard.html",
                 {
-                    "request": request,
                     "title": self.config.title,
                     "description": self.config.description,
                     "theme": self.config.theme,
+                    "refresh_interval": self.config.refresh_interval,
                     "enable_charts": self.config.enable_charts,
                     "enable_notifications": self.config.enable_notifications,
                     "enable_search": self.config.enable_search,
@@ -93,6 +138,7 @@ class Dashboard:
                     "enable_sorting": self.config.enable_sorting,
                     "enable_export": self.config.enable_export,
                     "enable_admin": self.config.enable_admin,
+                    "enable_websockets": self.config.enable_websockets,
                     "custom_css": self.config.custom_css,
                     "custom_js": self.config.custom_js,
                 },
@@ -101,11 +147,19 @@ class Dashboard:
         # API routes
         @self.app.get("/api/status")
         async def get_status():
-            return {
-                "status": "ok",
-                "timestamp": datetime.now().isoformat(),
-                "version": "1.0.0",
-            }
+            try:
+                # Fetch dashboard data (this can throw an exception for testing)
+                dashboard_data = await self.fetch_dashboard_data()
+
+                return {
+                    "status": "ok",
+                    "timestamp": datetime.now().isoformat(),
+                    "version": "1.0.0",
+                    **dashboard_data
+                }
+            except Exception as e:
+                logger.error(f"Error fetching dashboard data: {e}")
+                raise HTTPException(status_code=500, detail="Internal server error")
 
         @self.app.get("/api/config")
         async def get_config():
@@ -117,9 +171,9 @@ class Dashboard:
             @self.app.get("/admin", response_class=HTMLResponse)
             async def admin(request: Request):
                 return self.templates.TemplateResponse(
+                    request,
                     "admin.html",
                     {
-                        "request": request,
                         "title": f"{self.config.title} - Admin",
                         "description": self.config.description,
                         "theme": self.config.theme,

@@ -43,7 +43,7 @@ class TechStack(Enum):
 
 
 @dataclass
-class TestSite:
+class SiteConfig:
     """Configuration for a test site."""
 
     name: str
@@ -67,7 +67,7 @@ class TestSite:
 # Test site configurations
 TEST_SITES = {
     # Simple sites for basic functionality testing
-    "httpbin": TestSite(
+    "httpbin": SiteConfig(
         name="HTTPBin",
         url="https://httpbin.org/",
         category=SiteCategory.SIMPLE,
@@ -81,7 +81,7 @@ TEST_SITES = {
             "forbidden_errors": ["404", "500"],
         },
     ),
-    "example_com": TestSite(
+    "example_com": SiteConfig(
         name="Example.com",
         url="https://example.com/",
         category=SiteCategory.SIMPLE,
@@ -95,7 +95,7 @@ TEST_SITES = {
         },
     ),
     # Documentation sites
-    "python_docs": TestSite(
+    "python_docs": SiteConfig(
         name="Python Documentation",
         url="https://docs.python.org/3/",
         category=SiteCategory.DOCUMENTATION,
@@ -110,7 +110,7 @@ TEST_SITES = {
             "required_text": ["Python", "documentation"],
         },
     ),
-    "fastapi_docs": TestSite(
+    "fastapi_docs": SiteConfig(
         name="FastAPI Documentation",
         url="https://fastapi.tiangolo.com/",
         category=SiteCategory.DOCUMENTATION,
@@ -121,7 +121,7 @@ TEST_SITES = {
         validation_rules={"min_content_length": 300, "required_text": ["FastAPI"]},
     ),
     # GitHub Pages sites
-    "github_pages": TestSite(
+    "github_pages": SiteConfig(
         name="GitHub Pages Example",
         url="https://pages.github.com/",
         category=SiteCategory.SIMPLE,
@@ -131,7 +131,7 @@ TEST_SITES = {
         description="GitHub Pages landing page",
     ),
     # Performance testing sites
-    "wikipedia": TestSite(
+    "wikipedia": SiteConfig(
         name="Wikipedia",
         url="https://en.wikipedia.org/wiki/Main_Page",
         category=SiteCategory.LARGE,
@@ -146,7 +146,7 @@ TEST_SITES = {
 }
 
 
-class TestSiteManager:
+class SiteManager:
     """Manages test sites and their availability."""
 
     def __init__(self):
@@ -154,7 +154,7 @@ class TestSiteManager:
         self.unavailable_sites: set[str] = set()
         self.last_check: Optional[float] = None
 
-    async def check_site_availability(self, site: TestSite) -> bool:
+    async def check_site_availability(self, site: SiteConfig) -> bool:
         """Check if a test site is available."""
         try:
             async with aiohttp.ClientSession(
@@ -194,7 +194,7 @@ class TestSiteManager:
         self.last_check = asyncio.get_event_loop().time()
         return results
 
-    def get_sites_by_category(self, category: SiteCategory) -> list[TestSite]:
+    def get_sites_by_category(self, category: SiteCategory) -> list[SiteConfig]:
         """Get available sites by category."""
         return [
             site
@@ -202,7 +202,7 @@ class TestSiteManager:
             if site.category == category and site_id in self.available_sites
         ]
 
-    def get_available_sites(self) -> list[TestSite]:
+    def get_available_sites(self) -> list[SiteConfig]:
         """Get all available test sites."""
         return [
             site
@@ -212,7 +212,7 @@ class TestSiteManager:
 
 
 # Global site manager instance
-site_manager = TestSiteManager()
+site_manager = SiteManager()
 
 
 @pytest.fixture(scope="session")

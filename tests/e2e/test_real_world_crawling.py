@@ -18,7 +18,7 @@ from src.processors.content_processor import ContentProcessor
 from src.processors.quality_checker import QualityChecker
 
 from .test_sites import (
-    TestSite,
+    SiteConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ class RealWorldTestValidator:
     """Validates real-world crawling results."""
 
     @staticmethod
-    def validate_crawl_result(result, site: TestSite) -> dict[str, bool]:
+    def validate_crawl_result(result, site: SiteConfig) -> dict[str, bool]:
         """Validate crawl results against site expectations."""
         validation_results = {}
 
@@ -82,14 +82,14 @@ class RealWorldTestValidator:
 
 
 @pytest.mark.asyncio
-async def test_simple_site_crawling(simple_test_sites):
+async def test_simple_site_crawling(simple_test_sites, fast_crawler_config):
     """Test crawling simple websites with basic validation."""
     if not simple_test_sites:
         pytest.skip("No simple test sites available")
 
     validator = RealWorldTestValidator()
     backend = HTTPBackend(HTTPBackendConfig())
-    crawler = DocumentationCrawler(backend=backend)
+    crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
 
     for site in simple_test_sites[:2]:  # Test first 2 available sites
         logger.info(f"Testing site: {site.name} ({site.url})")
@@ -145,7 +145,7 @@ async def test_simple_site_crawling(simple_test_sites):
 
 
 @pytest.mark.asyncio
-async def test_documentation_site_crawling(documentation_sites):
+async def test_documentation_site_crawling(documentation_sites, fast_crawler_config):
     """Test crawling documentation websites with content validation."""
     if not documentation_sites:
         pytest.skip("No documentation sites available")
@@ -156,6 +156,7 @@ async def test_documentation_site_crawling(documentation_sites):
     quality_checker = QualityChecker()
 
     crawler = DocumentationCrawler(
+        config=fast_crawler_config,
         backend=backend,
         content_processor=content_processor,
         quality_checker=quality_checker,
@@ -206,7 +207,7 @@ async def test_documentation_site_crawling(documentation_sites):
 
 
 @pytest.mark.asyncio
-async def test_backend_comparison(simple_test_sites):
+async def test_backend_comparison(simple_test_sites, fast_crawler_config):
     """Compare different backends on the same sites."""
     if not simple_test_sites:
         pytest.skip("No test sites available")
@@ -228,7 +229,7 @@ async def test_backend_comparison(simple_test_sites):
 
         logger.info(f"Testing {backend_name} backend on {site.name}")
 
-        crawler = DocumentationCrawler(backend=backend)
+        crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
 
         try:
             start_time = time.time()
@@ -277,14 +278,14 @@ async def test_backend_comparison(simple_test_sites):
 
 
 @pytest.mark.asyncio
-async def test_performance_benchmarking(simple_test_sites):
+async def test_performance_benchmarking(simple_test_sites, fast_crawler_config):
     """Basic performance benchmarking of the crawling system."""
     if not simple_test_sites:
         pytest.skip("No test sites available")
 
     site = simple_test_sites[0]
     backend = HTTPBackend(HTTPBackendConfig())
-    crawler = DocumentationCrawler(backend=backend)
+    crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
 
     # Performance test parameters
     target = CrawlTarget(url=site.url, depth=1, max_pages=5)

@@ -9,7 +9,7 @@ import re
 from typing import Any, Optional
 
 import numpy as np
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sklearn.cluster import KMeans
 from sklearn.decomposition import TruncatedSVD
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -40,8 +40,7 @@ class CategoryModel(BaseModel):
     classifier: Optional[Any] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class DocumentCategorizer:

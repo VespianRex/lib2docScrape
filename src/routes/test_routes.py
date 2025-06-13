@@ -16,7 +16,7 @@ templates = Jinja2Templates(directory="templates")
 @router.get("/test-dashboard")
 async def test_dashboard(request: Request):
     """Render the test dashboard page"""
-    return templates.TemplateResponse("test_dashboard.html", {"request": request})
+    return templates.TemplateResponse(request, "test_dashboard.html", {"request": request})
 
 
 @router.get("/api/tests/export")

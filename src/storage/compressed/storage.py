@@ -13,7 +13,7 @@ import zlib
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,7 @@ class CompressionConfig(BaseModel):
     zlib_wbits: int = 15  # 15 = maximum window size
     lzma_preset: int = 9  # 0-9, higher = more compression
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class CompressedStorage:

@@ -11,7 +11,7 @@ from urllib.parse import urljoin, urlparse
 
 import aiohttp
 from bs4 import BeautifulSoup
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..processors.content_processor import ContentProcessor
 from ..utils.circuit_breaker import CircuitBreaker
@@ -33,9 +33,11 @@ class Crawl4AIConfig(BaseModel):
     follow_redirects: bool = True
     verify_ssl: bool = True
     max_depth: int = 5
+    max_pages: int = 1000
     rate_limit: float = 2.0
     concurrent_requests: int = 10
     allowed_domains: Optional[list[str]] = None
+    follow_links: bool = True
     extract_links: bool = True
     extract_images: bool = True
     extract_metadata: bool = True
@@ -43,6 +45,48 @@ class Crawl4AIConfig(BaseModel):
     circuit_breaker_threshold: int = 5
     circuit_breaker_reset_timeout: float = 60.0
     javascript_enabled: bool = False
+
+    @field_validator('max_retries')
+    @classmethod
+    def validate_max_retries(cls, v):
+        if v < 0:
+            raise ValueError('max_retries must be non-negative')
+        return v
+
+    @field_validator('timeout')
+    @classmethod
+    def validate_timeout(cls, v):
+        if v <= 0:
+            raise ValueError('timeout must be positive')
+        return v
+
+    @field_validator('max_depth')
+    @classmethod
+    def validate_max_depth(cls, v):
+        if v < 0:
+            raise ValueError('max_depth must be non-negative')
+        return v
+
+    @field_validator('max_pages')
+    @classmethod
+    def validate_max_pages(cls, v):
+        if v < 0:
+            raise ValueError('max_pages must be non-negative')
+        return v
+
+    @field_validator('rate_limit')
+    @classmethod
+    def validate_rate_limit(cls, v):
+        if v <= 0:
+            raise ValueError('rate_limit must be positive')
+        return v
+
+    @field_validator('concurrent_requests')
+    @classmethod
+    def validate_concurrent_requests(cls, v):
+        if v <= 0:
+            raise ValueError('concurrent_requests must be positive')
+        return v
 
 
 class Crawl4AIBackend(CrawlerBackend):
@@ -74,6 +118,12 @@ class Crawl4AIBackend(CrawlerBackend):
             failure_threshold=self.config.circuit_breaker_threshold,
             reset_timeout=self.config.circuit_breaker_reset_timeout,
         )
+
+        # Initialize additional metrics specific to Crawl4AI backend
+        self.metrics.update({
+            "successful_requests": 0,
+            "failed_requests": 0,
+        })
 
     async def _ensure_session(self):
         """Ensure an aiohttp session exists."""
@@ -114,7 +164,7 @@ class Crawl4AIBackend(CrawlerBackend):
 
                 self._last_request = time.time()
 
-    async def _fetch_with_retry(self, url: str) -> CrawlResult:
+    async def _fetch_with_retry(self, url: str, config=None) -> CrawlResult:
         """Fetch a URL with retry logic and circuit breaker protection."""
         # Check if circuit breaker is open
         if self.circuit_breaker.is_open():
@@ -214,6 +264,10 @@ class Crawl4AIBackend(CrawlerBackend):
             )
         start_time = time.time()
 
+        # Set start_time metric if this is the first crawl
+        if self.metrics["pages_crawled"] == 0:
+            self.metrics["start_time"] = start_time
+
         # Validate URL
         if not url_info.is_valid:
             return CrawlResult(
@@ -271,14 +325,74 @@ class Crawl4AIBackend(CrawlerBackend):
                     error=f"Domain not allowed: {domain}",
                 )
 
+        # Check max pages limit before fetching
+        if len(self._crawled_urls) >= self.config.max_pages:
+            logger.warning(f"Max pages limit reached ({self.config.max_pages}), skipping {url}")
+            return CrawlResult(
+                url=url,
+                content={},
+                metadata={},
+                status=429,  # Too Many Requests
+                error=f"Max pages limit reached ({self.config.max_pages})",
+            )
+
         # Fetch the URL
-        result = await self._fetch_with_retry(url)
+        result = await self._fetch_with_retry(url, config)
+
+        # Update metrics for failed requests
+        if result.error or result.status >= 400:
+            self.metrics["failed_requests"] += 1
+            crawl_time = time.time() - start_time
+            await self.update_metrics(crawl_time, False)
+            return result
 
         # Add to crawled URLs if successful
         if result.status >= 200 and result.status < 300:
             self._crawled_urls.add(url)
 
-        # Update metrics
+            # Validate content
+            if not await self.validate(result):
+                logger.warning(f"Content validation failed for {url}")
+                self.metrics["failed_requests"] += 1
+                crawl_time = time.time() - start_time
+                await self.update_metrics(crawl_time, False)
+                return CrawlResult(
+                    url=url,
+                    content={},
+                    metadata={},
+                    status=422,  # Unprocessable Entity
+                    error="Content validation failed",
+                )
+
+            # Process content
+            processed_data = await self.process(result)
+            if "error" in processed_data:
+                logger.warning(f"Content processing failed for {url}: {processed_data['error']}")
+                self.metrics["failed_requests"] += 1
+                crawl_time = time.time() - start_time
+                await self.update_metrics(crawl_time, False)
+                return CrawlResult(
+                    url=url,
+                    content=processed_data,
+                    metadata=result.metadata,
+                    status=500,  # Internal Server Error
+                    error=processed_data["error"],
+                )
+
+            # Success case
+            self.metrics["successful_requests"] += 1
+            crawl_time = time.time() - start_time
+            await self.update_metrics(crawl_time, True)
+            
+            return CrawlResult(
+                url=url,
+                content=processed_data,
+                metadata=result.metadata,
+                status=result.status,
+            )
+
+        # Other status codes
+        self.metrics["failed_requests"] += 1
         crawl_time = time.time() - start_time
         await self.update_metrics(
             crawl_time, result.status >= 200 and result.status < 300
@@ -319,8 +433,13 @@ class Crawl4AIBackend(CrawlerBackend):
         try:
             # Process content using ContentProcessor
             processed_content = await self.content_processor.process(
-                html_content=html, base_url=content.url
+                content=html, base_url=content.url
             )
+
+            # Check if processing resulted in errors
+            if processed_content.has_errors:
+                error_message = "; ".join(processed_content.errors)
+                return {"error": error_message}
 
             # Extract links if configured
             links = []
@@ -350,6 +469,7 @@ class Crawl4AIBackend(CrawlerBackend):
                         metadata[name] = content
 
             return {
+                "html": html,  # Preserve raw HTML for tests and other consumers
                 "title": processed_content.title,
                 "content": processed_content.content,
                 "links": links,
@@ -360,10 +480,160 @@ class Crawl4AIBackend(CrawlerBackend):
 
         except Exception as e:
             logger.error(f"Error processing content for {content.url}: {str(e)}")
-            return {"error": f"Processing error: {str(e)}"}
+            return {"error": f"Failed to process content: {str(e)}"}
+
+    async def update_metrics(self, crawl_time: float, success: bool) -> None:
+        """Update the crawler metrics with additional timing information."""
+        # Call parent update_metrics first to ensure all base metrics are updated
+        await super().update_metrics(crawl_time, success)
+
+        # Update end time
+        self.metrics["end_time"] = time.time()
+
+    async def _create_session(self):
+        """Create a new aiohttp session."""
+        return aiohttp.ClientSession(
+            headers=self.config.headers,
+            timeout=aiohttp.ClientTimeout(total=self.config.timeout),
+        )
+
+    def _is_same_domain(self, url1: str, url2: str) -> bool:
+        """
+        Check if two URLs are from the same domain.
+
+        Args:
+            url1: First URL to compare
+            url2: Second URL to compare
+
+        Returns:
+            bool: True if URLs are from the same domain, False otherwise
+        """
+        try:
+            parsed1 = urlparse(url1)
+            parsed2 = urlparse(url2)
+
+            domain1 = parsed1.netloc.lower()
+            domain2 = parsed2.netloc.lower()
+
+            # Remove www. prefix for comparison
+            if domain1.startswith("www."):
+                domain1 = domain1[4:]
+            if domain2.startswith("www."):
+                domain2 = domain2[4:]
+
+            # Remove port numbers for comparison (same domain with different ports)
+            if ":" in domain1:
+                domain1 = domain1.split(":")[0]
+            if ":" in domain2:
+                domain2 = domain2.split(":")[0]
+
+            return domain1 == domain2
+
+        except Exception:
+            return False
+
+    def _is_in_subfolder(self, base_url: str, link_url: str) -> bool:
+        """
+        Check if a link URL is in a subfolder of the base URL.
+
+        Args:
+            base_url: The base URL to check against
+            link_url: The link URL to check
+
+        Returns:
+            bool: True if link is in subfolder of base, False otherwise
+        """
+        try:
+            # First check if they're the same domain
+            if not self._is_same_domain(base_url, link_url):
+                return False
+
+            base_parsed = urlparse(base_url)
+            link_parsed = urlparse(link_url)
+
+            base_path = base_parsed.path.rstrip("/")
+            link_path = link_parsed.path.rstrip("/")
+
+            # If base_path is empty, everything is in subfolder
+            if not base_path:
+                return True
+
+            # Check if link path starts with base path
+            return link_path.startswith(base_path + "/") or link_path == base_path
+
+        except Exception:
+            return False
+
+    def _should_follow_link(self, current_url: str, link_url: str) -> bool:
+        """
+        Determine if a link should be followed based on configuration.
+
+        Args:
+            current_url: The current URL being processed
+            link_url: The link URL found on the current page
+
+        Returns:
+            bool: True if link should be followed, False otherwise
+        """
+        # Check if link following is enabled
+        if not self.config.follow_links:
+            return False
+
+        # Check if max pages limit reached
+        if len(self._crawled_urls) >= self.config.max_pages:
+            return False
+
+        # Resolve relative links
+        try:
+            absolute_link = urljoin(current_url, link_url)
+        except Exception:
+            return False
+
+        # Check if already crawled
+        if absolute_link in self._crawled_urls:
+            return False
+
+        # Set initial domain if not set
+        if not hasattr(self, "_initial_domain") or self._initial_domain is None:
+            parsed = urlparse(current_url)
+            self._initial_domain = parsed.netloc.lower()
+            if self._initial_domain.startswith("www."):
+                self._initial_domain = self._initial_domain[4:]
+
+        # Check if same domain
+        if not self._is_same_domain(current_url, absolute_link):
+            return False
+
+        # Validate the link URL
+        try:
+            parsed_link = urlparse(absolute_link)
+            if not parsed_link.scheme or not parsed_link.netloc:
+                return False
+        except Exception:
+            return False
+
+        return True
+
+    def set_progress_callback(self, callback):
+        """Set a progress callback function."""
+        self._progress_callback = callback
+
+    async def _notify_progress(self, url: str, current: int, status: str):
+        """Notify progress if callback is set."""
+        if hasattr(self, "_progress_callback") and self._progress_callback:
+            await self._progress_callback(url, current, status)
 
     async def close(self) -> None:
         """Close resources."""
         if self._session and not self._session.closed:
             await self._session.close()
             self._session = None
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        await self._ensure_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit."""
+        await self.close()

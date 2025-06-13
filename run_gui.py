@@ -707,37 +707,37 @@ async def handle_scraping_background(
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render the main scraping dashboard."""
-    return templates.TemplateResponse("scraping_dashboard.html", {"request": request})
+    return templates.TemplateResponse(request, "scraping_dashboard.html", {"request": request})
 
 
 @app.get("/home", response_class=HTMLResponse)
 async def home_page(request: Request):
     """Render the welcome/info page."""
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(request, "index.html", {"request": request})
 
 
 @app.get("/test-dashboard", response_class=HTMLResponse)
 async def test_dashboard(request: Request):
     """Render the test dashboard page."""
-    return templates.TemplateResponse("scraping_dashboard.html", {"request": request})
+    return templates.TemplateResponse(request, "scraping_dashboard.html", {"request": request})
 
 
 @app.get("/libraries", response_class=HTMLResponse)
 async def libraries(request: Request):
     """Render the libraries page."""
-    return templates.TemplateResponse("libraries.html", {"request": request})
+    return templates.TemplateResponse(request, "libraries.html", {"request": request})
 
 
 @app.get("/config", response_class=HTMLResponse)
 async def config(request: Request):
     """Render the configuration page."""
-    return templates.TemplateResponse("config.html", {"request": request})
+    return templates.TemplateResponse(request, "config.html", {"request": request})
 
 
 @app.get("/results", response_class=HTMLResponse)
 async def results(request: Request):
     """Render the results page."""
-    return templates.TemplateResponse("results.html", {"request": request})
+    return templates.TemplateResponse(request, "results.html", {"request": request})
 
 
 @app.post("/crawl")
@@ -1401,6 +1401,9 @@ def get_crawler_config(url: str, url_info: dict) -> dict:
 
 def open_browser(port: int):
     """Open the browser after a short delay to ensure server is running."""
+    # Only open browser if not running in headless/test environment
+    if os.environ.get("NO_BROWSER") == "1" or os.environ.get("CI") == "1":
+        return
     url = f"http://127.0.0.1:{port}"
     webbrowser.open(url)
 

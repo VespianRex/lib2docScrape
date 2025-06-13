@@ -12,7 +12,7 @@ from src.utils.url_info_tldextract import URLInfo, URLSecurityConfig, URLType
 
 
 # Create a testable subclass of URLInfo that allows attribute modification
-class TestableURLInfo(URLInfo):
+class ModifiableURLInfo(URLInfo):
     """A subclass of URLInfo that allows attribute modification for testing."""
 
     def __setattr__(self, name, value):
@@ -316,8 +316,8 @@ def test_validate_netloc():
 
     for netloc in valid_netlocs:
         parsed = urlparse(f"http://{netloc}")
-        # Create a TestableURLInfo instance with tld_extract_result
-        url_info = TestableURLInfo("")
+        # Create a ModifiableURLInfo instance with tld_extract_result
+        url_info = ModifiableURLInfo("")
         url_info._tld_extract_result = tldextract.extract(netloc)
         is_valid, error = url_info._validate_netloc(parsed)
         assert is_valid is True, f"Failed for netloc: {netloc}, error: {error}"
@@ -333,7 +333,7 @@ def test_validate_netloc():
 
     for netloc in invalid_netlocs:
         parsed = urlparse(f"http://{netloc}")
-        is_valid, error = URLInfo._validate_netloc(TestableURLInfo(""), parsed)
+        is_valid, error = URLInfo._validate_netloc(ModifiableURLInfo(""), parsed)
         assert is_valid is False, f"Should fail for netloc: {netloc}"
         assert error is not None
 
@@ -348,7 +348,7 @@ def test_validate_netloc():
 
     for netloc in edge_case_netlocs:
         parsed = urlparse(f"http://{netloc}")
-        is_valid, error = URLInfo._validate_netloc(TestableURLInfo(""), parsed)
+        is_valid, error = URLInfo._validate_netloc(ModifiableURLInfo(""), parsed)
         print(f"Netloc '{netloc}': is_valid={is_valid}, error={error}")
 
 
@@ -362,7 +362,7 @@ def test_validate_port():
             parsed = urlparse("http://example.com")
         else:
             parsed = urlparse(f"http://example.com:{port}")
-        is_valid, error = URLInfo._validate_port(TestableURLInfo(""), parsed)
+        is_valid, error = URLInfo._validate_port(ModifiableURLInfo(""), parsed)
         assert is_valid is True, f"Failed for port: {port}, error: {error}"
         assert error is None
 
@@ -376,7 +376,7 @@ def test_validate_port():
                 self.port = port
 
         parsed = MockParsed(port)
-        is_valid, error = URLInfo._validate_port(TestableURLInfo(""), parsed)
+        is_valid, error = URLInfo._validate_port(ModifiableURLInfo(""), parsed)
         assert is_valid is False, f"Should fail for port: {port}"
         assert "Invalid port" in error
 
@@ -394,7 +394,7 @@ def test_validate_path():
 
     for path in valid_paths:
         parsed = urlparse(f"http://example.com{path}")
-        is_valid, error = URLInfo._validate_path(TestableURLInfo(""), parsed)
+        is_valid, error = URLInfo._validate_path(ModifiableURLInfo(""), parsed)
         assert is_valid is True, f"Failed for path: {path}, error: {error}"
         assert error is None
 
@@ -406,14 +406,14 @@ def test_validate_path():
 
     for path in invalid_paths:
         parsed = urlparse(f"http://example.com{path}")
-        is_valid, error = URLInfo._validate_path(TestableURLInfo(""), parsed)
+        is_valid, error = URLInfo._validate_path(ModifiableURLInfo(""), parsed)
         assert is_valid is False, f"Should fail for path: {path}"
         assert error is not None
 
     # Test path traversal in _validate_security_patterns
     path_traversal = "/path/../../../etc/passwd"
     parsed = urlparse(f"http://example.com{path_traversal}")
-    is_valid, error = URLInfo._validate_security_patterns(TestableURLInfo(""), parsed)
+    is_valid, error = URLInfo._validate_security_patterns(ModifiableURLInfo(""), parsed)
     assert is_valid is False, f"Should fail for path: {path_traversal}"
     assert "Directory traversal attempt" in error
 
@@ -430,7 +430,7 @@ def test_validate_query():
 
     for query in valid_queries:
         parsed = urlparse(f"http://example.com/?{query}")
-        is_valid, error = URLInfo._validate_query(TestableURLInfo(""), parsed)
+        is_valid, error = URLInfo._validate_query(ModifiableURLInfo(""), parsed)
         assert is_valid is True, f"Failed for query: {query}, error: {error}"
         assert error is None
 
@@ -443,7 +443,7 @@ def test_validate_query():
 
     for query in invalid_queries:
         parsed = urlparse(f"http://example.com/?{query}")
-        is_valid, error = URLInfo._validate_query(TestableURLInfo(""), parsed)
+        is_valid, error = URLInfo._validate_query(ModifiableURLInfo(""), parsed)
         assert is_valid is False, f"Should fail for query: {query}"
         assert error is not None
 
@@ -460,7 +460,7 @@ def test_validate_security_patterns():
     for url in valid_urls:
         parsed = urlparse(url)
         is_valid, error = URLInfo._validate_security_patterns(
-            TestableURLInfo(""), parsed
+            ModifiableURLInfo(""), parsed
         )
         assert is_valid is True, f"Failed for URL: {url}, error: {error}"
         assert error is None
@@ -479,7 +479,7 @@ def test_validate_security_patterns():
     for url in invalid_urls:
         parsed = urlparse(url)
         is_valid, error = URLInfo._validate_security_patterns(
-            TestableURLInfo(""), parsed
+            ModifiableURLInfo(""), parsed
         )
         assert is_valid is False, f"Should fail for URL: {url}"
         assert error is not None
@@ -490,14 +490,14 @@ def test_validate_security_patterns():
 
 def test_normalize_path_empty():
     """Test _normalize_path with empty path."""
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     assert url_info._normalize_path("") == "/"
     assert url_info._normalize_path(None) == "/"
 
 
 def test_normalize_path_dot_dotdot():
     """Test _normalize_path with . and .. segments."""
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
 
     # Test with absolute paths
     assert url_info._normalize_path("/a/./b") == "/a/b"
@@ -516,7 +516,7 @@ def test_normalize_path_dot_dotdot():
 def test_normalize_path_trailing_slash():
     """Test _normalize_path preserves trailing slash."""
     # With trailing slash
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._original_path_had_trailing_slash = True
     assert url_info._normalize_path("/a/b") == "/a/b/"
     assert url_info._normalize_path("/a/b/") == "/a/b/"
@@ -532,7 +532,7 @@ def test_normalize_path_trailing_slash():
 
 def test_normalize_path_special_chars():
     """Test _normalize_path with special characters."""
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
 
     # Test with spaces and special characters
     assert url_info._normalize_path("/path with spaces") == "/path%20with%20spaces"
@@ -555,7 +555,7 @@ def test_normalize_path_special_chars():
 
 def test_normalize_path_encoding_failure():
     """Test _normalize_path handling of encoding failures."""
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
 
     # The actual implementation might raise an exception or return a default value
     # Let's try both approaches
@@ -577,14 +577,14 @@ def test_normalize_path_encoding_failure():
 def test_normalize_early_exit():
     """Test _normalize early exit conditions."""
     # Invalid URL
-    url_info = TestableURLInfo("javascript:alert(1)")
+    url_info = ModifiableURLInfo("javascript:alert(1)")
     url_info.is_valid = False
     url_info._normalized_url = "javascript:alert(1)"
     url_info._normalize()
     assert url_info._normalized_url == "javascript:alert(1)"
 
     # None _parsed
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = None
     url_info.is_valid = False
     url_info._normalize()
@@ -594,7 +594,7 @@ def test_normalize_early_exit():
 def test_normalize_hostname():
     """Test hostname normalization (lowercase, IDNA)."""
     # Create a URL with uppercase hostname for testing
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = urlparse("http://EXAMPLE.com")
     url_info.is_valid = True
     url_info._normalize()
@@ -604,7 +604,7 @@ def test_normalize_hostname():
 
     # For IDN normalization, we need to set up the tld_extract_result
     # since the actual implementation uses it for IDN normalization
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = urlparse("http://münchen.de")
     url_info.is_valid = True
 
@@ -633,7 +633,7 @@ def test_normalize_hostname():
 def test_normalize_tldextract_fallback():
     """Test tldextract result usage and fallbacks."""
     # Create a URL for testing
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = urlparse("http://example.com")
     url_info.is_valid = True
     url_info._tld_extract_result = None
@@ -648,7 +648,7 @@ def test_normalize_tldextract_fallback():
 def test_normalize_port_removal():
     """Test port removal for default schemes."""
     # HTTP with default port 80
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = urlparse("http://example.com:80")
     url_info.is_valid = True
     url_info._normalize()
@@ -657,7 +657,7 @@ def test_normalize_port_removal():
     assert ":80" not in url_info._normalized_url
 
     # HTTPS with default port 443
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = urlparse("https://example.com:443")
     url_info.is_valid = True
     url_info._normalize()
@@ -666,7 +666,7 @@ def test_normalize_port_removal():
     assert ":443" not in url_info._normalized_url
 
     # Non-default port should be preserved
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = urlparse("http://example.com:8080")
     url_info.is_valid = True
     url_info._normalize()
@@ -678,7 +678,7 @@ def test_normalize_port_removal():
 def test_normalize_query_params():
     """Test query parameter normalization (order, encoding)."""
     # Query parameter order preservation
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = urlparse("http://example.com/?b=2&a=1")
     url_info.is_valid = True
     url_info._normalize()
@@ -687,7 +687,7 @@ def test_normalize_query_params():
     assert "b=2&a=1" in url_info._normalized_url
 
     # Special character encoding
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = urlparse("http://example.com/?q=test with spaces")
     url_info.is_valid = True
     url_info._normalize()
@@ -702,7 +702,7 @@ def test_normalize_query_params():
 def test_normalize_exception_handling():
     """Test exception handling during normalization."""
     # Create a URL for testing
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info._parsed = urlparse("http://example.com")
     url_info.is_valid = True
     url_info._raw_url = "http://example.com"  # Set raw_url explicitly
@@ -782,8 +782,8 @@ def test_determine_url_type_external():
 
 def test_properties_with_valid_url():
     """Test properties with a valid URL."""
-    # Create a TestableURLInfo with all the properties we want to test
-    url_info = TestableURLInfo("")
+    # Create a ModifiableURLInfo with all the properties we want to test
+    url_info = ModifiableURLInfo("")
     url_info.is_valid = True
     url_info._raw_url = (
         "https://www.example.co.uk:8443/path/to/resource?a=1&b=2#section"
@@ -826,8 +826,8 @@ def test_properties_with_valid_url():
 
 def test_properties_with_invalid_url():
     """Test properties with an invalid URL."""
-    # Create a TestableURLInfo with an invalid URL
-    url_info = TestableURLInfo("")
+    # Create a ModifiableURLInfo with an invalid URL
+    url_info = ModifiableURLInfo("")
     url_info.is_valid = False
     url_info._raw_url = "javascript:alert(1)"
     url_info._normalized_url = "javascript:alert(1)"
@@ -857,8 +857,8 @@ def test_properties_with_invalid_url():
 
 def test_properties_with_none_parsed():
     """Test properties when _parsed is None."""
-    # Create a TestableURLInfo with None _parsed
-    url_info = TestableURLInfo("")
+    # Create a ModifiableURLInfo with None _parsed
+    url_info = ModifiableURLInfo("")
     url_info._parsed = None
 
     # Test parsed properties
@@ -875,7 +875,7 @@ def test_properties_with_none_parsed():
 def test_properties_with_ip_localhost():
     """Test properties with IP addresses and localhost."""
     # IPv4
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info.is_valid = True
     url_info._raw_url = "http://192.168.1.1/path"
     url_info._parsed = urlparse(url_info._raw_url)
@@ -893,7 +893,7 @@ def test_properties_with_ip_localhost():
     assert url_info.registered_domain == "192.168.1.1"
 
     # IPv6
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info.is_valid = True
     url_info._raw_url = "http://[::1]/path"
     url_info._parsed = urlparse(url_info._raw_url)
@@ -912,7 +912,7 @@ def test_properties_with_ip_localhost():
     assert url_info.registered_domain == "::1"
 
     # Localhost
-    url_info = TestableURLInfo("")
+    url_info = ModifiableURLInfo("")
     url_info.is_valid = True
     url_info._raw_url = "http://localhost/path"
     url_info._parsed = urlparse(url_info._raw_url)
@@ -932,8 +932,8 @@ def test_properties_with_ip_localhost():
 
 def test_cached_property_behavior():
     """Test that functools.cached_property caches property values."""
-    # Create a TestableURLInfo with properties we want to test
-    url_info = TestableURLInfo("")
+    # Create a ModifiableURLInfo with properties we want to test
+    url_info = ModifiableURLInfo("")
     url_info.is_valid = True
     url_info._raw_url = "http://example.com/path?a=1"
     url_info._parsed = urlparse(url_info._raw_url)
@@ -960,17 +960,17 @@ def test_cached_property_behavior():
 def test_eq_hash_str_repr():
     """Test __eq__, __hash__, __str__, and __repr__ methods."""
     # Create URLInfo instances for testing equality
-    url1 = TestableURLInfo("")
+    url1 = ModifiableURLInfo("")
     url1.is_valid = True
     url1._raw_url = "http://example.com/path"
     url1._normalized_url = "http://example.com/path"
 
-    url2 = TestableURLInfo("")
+    url2 = ModifiableURLInfo("")
     url2.is_valid = True
     url2._raw_url = "http://example.com/path"
     url2._normalized_url = "http://example.com/path"
 
-    url3 = TestableURLInfo("")
+    url3 = ModifiableURLInfo("")
     url3.is_valid = True
     url3._raw_url = "http://example.com/other"
     url3._normalized_url = "http://example.com/other"
@@ -993,7 +993,7 @@ def test_eq_hash_str_repr():
 
 def test_setattr_immutability():
     """Test __setattr__ prevents modification after initialization."""
-    # Create a regular URLInfo (not TestableURLInfo) to test immutability
+    # Create a regular URLInfo (not ModifiableURLInfo) to test immutability
     url_info = URLInfo("http://example.com")
 
     # Try to modify various attributes

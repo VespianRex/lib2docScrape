@@ -14,6 +14,7 @@ src/simple_api.py
 src/backends/__init__.py
 src/backends/base.py
 src/backends/crawl4ai_backend.py
+src/backends/crawl4ai_backend_updated.py
 src/backends/file_backend.py
 src/backends/http_backend.py
 src/backends/lightpanda_backend.py
@@ -34,6 +35,8 @@ src/organizers/__init__.py
 src/organizers/aliases.py
 src/organizers/doc_organizer.py
 src/organizers/library_version_tracker.py
+src/performance/__init__.py
+src/performance/backend_tracker.py
 src/ui/__init__.py
 src/ui/dashboard.py
 src/ui/doc_viewer.py
@@ -44,8 +47,10 @@ src/visualizers/__init__.py
 src/visualizers/version_history.py
 tests/__init__.py
 tests/conftest.py
+tests/test_backend_performance_tracker.py
 tests/test_backend_selector.py
 tests/test_backend_selector_complete.py
+tests/test_backend_selector_integration.py
 tests/test_base.py
 tests/test_conftest.py
 tests/test_content_processing_improvements.py
@@ -79,6 +84,7 @@ tests/test_crawler_src_should_crawl.py
 tests/test_crawler_url_handling.py
 tests/test_feature_flags.py
 tests/test_gui.py
+tests/test_gui_comprehensive.py
 tests/test_helpers.py
 tests/test_http_mocking.py
 tests/test_integration.py

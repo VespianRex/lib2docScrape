@@ -8,7 +8,7 @@ import pickle
 import re
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.feature_extraction.text import CountVectorizer
 
@@ -36,8 +36,7 @@ class TopicModel(BaseModel):
     model: Optional[Any] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class TopicModeler:

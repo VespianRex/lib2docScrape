@@ -12,9 +12,9 @@ from src.ui.search import (
 )
 
 # Create a test app with search interface for testing
-test_app = FastAPI()
-search_interface = SearchInterface(test_app)
-client = TestClient(test_app)
+search_app = FastAPI()
+search_interface = SearchInterface(search_app)
+client = TestClient(search_app)
 
 
 def test_search_config_defaults():

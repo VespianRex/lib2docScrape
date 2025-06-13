@@ -42,6 +42,7 @@ from src.utils.url import URLInfo
 
 # Added import for ScrapyConfig and ScrapyBackend
 # Import fixtures from fixtures directory
+from tests.fixtures.organizer_fixtures import create_test_content
 
 
 class MockSuccessBackend(CrawlerBackend):
@@ -514,7 +515,6 @@ def crawler_config() -> CrawlerConfig:
 
 @pytest_asyncio.fixture
 async def crawler(
-    event_loop,
     crawler_config: CrawlerConfig,
     backend_selector_with_mock_backends: BackendSelector,
     content_processor: ContentProcessor,
@@ -522,13 +522,15 @@ async def crawler(
     document_organizer: DocumentOrganizer,
 ) -> DocumentationCrawler:
     """DocumentationCrawler instance for testing."""
+    import asyncio
+
     crawler_instance = DocumentationCrawler(
         config=crawler_config,
         backend_selector=backend_selector_with_mock_backends,
         content_processor=content_processor,
         quality_checker=quality_checker,
         document_organizer=document_organizer,
-        loop=event_loop,
+        loop=asyncio.get_running_loop(),
     )
     return crawler_instance
 

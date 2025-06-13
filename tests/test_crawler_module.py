@@ -52,6 +52,7 @@ def crawler_config():
         timeout=10,
         retry_count=2,
         user_agent="Test User Agent",
+        use_duckduckgo=False,  # Disable DuckDuckGo to prevent network calls
     )
 
 

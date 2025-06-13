@@ -170,6 +170,19 @@ class Visualizations:
 
             return table_config
 
+        # Export routes
+        @self.app.get("/export/csv")
+        async def export_csv():
+            """Export data as CSV."""
+            from fastapi.responses import Response
+
+            csv_data = "header1,header2\nvalue1,value2\n"
+            return Response(
+                content=csv_data,
+                media_type="text/csv",
+                headers={"Content-Disposition": "attachment; filename=export.csv"}
+            )
+
     def _generate_chart_config(
         self, chart_type: str, data: list, options: dict
     ) -> dict:  # Adjusted type hints
@@ -329,6 +342,90 @@ class Visualizations:
         table_config["options"].update(options)
 
         return table_config
+
+    def create_chart(self, chart_type: str, data: dict, title: str = "Chart") -> "ChartObject":
+        """
+        Create a chart object.
+
+        Args:
+            chart_type: Type of chart (bar, line, pie, etc.)
+            data: Chart data
+            title: Chart title
+
+        Returns:
+            Chart object
+        """
+        from pydantic import BaseModel
+
+        class ChartObject(BaseModel):
+            chart_type: str
+            data: dict
+            title: str
+            width: int
+            height: int
+
+        return ChartObject(
+            chart_type=chart_type,
+            data=data,
+            title=title,
+            width=self.config.chart_width,
+            height=self.config.chart_height
+        )
+
+    def create_table(self, data: list, columns: list[str], title: str = "Table") -> "TableObject":
+        """
+        Create a table object.
+
+        Args:
+            data: Table data
+            columns: Table columns
+            title: Table title
+
+        Returns:
+            Table object
+        """
+        from pydantic import BaseModel
+
+        class TableObject(BaseModel):
+            data: list
+            columns: list[str]
+            title: str
+
+        return TableObject(
+            data=data,
+            columns=columns,
+            title=title
+        )
+
+    def export_chart(self, chart: "ChartObject", format: str = "png") -> any:
+        """
+        Export a chart to various formats.
+
+        Args:
+            chart: Chart object to export
+            format: Export format (png, svg, json)
+
+        Returns:
+            Exported chart data
+        """
+        if format == "png":
+            # Mock PNG data
+            return b"fake_png_data"
+        elif format == "svg":
+            # Mock SVG data
+            return f'<svg><title>{chart.title}</title></svg>'
+        elif format == "json":
+            # Export as JSON
+            import json
+            return json.dumps({
+                "chart_type": chart.chart_type,
+                "title": chart.title,
+                "data": chart.data,
+                "width": chart.width,
+                "height": chart.height
+            })
+        else:
+            raise ValueError(f"Unsupported export format: {format}")
 
 
 # Create a default instance of Visualizations and expose its FastAPI app

@@ -43,7 +43,9 @@ htmlcov/
 *.swp
 *.swo
 .qodo
+.roo
 
 # Cline Docs
 clinedocs/
 .hypothesis/
+

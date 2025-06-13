@@ -17,27 +17,27 @@ from src.config.config_manager import (
 )
 
 
-class TestConfigModel(BaseModel):
-    """Test configuration model."""
+class SampleConfigModel(BaseModel):
+    """Sample configuration model for testing."""
 
     test_string: str = "default"
     test_int: int = 42
     test_bool: bool = True
 
 
-class TestNestedConfigModel(BaseModel):
-    """Test nested configuration model."""
+class SampleNestedConfigModel(BaseModel):
+    """Sample nested configuration model for testing."""
 
     nested_string: str = "nested"
     nested_int: int = 100
 
 
-class TestComplexConfigModel(BaseModel):
-    """Test complex configuration model."""
+class SampleComplexConfigModel(BaseModel):
+    """Sample complex configuration model for testing."""
 
     complex_string: str = "complex"
     complex_int: int = 200
-    nested: TestNestedConfigModel = TestNestedConfigModel()
+    nested: SampleNestedConfigModel = SampleNestedConfigModel()
 
 
 def test_config_manager_init():
@@ -57,14 +57,14 @@ def test_register_model():
     manager = ConfigManager()
 
     # Register a model
-    manager.register_model("test", TestConfigModel)
+    manager.register_model("test", SampleConfigModel)
     assert "test" in manager.model_registry
-    assert manager.model_registry["test"] == TestConfigModel
+    assert manager.model_registry["test"] == SampleConfigModel
 
     # Register another model
-    manager.register_model("complex", TestComplexConfigModel)
+    manager.register_model("complex", SampleComplexConfigModel)
     assert "complex" in manager.model_registry
-    assert manager.model_registry["complex"] == TestComplexConfigModel
+    assert manager.model_registry["complex"] == SampleComplexConfigModel
 
 
 def test_load_config():
@@ -124,8 +124,8 @@ def test_validate_config():
     manager = ConfigManager()
 
     # Register models
-    manager.register_model("test", TestConfigModel)
-    manager.register_model("complex", TestComplexConfigModel)
+    manager.register_model("test", SampleConfigModel)
+    manager.register_model("complex", SampleComplexConfigModel)
 
     # Valid configuration
     valid_config = {
@@ -174,8 +174,8 @@ def test_get_config():
     manager = ConfigManager()
 
     # Register models
-    manager.register_model("test", TestConfigModel)
-    manager.register_model("complex", TestComplexConfigModel)
+    manager.register_model("test", SampleConfigModel)
+    manager.register_model("complex", SampleComplexConfigModel)
 
     # Load a test config
     manager.configs["main"] = {
@@ -198,14 +198,14 @@ def test_get_config():
     assert test_section["test_int"] == 123
 
     # Get section as model
-    test_model = manager.get_config("test", TestConfigModel)
-    assert isinstance(test_model, TestConfigModel)
+    test_model = manager.get_config("test", SampleConfigModel)
+    assert isinstance(test_model, SampleConfigModel)
     assert test_model.test_string == "get_test"
     assert test_model.test_int == 123
 
     # Get complex section as model
-    complex_model = manager.get_config("complex", TestComplexConfigModel)
-    assert isinstance(complex_model, TestComplexConfigModel)
+    complex_model = manager.get_config("complex", SampleComplexConfigModel)
+    assert isinstance(complex_model, SampleComplexConfigModel)
     assert complex_model.complex_string == "get_complex"
     assert complex_model.nested.nested_string == "get_nested"
 
@@ -214,8 +214,8 @@ def test_get_config():
     assert empty_section == {}
 
     # Get non-existent section as model
-    empty_model = manager.get_config("nonexistent", TestConfigModel)
-    assert isinstance(empty_model, TestConfigModel)
+    empty_model = manager.get_config("nonexistent", SampleConfigModel)
+    assert isinstance(empty_model, SampleConfigModel)
     assert empty_model.test_string == "default"  # Default value
 
 
@@ -262,13 +262,13 @@ def test_global_functions():
             )
 
         # Register a model
-        register_config_model("test", TestConfigModel)
+        register_config_model("test", SampleConfigModel)
 
         # Load the config
         config = load_config(config_path)
         assert config["test"]["test_string"] == "global_test"
 
         # Get config
-        test_config = get_config("test", TestConfigModel)
+        test_config = get_config("test", SampleConfigModel)
         assert test_config.test_string == "global_test"
         assert test_config.test_int == 999

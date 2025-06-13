@@ -119,7 +119,7 @@ class DocViewerApp:
         async def home(request: Request):
             libraries = await self._get_libraries()
             return self.templates.TemplateResponse(
-                "home.html", {"request": request, "libraries": libraries}
+                request, "home.html", {"request": request, "libraries": libraries}
             )
 
         # Library page
@@ -132,6 +132,7 @@ class DocViewerApp:
                 )
 
             return self.templates.TemplateResponse(
+                request,
                 "library.html",
                 {"request": request, "library": library, "versions": versions},
             )
@@ -149,6 +150,7 @@ class DocViewerApp:
                 )
 
             return self.templates.TemplateResponse(
+                request,
                 "version.html",
                 {
                     "request": request,
@@ -171,6 +173,7 @@ class DocViewerApp:
                 )
 
             return self.templates.TemplateResponse(
+                request,
                 "document.html",
                 {
                     "request": request,
@@ -185,7 +188,7 @@ class DocViewerApp:
         async def diff_page(request: Request):
             libraries = await self._get_libraries()
             return self.templates.TemplateResponse(
-                "diff.html", {"request": request, "libraries": libraries}
+                request, "diff.html", {"request": request, "libraries": libraries}
             )
 
         # Diff API
@@ -208,7 +211,7 @@ class DocViewerApp:
         async def search_page(request: Request):
             libraries = await self._get_libraries()
             return self.templates.TemplateResponse(
-                "search.html", {"request": request, "libraries": libraries}
+                request, "search.html", {"request": request, "libraries": libraries}
             )
 
         # Search API

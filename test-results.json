@@ -1,0 +1,153 @@
+{
+  "config": {
+    "configFile": "/home/alex/DEV/lib2docScrape/playwright.config.js",
+    "rootDir": "/home/alex/DEV/lib2docScrape/tests/e2e",
+    "forbidOnly": false,
+    "fullyParallel": true,
+    "globalSetup": "/home/alex/DEV/lib2docScrape/tests/e2e/global-setup.js",
+    "globalTeardown": "/home/alex/DEV/lib2docScrape/tests/e2e/global-teardown.js",
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "reporter": [
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results.json"
+        }
+      ],
+      [
+        "junit",
+        {
+          "outputFile": "test-results.xml"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "quiet": false,
+    "projects": [
+      {
+        "outputDir": "/home/alex/DEV/lib2docScrape/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/home/alex/DEV/lib2docScrape/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/home/alex/DEV/lib2docScrape/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "firefox",
+        "name": "firefox",
+        "testDir": "/home/alex/DEV/lib2docScrape/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/home/alex/DEV/lib2docScrape/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "webkit",
+        "name": "webkit",
+        "testDir": "/home/alex/DEV/lib2docScrape/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/home/alex/DEV/lib2docScrape/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "Mobile Chrome",
+        "name": "Mobile Chrome",
+        "testDir": "/home/alex/DEV/lib2docScrape/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/home/alex/DEV/lib2docScrape/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "Mobile Safari",
+        "name": "Mobile Safari",
+        "testDir": "/home/alex/DEV/lib2docScrape/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      },
+      {
+        "outputDir": "/home/alex/DEV/lib2docScrape/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "Tablet",
+        "name": "Tablet",
+        "testDir": "/home/alex/DEV/lib2docScrape/tests/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "shard": null,
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.52.0",
+    "workers": 8,
+    "webServer": {
+      "command": "NO_BROWSER=1 uv run python run_gui.py --port 60643",
+      "port": 60643,
+      "reuseExistingServer": true,
+      "timeout": 120000
+    }
+  },
+  "suites": [],
+  "errors": [
+    {
+      "message": "Error: Timed out waiting 120000ms from config.webServer.",
+      "stack": "Error: Timed out waiting 120000ms from config.webServer."
+    }
+  ],
+  "stats": {
+    "startTime": "2025-06-12T19:32:17.924Z",
+    "duration": 120038.50700000001,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

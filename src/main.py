@@ -220,7 +220,7 @@ manager = ConnectionManager()
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render the home page."""
-    return templates.TemplateResponse("scraping_dashboard.html", {"request": request})
+    return templates.TemplateResponse(request, "scraping_dashboard.html", {"request": request})
 
 
 @app.get("/api/scraping/backends")
@@ -284,7 +284,7 @@ async def download_results_json():
 @app.get("/libraries", response_class=HTMLResponse)
 async def libraries(request: Request):
     """Render the libraries page."""
-    return templates.TemplateResponse("libraries.html", {"request": request})
+    return templates.TemplateResponse(request, "libraries.html", {"request": request})
 
 
 @app.websocket("/ws/scraping")
@@ -643,7 +643,7 @@ def create_app(config_path: Optional[str] = None) -> FastAPI:
     async def home(request: Request):
         """Render the home page."""
         return templates.TemplateResponse(
-            "scraping_dashboard.html", {"request": request}
+            request, "scraping_dashboard.html", {"request": request}
         )
 
     @app.get("/api/scraping/backends")

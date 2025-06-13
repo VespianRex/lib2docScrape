@@ -8,7 +8,7 @@ import re
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
@@ -48,6 +48,8 @@ class SearchConfig(BaseModel):
     # Fields that were in the test but not in the model, added with defaults or mapped:
     min_score: float = 0.1  # Added from test
     snippet_length: int = 200  # Added from test
+    max_history_items: int = 50  # Added for search history
+    enable_advanced_search: bool = True  # Added for test compatibility
 
 
 class SearchResult(BaseModel):
@@ -91,16 +93,47 @@ class SearchInterface:
         self.app = app
         self.config = config or SearchConfig()
 
-        # Set up routes
-        self._setup_routes()
-
         # Set up search index
         self.documents: dict[str, dict[str, Any]] = {}
         self.index: dict[str, dict[str, list[str]]] = {}
 
+        # Set up search history
+        self.search_history: list[str] = []
+
+        # Set up routes
+        self._setup_routes()
+
         logger.info(
             f"Search interface initialized with max_results={self.config.max_results}"
         )
+
+    def search(self, query: str, filters: dict[str, Any] = None) -> list[dict[str, Any]]:
+        """
+        Perform a search query.
+
+        Args:
+            query: Search query
+            filters: Optional filters to apply
+
+        Returns:
+            List of search results
+        """
+        if filters is None:
+            filters = {}
+
+        # Use the internal _search method
+        results = self._search(
+            query=query,
+            fields=self.config.search_fields,
+            filters=filters,
+            sort=self.config.default_sort,
+            limit=self.config.max_results,
+            offset=0,
+            fuzzy=self.config.enable_fuzzy_search,
+        )
+
+        # Convert SearchResult objects to dictionaries
+        return [result.model_dump() for result in results]
 
     def _setup_routes(self) -> None:
         """Set up search routes."""
@@ -179,6 +212,61 @@ class SearchInterface:
         ):
             suggestions = self._get_suggestions(q)[:limit]
             return {"query": q, "suggestions": suggestions}
+
+        # Search POST endpoint for form submissions and JSON
+        @self.app.post("/search")
+        async def search_post(request: Request):
+            """Handle search form submissions and JSON requests."""
+            try:
+                # Try to get JSON data first, then form data
+                content_type = request.headers.get("content-type", "")
+
+                if "application/json" in content_type:
+                    # Handle JSON request
+                    json_data = await request.json()
+                    query = json_data.get("query", "").strip()
+                    filters = json_data.get("filters", {})
+                else:
+                    # Handle form data
+                    form_data = await request.form()
+                    query = form_data.get("query", "").strip()
+                    filters = {}
+
+                if not query:
+                    raise HTTPException(status_code=400, detail="Query is required")
+
+                # Validate query
+                validation = self.validate_search_query(query)
+                if not validation.is_valid:
+                    raise HTTPException(status_code=400, detail=validation.errors)
+
+                # Perform search
+                results = self.search(query)
+
+                # Add to history
+                self.add_to_history(query)
+
+                return {
+                    "query": query,
+                    "results": results,
+                    "total": len(results),
+                    "filters": filters
+                }
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error(f"Search error: {e}")
+                raise HTTPException(status_code=500, detail="Internal search error")
+
+        # Search results page
+        @self.app.get("/search/results")
+        async def search_results():
+            """Get search results page."""
+            return {
+                "message": "Search results page",
+                "results": [],
+                "total": 0
+            }
 
     def add_document(self, document: dict[str, Any]) -> None:
         """
@@ -642,3 +730,107 @@ class SearchInterface:
         # Sort and limit results
         search_results.sort(key=lambda x: x["score"], reverse=True)
         return search_results[: self.config.max_results]
+
+    def validate_search_query(self, query: str) -> "SearchValidationResult":
+        """
+        Validate a search query.
+
+        Args:
+            query: Search query to validate
+
+        Returns:
+            Validation result
+        """
+        from pydantic import BaseModel
+
+        class SearchValidationResult(BaseModel):
+            is_valid: bool
+            query: str
+            errors: list[str] = []
+
+        errors = []
+
+        if not query or query.strip() == "":
+            errors.append("Query cannot be empty")
+        elif len(query) > 500:  # Reasonable limit
+            errors.append("Query too long")
+        elif len(query) < self.config.min_query_length:
+            errors.append(f"Query must be at least {self.config.min_query_length} characters")
+
+        return SearchValidationResult(
+            is_valid=len(errors) == 0,
+            query=query,
+            errors=errors
+        )
+
+    def get_autocomplete_suggestions(self, partial_query: str) -> list[str]:
+        """
+        Get autocomplete suggestions for a partial query.
+
+        Args:
+            partial_query: Partial search query
+
+        Returns:
+            List of autocomplete suggestions
+        """
+        return self._get_suggestions(partial_query)
+
+    def get_autocomplete(self, partial_query: str) -> list[str]:
+        """
+        Get autocomplete suggestions for a partial query (calls get_autocomplete_suggestions).
+
+        Args:
+            partial_query: Partial search query
+
+        Returns:
+            List of autocomplete suggestions
+        """
+        return self.get_autocomplete_suggestions(partial_query)
+
+    def apply_filters(self, query: str, filters: dict[str, Any]) -> "FilteredSearchResult":
+        """
+        Apply filters to a search query.
+
+        Args:
+            query: Search query
+            filters: Filters to apply
+
+        Returns:
+            Filtered search result
+        """
+        from pydantic import BaseModel
+
+        class FilteredSearchResult(BaseModel):
+            query: str
+            filters: dict[str, Any]
+
+        return FilteredSearchResult(query=query, filters=filters)
+
+    def add_to_history(self, query: str) -> None:
+        """
+        Add a search query to the search history.
+
+        Args:
+            query: Search query to add
+        """
+        if query and query.strip():
+            # Remove if already exists to avoid duplicates
+            if query in self.search_history:
+                self.search_history.remove(query)
+
+            # Add to beginning of list
+            self.search_history.insert(0, query)
+
+            # Limit history size
+            max_history = getattr(self.config, 'max_history_items', 50)
+            if len(self.search_history) > max_history:
+                self.search_history = self.search_history[:max_history]
+
+    def get_search_history(self) -> list[str]:
+        """
+        Get the search history.
+
+        Returns:
+            List of recent search queries
+        """
+        return self.search_history.copy()

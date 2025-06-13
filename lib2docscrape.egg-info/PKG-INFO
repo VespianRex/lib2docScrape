@@ -41,12 +41,18 @@ Requires-Dist: pytest>=8.3.4
 Requires-Dist: pytest-asyncio>=0.25.3
 Requires-Dist: pytest-cov>=6.0.0
 Requires-Dist: pytest-mock>=3.14.0
+Requires-Dist: pytest-xdist>=3.6.0
 Requires-Dist: pre-commit>=4.2.0
+Requires-Dist: python-multipart>=0.0.20
+Requires-Dist: html2text>=2025.4.15
+Requires-Dist: uvicorn>=0.34.3
+Requires-Dist: jinja2>=3.1.6
 Provides-Extra: dev
 Requires-Dist: pytest>=8.3.4; extra == "dev"
 Requires-Dist: pytest-cov>=6.0.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.24.0; extra == "dev"
 Requires-Dist: pytest-mock>=3.10.0; extra == "dev"
+Requires-Dist: pytest-xdist>=3.6.0; extra == "dev"
 Requires-Dist: hypothesis>=6.92.1; extra == "dev"
 Requires-Dist: responses>=0.25.0; extra == "dev"
 Requires-Dist: aioresponses>=0.7.0; extra == "dev"

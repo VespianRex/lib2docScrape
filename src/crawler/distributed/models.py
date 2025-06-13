@@ -7,7 +7,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class TaskStatus(str, Enum):
@@ -70,7 +70,8 @@ class WorkerTask(BaseModel):
     parent_task_id: Optional[str] = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    @validator("url")
+    @field_validator("url")
+    @classmethod
     def validate_url(cls, v):
         """Validate URL format."""
         if not v.startswith(("http://", "https://")):

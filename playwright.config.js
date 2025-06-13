@@ -82,7 +82,7 @@ module.exports = defineConfig({
 
   // Run your local dev server before starting the tests
   webServer: {
-    command: 'python run_gui.py',
+    command: 'NO_BROWSER=1 uv run python run_gui.py --port 60643',
     port: 60643,
     reuseExistingServer: !process.env.CI,
     timeout: 120000,

@@ -53,8 +53,24 @@ def backend():
 @pytest.mark.asyncio
 async def test_crawl_valid_url(backend, mock_session):
     """Test crawling a valid URL."""
-    # Patch the session creation
-    with patch.object(backend, "_ensure_session", AsyncMock()):
+    # Mock the content processor
+    mock_processed_content = MagicMock()
+    mock_processed_content.title = "Test"
+    mock_processed_content.content = {"formatted_content": "Test content", "links": []}
+    mock_processed_content.metadata = {"keywords": "test"}
+    mock_processed_content.headings = [{"level": 1, "text": "Test"}]
+    mock_processed_content.assets = {"images": [], "stylesheets": [], "scripts": [], "media": []}
+    mock_processed_content.has_errors = False
+
+    # Patch the session creation and content processor
+    with (
+        patch.object(backend, "_ensure_session", AsyncMock()),
+        patch.object(
+            backend.content_processor,
+            "process",
+            AsyncMock(return_value=mock_processed_content),
+        ),
+    ):
         # Set the session directly
         backend._session = mock_session
 
@@ -210,10 +226,11 @@ async def test_process_content(backend):
     # Mock the content processor
     mock_processed_content = MagicMock()
     mock_processed_content.title = "Test"
-    mock_processed_content.content = "Test Content"
+    mock_processed_content.content = {"formatted_content": "Test Content", "links": []}
     mock_processed_content.metadata = {"keywords": "test"}
     mock_processed_content.headings = [{"level": 1, "text": "Test"}]
-    mock_processed_content.assets = []
+    mock_processed_content.assets = {"images": [], "stylesheets": [], "scripts": [], "media": []}
+    mock_processed_content.has_errors = False
 
     # Patch the content processor
     with patch.object(
@@ -226,7 +243,7 @@ async def test_process_content(backend):
 
         # Check the result
         assert result["title"] == "Test"
-        assert result["content"] == "Test Content"
+        assert result["content"] == {"formatted_content": "Test Content", "links": []}
         assert "metadata" in result
         assert "headings" in result
         assert "links" in result

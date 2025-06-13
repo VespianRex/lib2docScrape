@@ -124,7 +124,7 @@ async def test_full_crawl_pipeline(mock_ddg_search):
 @patch("src.utils.search.DuckDuckGoSearch.search", new_callable=AsyncMock)
 async def test_error_handling_integration(mock_ddg_search):
     """Test error handling across components."""
-    mock_ddg_search.return_value = []  # Ensure DDG search returns no URLs and quickly
+    mock_ddg_search.return_value = []  # AsyncMock automatically makes this awaitable
 
     # Instantiate a backend and pass it to the crawler
     backend = Crawl4AIBackend()
@@ -184,10 +184,8 @@ async def test_error_handling_integration(mock_ddg_search):
 @patch("src.utils.search.DuckDuckGoSearch.search", new_callable=AsyncMock)
 async def test_rate_limiting_integration(mock_ddg_search, mock_asyncio_sleep):
     """Test rate limiting across components."""
-    mock_asyncio_sleep.return_value = (
-        None  # Ensure all asyncio.sleep calls are instantaneous
-    )
-    mock_ddg_search.return_value = []  # Ensure DDG search returns no URLs and quickly
+    mock_asyncio_sleep.return_value = None  # AsyncMock automatically makes this awaitable
+    mock_ddg_search.return_value = []  # AsyncMock automatically makes this awaitable
 
     # Create a RateLimiter with a spy on the acquire method
     rate_limiter = RateLimiter(requests_per_second=2)
@@ -327,7 +325,7 @@ async def test_rate_limiting_integration(mock_ddg_search, mock_asyncio_sleep):
 @patch("src.utils.search.DuckDuckGoSearch.search", new_callable=AsyncMock)
 async def test_content_processing_integration(mock_ddg_search):
     """Test content processing integration with quality checking."""
-    mock_ddg_search.return_value = []  # Ensure DDG search returns no URLs and quickly
+    mock_ddg_search.return_value = []  # AsyncMock automatically makes this awaitable
 
     content_processor = ContentProcessor()
     quality_checker = QualityChecker()

@@ -20,7 +20,7 @@ from src.backends.http_backend import HTTPBackend, HTTPBackendConfig  # type: ig
 from src.crawler.crawler import DocumentationCrawler  # type: ignore
 from src.crawler.models import CrawlTarget  # type: ignore
 
-from .test_sites import TestSite  # type: ignore
+from .test_sites import SiteConfig  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -105,20 +105,31 @@ class PerformanceMonitor:
 
 
 @pytest.mark.asyncio
-async def test_single_site_performance(simple_test_sites):
+async def test_single_site_performance(simple_test_sites, mock_fast_backend, test_config, fast_crawler_config):
     """Benchmark performance on a single site."""
     if not simple_test_sites:
         pytest.skip("No test sites available")
 
     current_site = simple_test_sites[0]  # Renamed variable
-    backend = HTTPBackend(HTTPBackendConfig())
-    crawler = DocumentationCrawler(backend=backend)
+
+    # Use mock backend in fast mode for much faster testing
+    if test_config["fast_mode"] and mock_fast_backend:
+        backend = mock_fast_backend
+    else:
+        backend = HTTPBackend(HTTPBackendConfig())
+
+    # Use optimized configuration for e2e tests
+    crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
     monitor = PerformanceMonitor()
+
+    # Reduce scope in fast mode for quicker tests
+    max_pages = 3 if test_config["fast_mode"] else 10
+    depth = 1 if test_config["fast_mode"] else 2
 
     target = CrawlTarget(
         url=current_site.url,  # Use renamed variable
-        depth=2,
-        max_pages=10,
+        depth=depth,
+        max_pages=max_pages,
     )
 
     logger.info(
@@ -159,7 +170,7 @@ async def test_single_site_performance(simple_test_sites):
 
 
 @pytest.mark.asyncio
-async def test_backend_performance_comparison(simple_test_sites):
+async def test_backend_performance_comparison(simple_test_sites, fast_crawler_config):
     """Compare performance of different backends."""
     if not simple_test_sites:
         pytest.skip("No test sites available")
@@ -178,7 +189,7 @@ async def test_backend_performance_comparison(simple_test_sites):
     for backend_name, backend in backends.items():
         logger.info(f"Benchmarking {backend_name} backend")
 
-        crawler = DocumentationCrawler(backend=backend)
+        crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
         monitor = PerformanceMonitor()
 
         try:
@@ -235,7 +246,7 @@ async def test_backend_performance_comparison(simple_test_sites):
 
 
 @pytest.mark.asyncio
-async def test_concurrent_crawling_performance(simple_test_sites):
+async def test_concurrent_crawling_performance(simple_test_sites, fast_crawler_config):
     """Test performance with concurrent crawling."""
     if len(simple_test_sites) < 2:
         pytest.skip("Need at least 2 test sites for concurrent testing")
@@ -244,11 +255,11 @@ async def test_concurrent_crawling_performance(simple_test_sites):
     sites_to_crawl = simple_test_sites[:3]  # Use up to 3 sites, renamed variable
 
     async def crawl_site_concurrently(
-        site_to_crawl: TestSite,
+        site_to_crawl: SiteConfig,
     ) -> PerformanceMetrics:  # Renamed function and parameter
         """Crawl a single site and return metrics."""
         # Each task needs its own crawler and monitor instance for true concurrency simulation
-        local_crawler = DocumentationCrawler(backend=backend)
+        local_crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
         local_monitor = PerformanceMonitor()
 
         target = CrawlTarget(url=site_to_crawl.url, depth=1, max_pages=3)
@@ -323,7 +334,7 @@ async def test_concurrent_crawling_performance(simple_test_sites):
 
 
 @pytest.mark.asyncio
-async def test_memory_usage_stability(simple_test_sites):
+async def test_memory_usage_stability(simple_test_sites, fast_crawler_config, test_config):
     """Test memory usage stability over multiple crawls."""
     if not simple_test_sites:
         pytest.skip("No test sites available")
@@ -332,7 +343,8 @@ async def test_memory_usage_stability(simple_test_sites):
     backend = HTTPBackend(HTTPBackendConfig())
 
     memory_measurements = []
-    num_iterations = 5
+    # Reduce iterations in fast mode
+    num_iterations = 3 if test_config["fast_mode"] else 5
 
     for i in range(num_iterations):
         logger.info(f"Memory stability test iteration {i + 1}/{num_iterations}")
@@ -342,7 +354,7 @@ async def test_memory_usage_stability(simple_test_sites):
         memory_before = process.memory_info().rss / 1024 / 1024  # MB  # type: ignore
 
         # Perform crawl
-        crawler = DocumentationCrawler(backend=backend)
+        crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
         target = CrawlTarget(
             url=site_for_memory_test.url, depth=1, max_pages=3
         )  # Use renamed variable
@@ -391,7 +403,7 @@ async def test_memory_usage_stability(simple_test_sites):
 
 
 @pytest.mark.asyncio
-async def test_throughput_scaling(simple_test_sites):
+async def test_throughput_scaling(simple_test_sites, fast_crawler_config, test_config):
     """Test how throughput scales with different page limits."""
     if not simple_test_sites:
         pytest.skip("No test sites available")
@@ -399,7 +411,8 @@ async def test_throughput_scaling(simple_test_sites):
     site_for_scaling_test = simple_test_sites[0]  # Renamed variable
     backend = HTTPBackend(HTTPBackendConfig())
 
-    page_limits = [1, 3, 5, 10]
+    # Reduce page limits in fast mode
+    page_limits = [1, 2, 3] if test_config["fast_mode"] else [1, 3, 5, 10]
     throughput_results = []
 
     for max_pages_limit in page_limits:  # Renamed loop variable
@@ -407,7 +420,7 @@ async def test_throughput_scaling(simple_test_sites):
             f"Testing throughput with max_pages={max_pages_limit}"
         )  # Use renamed variable
 
-        crawler = DocumentationCrawler(backend=backend)
+        crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
         target = CrawlTarget(
             url=site_for_scaling_test.url, depth=2, max_pages=max_pages_limit
         )  # Use renamed variables
