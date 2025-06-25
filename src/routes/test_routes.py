@@ -7,7 +7,7 @@ from fastapi import APIRouter, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from ..websockets.test_manager import test_ws_manager
+from src.websockets.test_manager import test_ws_manager
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -16,7 +16,9 @@ templates = Jinja2Templates(directory="templates")
 @router.get("/test-dashboard")
 async def test_dashboard(request: Request):
     """Render the test dashboard page"""
-    return templates.TemplateResponse(request, "test_dashboard.html", {"request": request})
+    return templates.TemplateResponse(
+        request, "test_dashboard.html", {"request": request}
+    )
 
 
 @router.get("/api/tests/export")

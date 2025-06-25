@@ -1,0 +1,21 @@
+{
+  "package": "smolagents",
+  "sources": [
+    {
+      "source": "github",
+      "url": "https://github.com/search?q=smolagents",
+      "type": "repository_search"
+    },
+    {
+      "source": "pypi",
+      "url": "https://pypi.org/project/smolagents/",
+      "type": "package_registry"
+    },
+    {
+      "source": "readthedocs",
+      "url": "https://smolagents.readthedocs.io/",
+      "type": "documentation_site"
+    }
+  ],
+  "discovery_timestamp": "2025-06-25T10:57:48.001836"
+}

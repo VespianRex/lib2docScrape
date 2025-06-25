@@ -1,0 +1,21 @@
+{
+  "package": "fastapi",
+  "sources": [
+    {
+      "source": "github",
+      "url": "https://github.com/search?q=fastapi",
+      "type": "repository_search"
+    },
+    {
+      "source": "pypi",
+      "url": "https://pypi.org/project/fastapi/",
+      "type": "package_registry"
+    },
+    {
+      "source": "readthedocs",
+      "url": "https://fastapi.readthedocs.io/",
+      "type": "documentation_site"
+    }
+  ],
+  "discovery_timestamp": "2025-06-25T08:56:35.097915"
+}

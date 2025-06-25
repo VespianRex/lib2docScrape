@@ -22,11 +22,10 @@ Usage:
 import asyncio
 import logging
 import os
-from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from .test_sites import SiteCategory, SiteManager, SiteConfig, TechStack
+from .test_sites import SiteCategory, SiteConfig, SiteManager, TechStack
 
 # Configure logging for E2E tests
 logging.basicConfig(
@@ -77,8 +76,10 @@ def test_config():
         "retry_attempts": int(os.getenv("E2E_RETRY_ATTEMPTS", "2")),
         "skip_slow": os.getenv("SKIP_SLOW_TESTS", "false").lower() == "true",
         "performance_mode": os.getenv("PERFORMANCE_MODE", "false").lower() == "true",
-        "fast_mode": os.getenv("E2E_FAST_MODE", "false").lower() == "true",  # Default to real mode
-        "mock_network": os.getenv("E2E_MOCK_NETWORK", "false").lower() == "true",  # Default to real network
+        "fast_mode": os.getenv("E2E_FAST_MODE", "false").lower()
+        == "true",  # Default to real mode
+        "mock_network": os.getenv("E2E_MOCK_NETWORK", "false").lower()
+        == "true",  # Default to real network
     }
 
 
@@ -116,8 +117,8 @@ async def mock_fast_backend(test_config):
                 url=url_info.normalized_url,
                 content={
                     "html": f"<html><head><title>Mock Page {self.crawl_count}</title></head>"
-                           f"<body><h1>Mock Content</h1><p>This is mock content for {url_info.normalized_url}</p>"
-                           f"<a href='/page{self.crawl_count + 1}'>Next Page</a></body></html>"
+                    f"<body><h1>Mock Content</h1><p>This is mock content for {url_info.normalized_url}</p>"
+                    f"<a href='/page{self.crawl_count + 1}'>Next Page</a></body></html>"
                 },
                 status=200,
                 content_type="text/html",
@@ -128,7 +129,9 @@ async def mock_fast_backend(test_config):
                         "title": f"Mock Page {self.crawl_count}",
                         "content": f"Mock content for testing. Page {self.crawl_count}.",
                         "headings": [{"level": 1, "text": "Mock Content"}],
-                        "links": [{"text": "Next Page", "url": f"/page{self.crawl_count + 1}"}],
+                        "links": [
+                            {"text": "Next Page", "url": f"/page{self.crawl_count + 1}"}
+                        ],
                     }
                 ],
             )
@@ -217,7 +220,9 @@ async def simple_test_sites(test_config):
 async def documentation_sites(test_config):
     """Pytest fixture for documentation sites."""
     if test_config["fast_mode"]:
-        return [site for site in MOCK_SITES if site.category == SiteCategory.DOCUMENTATION]
+        return [
+            site for site in MOCK_SITES if site.category == SiteCategory.DOCUMENTATION
+        ]
 
     site_manager = SiteManager()
     await site_manager.refresh_availability()

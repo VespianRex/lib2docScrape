@@ -107,7 +107,9 @@ class SearchInterface:
             f"Search interface initialized with max_results={self.config.max_results}"
         )
 
-    def search(self, query: str, filters: dict[str, Any] = None) -> list[dict[str, Any]]:
+    def search(
+        self, query: str, filters: dict[str, Any] = None
+    ) -> list[dict[str, Any]]:
         """
         Perform a search query.
 
@@ -250,7 +252,7 @@ class SearchInterface:
                     "query": query,
                     "results": results,
                     "total": len(results),
-                    "filters": filters
+                    "filters": filters,
                 }
             except HTTPException:
                 raise
@@ -262,11 +264,7 @@ class SearchInterface:
         @self.app.get("/search/results")
         async def search_results():
             """Get search results page."""
-            return {
-                "message": "Search results page",
-                "results": [],
-                "total": 0
-            }
+            return {"message": "Search results page", "results": [], "total": 0}
 
     def add_document(self, document: dict[str, Any]) -> None:
         """
@@ -755,12 +753,12 @@ class SearchInterface:
         elif len(query) > 500:  # Reasonable limit
             errors.append("Query too long")
         elif len(query) < self.config.min_query_length:
-            errors.append(f"Query must be at least {self.config.min_query_length} characters")
+            errors.append(
+                f"Query must be at least {self.config.min_query_length} characters"
+            )
 
         return SearchValidationResult(
-            is_valid=len(errors) == 0,
-            query=query,
-            errors=errors
+            is_valid=len(errors) == 0, query=query, errors=errors
         )
 
     def get_autocomplete_suggestions(self, partial_query: str) -> list[str]:
@@ -787,7 +785,9 @@ class SearchInterface:
         """
         return self.get_autocomplete_suggestions(partial_query)
 
-    def apply_filters(self, query: str, filters: dict[str, Any]) -> "FilteredSearchResult":
+    def apply_filters(
+        self, query: str, filters: dict[str, Any]
+    ) -> "FilteredSearchResult":
         """
         Apply filters to a search query.
 
@@ -822,7 +822,7 @@ class SearchInterface:
             self.search_history.insert(0, query)
 
             # Limit history size
-            max_history = getattr(self.config, 'max_history_items', 50)
+            max_history = getattr(self.config, "max_history_items", 50)
             if len(self.search_history) > max_history:
                 self.search_history = self.search_history[:max_history]
 

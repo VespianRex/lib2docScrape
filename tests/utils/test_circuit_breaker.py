@@ -1,8 +1,7 @@
 """
-Tests for the circuit breaker utility.
+Optimized tests for the circuit breaker utility - no real sleep calls.
 """
 
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -54,8 +53,12 @@ def test_record_success():
     assert cb.state == CircuitState.CLOSED
 
 
-def test_half_open_state():
-    """Test transition to half-open state."""
+@patch("time.time")
+def test_half_open_state(mock_time):
+    """Test transition to half-open state - OPTIMIZED with mocked time."""
+    # Mock time progression - use return_value instead of side_effect to avoid StopIteration
+    mock_time.return_value = 100.0
+
     cb = CircuitBreaker(failure_threshold=2, reset_timeout=0.1)
 
     # Trip the circuit breaker
@@ -63,16 +66,20 @@ def test_half_open_state():
     cb.record_failure()
     assert cb.state == CircuitState.OPEN
 
-    # Wait for reset timeout
-    time.sleep(0.2)
+    # Mock time after timeout
+    mock_time.return_value = 100.2
 
-    # Check state - should be half-open after timeout
+    # Check state - should be half-open after timeout (mocked)
     assert not cb.is_open()  # is_open() checks and updates state
     assert cb.state == CircuitState.HALF_OPEN
 
 
-def test_half_open_to_closed():
-    """Test transition from half-open to closed."""
+@patch("time.time")
+def test_half_open_to_closed(mock_time):
+    """Test transition from half-open to closed - OPTIMIZED with mocked time."""
+    # Mock time progression - use return_value instead of side_effect
+    mock_time.return_value = 100.0
+
     cb = CircuitBreaker(failure_threshold=2, reset_timeout=0.1, half_open_max_calls=2)
 
     # Trip the circuit breaker
@@ -80,10 +87,10 @@ def test_half_open_to_closed():
     cb.record_failure()
     assert cb.state == CircuitState.OPEN
 
-    # Wait for reset timeout
-    time.sleep(0.2)
+    # Mock time after timeout
+    mock_time.return_value = 100.2
 
-    # Check state - should be half-open after timeout
+    # Check state - should be half-open after timeout (mocked)
     assert not cb.is_open()
     assert cb.state == CircuitState.HALF_OPEN
 
@@ -95,8 +102,12 @@ def test_half_open_to_closed():
     assert cb.state == CircuitState.CLOSED  # Now closed
 
 
-def test_half_open_to_open():
-    """Test transition from half-open to open on failure."""
+@patch("time.time")
+def test_half_open_to_open(mock_time):
+    """Test transition from half-open to open on failure - OPTIMIZED with mocked time."""
+    # Mock time progression - use return_value instead of side_effect
+    mock_time.return_value = 100.0
+
     cb = CircuitBreaker(failure_threshold=2, reset_timeout=0.1)
 
     # Trip the circuit breaker
@@ -104,10 +115,10 @@ def test_half_open_to_open():
     cb.record_failure()
     assert cb.state == CircuitState.OPEN
 
-    # Wait for reset timeout
-    time.sleep(0.2)
+    # Mock time after timeout
+    mock_time.return_value = 100.2
 
-    # Check state - should be half-open after timeout
+    # Check state - should be half-open after timeout (mocked)
     assert not cb.is_open()
     assert cb.state == CircuitState.HALF_OPEN
 
@@ -264,7 +275,7 @@ def test_callback_exception_handling():
 
 @patch("time.time")
 def test_is_open_timeout(mock_time):
-    """Test that is_open transitions from open to half-open after timeout."""
+    """Test that is_open transitions from open to half-open after timeout - OPTIMIZED."""
     # Set initial time
     current_time = 1000.0
     mock_time.return_value = current_time
@@ -290,18 +301,23 @@ def test_is_open_timeout(mock_time):
     assert cb.state == CircuitState.HALF_OPEN
 
 
-def test_half_open_success_count():
-    """Test that half_open_calls is incremented correctly."""
+@patch("time.time")
+def test_half_open_success_count(mock_time):
+    """Test that half_open_calls is incremented correctly - OPTIMIZED."""
+    # Mock time progression - use return_value instead of side_effect to avoid StopIteration
+    current_time = 100.0
+    mock_time.return_value = current_time
+
     cb = CircuitBreaker(failure_threshold=1, reset_timeout=0.1, half_open_max_calls=3)
 
     # Trip the circuit breaker
     cb.record_failure()
     assert cb.state == CircuitState.OPEN
 
-    # Wait for reset timeout
-    time.sleep(0.2)
+    # Mock time after timeout
+    mock_time.return_value = current_time + 0.2
 
-    # Check state - should be half-open after timeout
+    # Check state - should be half-open after timeout (mocked)
     assert not cb.is_open()
     assert cb.state == CircuitState.HALF_OPEN
 

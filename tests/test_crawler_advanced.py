@@ -30,6 +30,18 @@ from src.utils.url import URLInfo  # Corrected import path
 TEST_URL = "http://example.com"
 
 
+# Mock asyncio.sleep globally to make all tests run faster
+@pytest.fixture(autouse=True)
+async def mock_asyncio_sleep():
+    """Mock asyncio.sleep to return immediately for faster tests."""
+
+    async def fast_sleep(delay, *args, **kwargs):
+        pass  # Don't sleep at all - just return immediately
+
+    with patch.object(asyncio, "sleep", fast_sleep):
+        yield
+
+
 @pytest.fixture
 def mock_backend():
     backend = AsyncMock(spec=CrawlerBackend)  # Use spec for better mocking
@@ -276,40 +288,62 @@ async def test_crawler_failed_crawl(crawler, mock_backend):
 
 @pytest.mark.asyncio
 async def test_crawler_retry_mechanism(crawler, mock_backend):
-    """Test the retry mechanism for failed requests."""
+    """Test the retry mechanism for failed requests - OPTIMIZED."""
     # Make the first two attempts fail, third succeeds
-    # Ensure the successful result is a BackendCrawlResult instance
     success_result = BackendCrawlResult(
         status=200,
         url=TEST_URL,
         content={"html": "<html>Success</html>"},
         metadata={"headers": {"content-type": "text/html"}},
     )
+
     # Use side_effect for this specific test
     mock_backend.crawl.side_effect = [
         Exception("Network error"),
         Exception("Timeout"),
-        success_result,  # Use the instance here
+        success_result,
     ]
 
-    target = CrawlTarget(url=TEST_URL, depth=0)  # Ensure depth is set
-    result = await crawler.crawl(
-        target_url=target.url,
-        depth=target.depth,
-        follow_external=target.follow_external,
-        content_types=target.content_types,
-        exclude_patterns=target.exclude_patterns,
-        include_patterns=target.include_patterns,  # Use include_patterns instead
-        max_pages=target.max_pages,
-        allowed_paths=target.allowed_paths,
-        excluded_paths=target.excluded_paths,
-    )
+    # Patch the retry delay function to avoid real sleeps
+    with patch(
+        "src.crawler.crawler.asyncio.sleep", new_callable=AsyncMock
+    ) as mock_sleep:
+        # Configure crawler to use minimal retry delays
+        original_config = crawler.config
+        crawler.config = CrawlerConfig(
+            max_retries=3,
+            retry_delay=0.01,  # Minimal delay
+            max_retry_delay=0.05,  # Minimal max delay
+            retry_backoff_factor=1.0,  # No exponential increase
+        )
 
-    assert result is not None
-    assert result.stats.successful_crawls == 1
-    assert mock_backend.crawl.call_count == 3
-    # Reset side_effect after test if mock is shared
-    mock_backend.crawl.side_effect = None
+        try:
+            target = CrawlTarget(url=TEST_URL, depth=0)
+            result = await crawler.crawl(
+                target_url=target.url,
+                depth=target.depth,
+                follow_external=target.follow_external,
+                content_types=target.content_types,
+                exclude_patterns=target.exclude_patterns,
+                include_patterns=target.include_patterns,
+                max_pages=target.max_pages,
+                allowed_paths=target.allowed_paths,
+                excluded_paths=target.excluded_paths,
+            )
+
+            # Verify the test worked as expected
+            assert result is not None
+            assert result.stats.successful_crawls == 1
+            assert mock_backend.crawl.call_count == 3
+
+            # Verify sleep was called for retries but didn't actually sleep
+            assert mock_sleep.call_count == 2  # Called twice for the two retries
+
+        finally:
+            # Restore original config
+            crawler.config = original_config
+            # Reset side_effect
+            mock_backend.crawl.side_effect = None
 
 
 @pytest.mark.asyncio
@@ -577,22 +611,47 @@ async def test_crawler_url_normalization(crawler, mock_backend):  # Pass mock_ba
 )
 @pytest.mark.asyncio
 async def test_crawler_error_handling(crawler, mock_backend, error, expected_message):
-    """Test various error scenarios."""
+    """Test various error scenarios - OPTIMIZED."""
+    # Set up the mock to return the error
     mock_backend.crawl.side_effect = [error] * crawler.config.max_retries
     crawler._crawled_urls.clear()  # Clear crawled URLs for each test case
-    target = CrawlTarget(url=TEST_URL, depth=0)  # Ensure depth
-    result = await crawler.crawl(
-        target_url=target.url,
-        depth=target.depth,
-        follow_external=target.follow_external,
-        content_types=target.content_types,
-        exclude_patterns=target.exclude_patterns,
-        include_patterns=target.include_patterns,  # Use include_patterns instead
-        max_pages=target.max_pages,
-        allowed_paths=target.allowed_paths,
-        excluded_paths=target.excluded_paths,
-    )
-    assert len(result.issues) == 1
-    assert (
-        expected_message in result.issues[0].message
-    ), f"Expected '{expected_message}' in issue message, but got '{result.issues[0].message}'"
+
+    # Patch the retry delay function to avoid real sleeps
+    with patch(
+        "src.crawler.crawler.asyncio.sleep", new_callable=AsyncMock
+    ) as mock_sleep:
+        # Configure crawler to use minimal retry delays
+        original_config = crawler.config
+        crawler.config = CrawlerConfig(
+            max_retries=2,  # Reduce retries for faster tests
+            retry_delay=0.01,  # Minimal delay
+            max_retry_delay=0.01,  # Minimal max delay
+            retry_backoff_factor=1.0,  # No exponential increase
+        )
+
+        try:
+            target = CrawlTarget(url=TEST_URL, depth=0)
+            result = await crawler.crawl(
+                target_url=target.url,
+                depth=target.depth,
+                follow_external=target.follow_external,
+                content_types=target.content_types,
+                exclude_patterns=target.exclude_patterns,
+                include_patterns=target.include_patterns,
+                max_pages=target.max_pages,
+                allowed_paths=target.allowed_paths,
+                excluded_paths=target.excluded_paths,
+            )
+
+            # Verify the expected error was captured
+            assert len(result.issues) == 1
+            assert (
+                expected_message in result.issues[0].message
+            ), f"Expected '{expected_message}' in issue message, but got '{result.issues[0].message}'"
+
+            # Verify sleep was called for retries but didn't actually sleep
+            assert mock_sleep.call_count > 0
+
+        finally:
+            # Restore original config
+            crawler.config = original_config

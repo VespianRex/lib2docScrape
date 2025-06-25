@@ -184,7 +184,9 @@ async def test_error_handling_integration(mock_ddg_search):
 @patch("src.utils.search.DuckDuckGoSearch.search", new_callable=AsyncMock)
 async def test_rate_limiting_integration(mock_ddg_search, mock_asyncio_sleep):
     """Test rate limiting across components."""
-    mock_asyncio_sleep.return_value = None  # AsyncMock automatically makes this awaitable
+    mock_asyncio_sleep.return_value = (
+        None  # AsyncMock automatically makes this awaitable
+    )
     mock_ddg_search.return_value = []  # AsyncMock automatically makes this awaitable
 
     # Create a RateLimiter with a spy on the acquire method

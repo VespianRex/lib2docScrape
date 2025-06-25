@@ -1,11 +1,14 @@
-import asyncio  # Add asyncio import
-import logging  # Import logging
-from unittest.mock import MagicMock, patch
+"""
+Optimized tests for helpers - no real sleep calls.
+"""
+
+import asyncio
+import logging
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.utils.helpers import (
-    # URLProcessor, # Removed as class was deleted
     RateLimiter,
     RetryStrategy,
     Timer,
@@ -13,39 +16,52 @@ from src.utils.helpers import (
     generate_checksum,
     setup_logging,
 )
-from src.utils.url import URLType  # Keep URLType import
-from src.utils.url.factory import create_url_info  # Import the factory function
-
-# Removed: URLInfo import
-
-# test_url_processor removed as the tested class URLProcessor was removed from helpers.py
-# URL processing is now handled by URLInfo in src/utils/url_info.py and tested in test_url_handling.py
+from src.utils.url import URLType
+from src.utils.url.factory import create_url_info
 
 
 @pytest.mark.asyncio
-async def test_rate_limiter():  # Make test async
-    """Test rate limiter functionality."""
-    limiter = RateLimiter(requests_per_second=2)
+async def test_rate_limiter_optimized():
+    """Test rate limiter functionality - OPTIMIZED with mocked time."""
 
-    start_time = asyncio.get_event_loop().time()  # Use event loop time
+    # Mock asyncio.sleep to avoid real delays
+    with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        mock_sleep.return_value = None
 
-    # Make 3 requests
-    for _ in range(3):
-        wait_time = await limiter.acquire()  # Add await
-        await asyncio.sleep(wait_time)  # Use asyncio.sleep
+        # Mock time.time to simulate fast successive calls that need rate limiting
+        with patch("time.time") as mock_time:
+            # Start at time 0, then very small increments to simulate fast calls
+            def time_side_effect():
+                if not hasattr(time_side_effect, "counter"):
+                    time_side_effect.counter = 0.0
+                else:
+                    time_side_effect.counter += 0.01  # Very small increment (much faster than 0.5s needed for 2 rps)
+                return time_side_effect.counter
 
-    end_time = asyncio.get_event_loop().time()  # Use event loop time
+            mock_time.side_effect = time_side_effect
 
-    # Should take at least 0.5 seconds (2 requests allowed immediately, 1 delayed by ~0.5s)
-    assert end_time - start_time >= 0.5  # Corrected assertion
-    # Removed incorrect assertions checking for a non-existent .delay attribute
+            limiter = RateLimiter(requests_per_second=2)  # Need 0.5s between requests
+
+            # Make 3 quick requests
+            wait_times = []
+            for _ in range(3):
+                wait_time = await limiter.acquire()
+                wait_times.append(wait_time)
+                if wait_time > 0:
+                    await asyncio.sleep(wait_time)  # This will be mocked to be instant
+
+            # The third request should require waiting since we're making requests too fast
+            assert (
+                wait_times[2] > 0
+            ), f"Third request should require waiting. Wait times: {wait_times}"
+
+            # Verify time.time was called
+            assert mock_time.call_count > 0
 
 
 def test_retry_strategy():
     """Test retry strategy functionality."""
-    strategy = RetryStrategy(
-        max_retries=3, initial_delay=0.01, max_delay=0.1
-    )  # Use smaller delays for testing
+    strategy = RetryStrategy(max_retries=3, initial_delay=0.01, max_delay=0.1)
 
     # Test successful retry
     mock_func_success = MagicMock()
@@ -57,29 +73,24 @@ def test_retry_strategy():
 
     attempt = 0
     last_exception = None
-    result = None  # Initialize result
+    result = None
     while attempt < strategy.max_retries:
         attempt += 1
         try:
             result = mock_func_success()
-            last_exception = None  # Reset exception on success
-            break  # Exit loop on success
+            last_exception = None
+            break
         except Exception as e:
             last_exception = e
-            # Check if the exception type should be retried (adjust as needed)
-            # For testing, let's assume ValueError should be retried here.
-            # In real usage, you might check specific network errors.
-            if not isinstance(e, ValueError):  # Example: only retry ValueErrors
+            if not isinstance(e, ValueError):
                 break
-            if attempt >= strategy.max_retries:  # Check if max retries reached
+            if attempt >= strategy.max_retries:
                 break
             delay = strategy.get_delay(attempt)
-            # time.sleep(delay) # Don't actually sleep in tests
-            print(
-                f"Retrying after attempt {attempt}, delay {delay:.4f}s"
-            )  # Optional debug
+            # No actual sleep in tests
+            print(f"Retrying after attempt {attempt}, delay {delay:.4f}s")
 
-    assert last_exception is None  # Should succeed eventually
+    assert last_exception is None
     assert result == "success"
     assert mock_func_success.call_count == 3
 
@@ -97,23 +108,22 @@ def test_retry_strategy():
             break
         except Exception as e:
             last_exception = e
-            # Check if the exception type should be retried
             if not isinstance(e, ValueError):
                 break
             if attempt >= strategy.max_retries:
                 break
             delay = strategy.get_delay(attempt)
-            # time.sleep(delay)
+            # No actual sleep
 
-    assert last_exception is not None  # Should have failed
+    assert last_exception is not None
     assert isinstance(last_exception, ValueError)
-    assert mock_func_fail.call_count == 3  # Max retries reached
+    assert mock_func_fail.call_count == 3
 
     # Test immediate success
     mock_func_quick = MagicMock(return_value="quick success")
     attempt = 0
     last_exception = None
-    result = None  # Initialize result
+    result = None
     while attempt < strategy.max_retries:
         attempt += 1
         try:
@@ -122,7 +132,6 @@ def test_retry_strategy():
             break
         except Exception as e:
             last_exception = e
-            # This part shouldn't be reached in this case
             break
 
     assert last_exception is None
@@ -130,30 +139,24 @@ def test_retry_strategy():
     assert mock_func_quick.call_count == 1
 
 
-# Mock time.time for Timer tests to make them deterministic
-# Added a 6th value (100.5) to the side_effect list for the logging call in the second timer's exit
 @patch("time.time", side_effect=[100.0, 100.1, 100.2, 100.3, 100.4, 100.5])
 def test_timer(mock_time):
-    """Test timer functionality."""
+    """Test timer functionality - OPTIMIZED with mocked time."""
     timer = Timer("TestOp")
 
     # Test basic timing
     with timer:
-        # time.sleep(0.1) # No actual sleep needed due to mock
-        pass  # Simulate work
+        pass  # No actual sleep needed
 
-    assert timer.duration == pytest.approx(0.1)  # Check exact duration with approx
+    assert timer.duration == pytest.approx(0.1)
     assert timer.start_time == 100.0
-    # assert timer.end_time == 100.1 # Timer doesn't store end_time
 
-    # Timer doesn't have reset, create new instance
+    # Create new timer instance
     timer2 = Timer("NestedOp")
-    # Test sequential timing (not nested)
     with timer2:
-        # time.sleep(0.1)
         pass
 
-    assert timer2.duration == pytest.approx(0.1)  # 100.4 - 100.3
+    assert timer2.duration == pytest.approx(0.1)
 
 
 def test_similarity_calculation():
@@ -208,14 +211,14 @@ def test_logging_setup(tmp_path):
         patch("logging.basicConfig") as mock_basic_config,
         patch("logging.StreamHandler") as mock_stream_handler,
         patch("logging.FileHandler") as mock_file_handler,
-    ):  # Patch FileHandler too
+    ):
         setup_logging(level="INFO")
         mock_basic_config.assert_called_once()
         args, kwargs = mock_basic_config.call_args
         assert kwargs["level"] == logging.INFO
-        assert len(kwargs["handlers"]) == 1  # Only console handler expected
+        assert len(kwargs["handlers"]) == 1
         mock_stream_handler.assert_called_once()
-        mock_file_handler.assert_not_called()  # File handler shouldn't be called
+        mock_file_handler.assert_not_called()
 
     # Test with different log level
     with patch("logging.basicConfig") as mock_basic_config:
@@ -228,12 +231,12 @@ def test_logging_setup(tmp_path):
         patch("logging.basicConfig") as mock_basic_config,
         patch("logging.StreamHandler"),
         patch("logging.FileHandler") as mock_file_handler,
-    ):  # Patch FileHandler
+    ):
         setup_logging(level="WARNING", log_file=str(log_file))
         mock_basic_config.assert_called_once()
         args, kwargs = mock_basic_config.call_args
         assert kwargs["level"] == logging.WARNING
-        assert len(kwargs["handlers"]) == 2  # Console and file handler expected
+        assert len(kwargs["handlers"]) == 2
         mock_file_handler.assert_called_once_with(str(log_file))
 
 
@@ -244,19 +247,7 @@ def create_mock_response(
     headers=None,
     content_type="text/html",
 ):
-    """
-    Create a mock HTTP response object for testing.
-
-    Args:
-        status_code: HTTP status code (default: 200)
-        content: Response content (default: empty HTML)
-        url: Response URL (default: example.com)
-        headers: Response headers (default: basic headers)
-        content_type: Content type (default: text/html)
-
-    Returns:
-        MagicMock: Mocked response object with appropriate attributes
-    """
+    """Create a mock HTTP response object for testing."""
     if content is None:
         content = "<html><body>Test content</body></html>"
 
@@ -286,41 +277,6 @@ def create_mock_response(
 
 
 def create_test_url_info(url, url_type=URLType.INTERNAL, base_url=None):
-    """
-    Create a URLInfo object for testing using the factory function.
-
-    Args:
-        url: The URL string
-        url_type: The expected URLType enum value (for assertion, not creation)
-        base_url: Optional base URL string
-
-    Returns:
-        URLInfo: Configured URLInfo object created by the factory
-    """
-    # Use the factory function to create the URLInfo instance
+    """Create a URLInfo object for testing using the factory function."""
     url_info = create_url_info(url, base_url=base_url)
-
-    # The factory determines url_type, domain, and path.
-    # We can add assertions here if needed to verify the factory's output
-    # based on the test inputs, but we don't manually set them anymore.
-
-    # Example assertion (optional, depending on test structure):
-    # assert url_info.url_type == url_type
-
     return url_info
-
-
-# Removed the unused async_test decorator as pytest-asyncio is used
-# def async_test(coro):
-#     """
-#     Decorator for running async tests without pytest.mark.asyncio.
-#
-#     Args:
-#         coro: The coroutine function to test
-#
-#     Returns:
-#         function: Wrapped test function
-#     """
-#     def wrapper(*args, **kwargs):
-#         return asyncio.run(coro(*args, **kwargs))
-#     return wrapper

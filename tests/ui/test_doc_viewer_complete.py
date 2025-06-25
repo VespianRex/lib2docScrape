@@ -40,11 +40,12 @@ def doc_viewer():
 
     # Set up the mocks to return test values - mock the documents dict
     from src.organizers.doc_organizer import DocumentVersion
+
     mock_version = DocumentVersion(
         version_id="v1",
         timestamp=datetime.now(),
         hash="test_hash",
-        changes={"content": {"formatted_content": "Test content"}}
+        changes={"content": {"formatted_content": "Test content"}},
     )
 
     mock_doc_metadata = DocumentMetadata(
@@ -52,7 +53,7 @@ def doc_viewer():
         url="http://example.com/doc1",
         category="test",
         last_updated=datetime.now(),
-        versions=[mock_version]
+        versions=[mock_version],
     )
 
     doc_organizer_mock.documents = {"doc1": mock_doc_metadata}

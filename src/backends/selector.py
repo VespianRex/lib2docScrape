@@ -553,7 +553,9 @@ class BackendSelector:
         self._backends.clear()
         logging.info("All backend instances closed and cleared.")
 
-    async def get_backend_with_performance(self, url: str, content_type: Optional[str] = None) -> Optional[CrawlerBackend]:
+    async def get_backend_with_performance(
+        self, url: str, content_type: Optional[str] = None
+    ) -> Optional[CrawlerBackend]:
         """
         Get backend for URL using performance-based selection.
 
@@ -571,16 +573,24 @@ class BackendSelector:
                 domain = parsed.netloc
 
                 # Get performance-optimized backend recommendation
-                recommended_backend_name = self.performance_tracker.get_best_backend_for_domain(domain)
+                recommended_backend_name = (
+                    self.performance_tracker.get_best_backend_for_domain(domain)
+                )
 
                 # Check if recommended backend is available
                 if recommended_backend_name in self._backend_instances:
-                    logger.info(f"Using performance-optimized backend '{recommended_backend_name}' for domain '{domain}'")
+                    logger.info(
+                        f"Using performance-optimized backend '{recommended_backend_name}' for domain '{domain}'"
+                    )
                     return self._backend_instances[recommended_backend_name]
 
-                logger.debug(f"Recommended backend '{recommended_backend_name}' not available, falling back to standard selection")
+                logger.debug(
+                    f"Recommended backend '{recommended_backend_name}' not available, falling back to standard selection"
+                )
             except Exception as e:
-                logger.warning(f"Performance-based selection failed: {e}, falling back to standard selection")
+                logger.warning(
+                    f"Performance-based selection failed: {e}, falling back to standard selection"
+                )
 
         # Fallback to standard backend selection
         return await self.get_backend(url, content_type)
@@ -610,19 +620,30 @@ class BackendSelector:
         try:
             # Start performance monitoring if tracker is available
             if self.performance_tracker:
-                monitoring_context = await self.performance_tracker.start_monitoring(backend.name, domain)
+                monitoring_context = await self.performance_tracker.start_monitoring(
+                    backend.name, domain
+                )
 
             # Perform the crawl
-            from ..utils.url.info import URLInfo  # Import here to avoid circular imports
+            from ..utils.url.info import (
+                URLInfo,  # Import here to avoid circular imports
+            )
+
             url_info = URLInfo(raw_url=url)
             result = await backend.crawl(url_info, config)
 
             # Record successful performance metrics
             if self.performance_tracker and monitoring_context:
-                metrics = await self.performance_tracker.stop_monitoring(monitoring_context)
+                metrics = await self.performance_tracker.stop_monitoring(
+                    monitoring_context
+                )
                 metrics["success"] = True
-                metrics["content_size"] = len(str(result.content)) if result.content else 0
-                await self.performance_tracker.record_performance(backend.name, domain, metrics)
+                metrics["content_size"] = (
+                    len(str(result.content)) if result.content else 0
+                )
+                await self.performance_tracker.record_performance(
+                    backend.name, domain, metrics
+                )
 
             return result
 
@@ -630,12 +651,18 @@ class BackendSelector:
             # Record failed performance metrics
             if self.performance_tracker and monitoring_context:
                 try:
-                    metrics = await self.performance_tracker.stop_monitoring(monitoring_context)
+                    metrics = await self.performance_tracker.stop_monitoring(
+                        monitoring_context
+                    )
                     metrics["success"] = False
                     metrics["content_size"] = 0
-                    await self.performance_tracker.record_performance(backend.name, domain, metrics)
+                    await self.performance_tracker.record_performance(
+                        backend.name, domain, metrics
+                    )
                 except Exception as tracking_error:
-                    logger.warning(f"Failed to record performance metrics for failed crawl: {tracking_error}")
+                    logger.warning(
+                        f"Failed to record performance metrics for failed crawl: {tracking_error}"
+                    )
 
             raise e
 

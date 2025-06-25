@@ -89,7 +89,8 @@ def test_crawl4ai_config_validation():
 async def backend(default_config):
     # Patch _create_session to prevent actual session creation during initialization for most tests
     with patch(
-        "src.backends.crawl4ai_backend.Crawl4AIBackend._create_session", new_callable=AsyncMock
+        "src.backends.crawl4ai_backend.Crawl4AIBackend._create_session",
+        new_callable=AsyncMock,
     ):
         backend_instance = Crawl4AIBackend(config=default_config)
         # Mock the content_processor for isolation
@@ -130,7 +131,9 @@ async def test_backend_ensure_session_creates_session_if_none(
     default_config,
 ):  # Changed from `backend`
     # Reset the patch for this specific test to check session creation
-    with patch("src.backends.crawl4ai_backend.aiohttp.ClientSession") as mock_aiohttp_session:
+    with patch(
+        "src.backends.crawl4ai_backend.aiohttp.ClientSession"
+    ) as mock_aiohttp_session:
         mock_session_instance = AsyncMock()
         mock_aiohttp_session.return_value = mock_session_instance
 
@@ -150,7 +153,9 @@ async def test_backend_ensure_session_creates_session_if_none(
 @pytest.mark.asyncio
 async def test_backend_context_manager(default_config):
     # Test __aenter__ and __aexit__
-    with patch("src.backends.crawl4ai_backend.aiohttp.ClientSession") as mock_aiohttp_session:
+    with patch(
+        "src.backends.crawl4ai_backend.aiohttp.ClientSession"
+    ) as mock_aiohttp_session:
         mock_session_instance = AsyncMock()
         mock_session_instance.closed = False
         mock_aiohttp_session.return_value = mock_session_instance
@@ -265,8 +270,7 @@ async def test_fetch_with_retry_failure_after_retries(
 ):  # `backend` param is ok here, only its config is used for fresh_backend
     # Define the exception instance that will be raised
     the_exception_to_raise = aiohttp.ClientConnectorError(
-        connection_key=MagicMock(),
-        os_error=OSError("Connection failed")
+        connection_key=MagicMock(), os_error=OSError("Connection failed")
     )
 
     config = Crawl4AIConfig(max_retries=1, timeout=1.0)
@@ -285,7 +289,9 @@ async def test_fetch_with_retry_failure_after_retries(
         result = await fresh_backend._fetch_with_retry(url)
 
     assert mock_session_instance.get.call_count == config.max_retries + 1
-    assert mock_sleep.call_count == config.max_retries  # Sleep only between retries, not after final failure
+    assert (
+        mock_sleep.call_count == config.max_retries
+    )  # Sleep only between retries, not after final failure
     assert result.url == url
     assert result.status == 0
     assert "Failed after 1 retries: Cannot connect to host" in result.error
@@ -425,7 +431,7 @@ async def test_crawl_successful(backend_with_session):
         "metadata": {"headers": {"Content-Type": "text/html"}},
         "headings": [],
         "links": [],
-        "assets": {"images": [], "stylesheets": [], "scripts": [], "media": []}
+        "assets": {"images": [], "stylesheets": [], "scripts": [], "media": []},
     }
 
     # Mock _fetch_with_retry
@@ -463,7 +469,9 @@ async def test_crawl_invalid_url_info(backend_with_session):
     assert result.url == "invalid url string"  # raw_url from URLInfo
     assert result.status == 400  # Bad request
     assert "Invalid URL" in result.error
-    assert backend_with_session.metrics["failed_requests"] == 0  # Invalid URLs don't count as failed requests
+    assert (
+        backend_with_session.metrics["failed_requests"] == 0
+    )  # Invalid URLs don't count as failed requests
     assert backend_with_session.metrics["pages_crawled"] == 0
 
 
@@ -486,7 +494,9 @@ async def test_crawl_fetch_error(backend_with_session):
     assert result.status == 500
     assert result.error == "Server Error"
     assert backend_with_session.metrics["failed_requests"] == 1
-    assert backend_with_session.metrics["pages_crawled"] == 1  # Page was attempted to be crawled
+    assert (
+        backend_with_session.metrics["pages_crawled"] == 1
+    )  # Page was attempted to be crawled
     assert url_str not in backend_with_session._crawled_urls  # Not added if fetch fails
 
 
@@ -654,7 +664,9 @@ async def test_crawl_allowed_domains(backend_with_session):
     result_disallowed = await backend_with_session.crawl(url_info_disallowed)
     assert result_disallowed.status == 403  # Forbidden
     assert "Domain not allowed" in result_disallowed.error
-    assert backend_with_session.metrics["failed_requests"] == 0  # Domain restrictions don't count as failed requests
+    assert (
+        backend_with_session.metrics["failed_requests"] == 0
+    )  # Domain restrictions don't count as failed requests
 
 
 # --- Tests for validate and process ---

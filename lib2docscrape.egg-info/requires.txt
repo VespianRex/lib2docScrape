@@ -23,11 +23,20 @@ pytest-asyncio>=0.25.3
 pytest-cov>=6.0.0
 pytest-mock>=3.14.0
 pytest-xdist>=3.6.0
+pytest-timeout>=2.3.1
 pre-commit>=4.2.0
 python-multipart>=0.0.20
 html2text>=2025.4.15
 uvicorn>=0.34.3
 jinja2>=3.1.6
+pytest-json-report>=1.5.0
+toml>=0.10.2
+packaging>=24.2
+scikit-learn>=1.6.1
+sentence-transformers>=4.1.0
+smolagents>=1.19.0
+litellm>=1.71.2
+llama-cpp-python>=0.3.9
 
 [all]
 lib2docscrape[crawl4ai,dev,lightpanda,playwright]
@@ -41,6 +50,7 @@ pytest-cov>=6.0.0
 pytest-asyncio>=0.24.0
 pytest-mock>=3.10.0
 pytest-xdist>=3.6.0
+pytest-timeout>=2.3.1
 hypothesis>=6.92.1
 responses>=0.25.0
 aioresponses>=0.7.0

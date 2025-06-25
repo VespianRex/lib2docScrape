@@ -1,10 +1,32 @@
 """Tests for the document organizer component."""
 
+import pytest
+
 from src.organizers.doc_organizer import (
     DocumentOrganizer,
     DocumentVersion,
     OrganizationConfig,
 )
+from src.processors.content.models import ProcessedContent
+
+
+@pytest.fixture
+def create_test_content():
+    """Fixture to create test document content."""
+
+    def _create_content(url: str, title: str, content: dict):
+        """Create test document content structure."""
+        return ProcessedContent(
+            url=url,
+            title=title,
+            content=content,
+            metadata={"title": title},
+            structure=[],
+            assets={"images": [], "stylesheets": [], "scripts": [], "media": []},
+            headings=[],
+        )
+
+    return _create_content
 
 
 def test_document_organizer_initialization():

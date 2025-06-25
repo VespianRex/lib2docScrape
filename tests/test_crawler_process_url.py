@@ -1,7 +1,8 @@
 """Tests for the DocumentationCrawler._process_url method."""
 
+import asyncio
 from typing import Any, Optional
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -19,6 +20,30 @@ from src.processors.content_processor import ProcessedContent
 
 # Enable asyncio support
 pytest_plugins = ["pytest_asyncio"]
+
+
+# Mock asyncio.sleep to make tests run faster
+@pytest.fixture(autouse=True)
+async def mock_asyncio_sleep():
+    """Mock asyncio.sleep to return immediately for faster tests."""
+
+    async def fast_sleep(delay, *args, **kwargs):
+        pass  # Don't sleep at all - just return immediately
+
+    with patch.object(asyncio, "sleep", fast_sleep):
+        yield
+
+
+# Mock RateLimiter to make tests run faster
+@pytest.fixture(autouse=True)
+def mock_rate_limiter():
+    """Mock RateLimiter.acquire to return immediately for faster tests."""
+
+    async def fast_acquire(self):
+        return 0.0  # No wait time
+
+    with patch("src.utils.helpers.RateLimiter.acquire", fast_acquire):
+        yield
 
 
 class SimpleRetryStrategy:
@@ -49,11 +74,16 @@ async def setup_process_url_test(
     try:
         # Initialize if not provided
         if not config:
-            config = CrawlConfig()
+            config = CrawlConfig(
+                use_duckduckgo=False,  # Disable DuckDuckGo for faster tests
+                rate_limit=0.0,  # Disable rate limiting for faster tests
+            )
 
         # Set up crawler with mocks
         crawler = DocumentationCrawler(
-            content_processor=Mock(), quality_checker=quality_checker or Mock()
+            config=config,
+            content_processor=Mock(),
+            quality_checker=quality_checker or Mock(),
         )
 
         # Create target with custom depth if specified

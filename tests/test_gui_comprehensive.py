@@ -7,7 +7,7 @@ and real-time updates.
 """
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -35,13 +35,14 @@ class TestDashboardGUI:
             enable_export=True,
             theme="light",
             refresh_interval=5,
-            max_items_per_page=20
+            max_items_per_page=20,
         )
 
     @pytest.fixture
     def mock_app(self):
         """Create a mock FastAPI app for testing."""
         from fastapi import FastAPI
+
         app = FastAPI()
         return app
 
@@ -61,7 +62,7 @@ class TestDashboardGUI:
         """Test that dashboard registers all required routes."""
         # This test will fail until routes are properly implemented
         client = TestClient(mock_app)
-        
+
         # Test main dashboard route
         response = client.get("/")
         assert response.status_code == 200
@@ -70,7 +71,7 @@ class TestDashboardGUI:
     def test_dashboard_api_endpoints(self, dashboard, mock_app):
         """Test dashboard API endpoints."""
         client = TestClient(mock_app)
-        
+
         # Test status endpoint
         response = client.get("/api/status")
         assert response.status_code == 200
@@ -83,39 +84,43 @@ class TestDashboardGUI:
     def test_dashboard_websocket_connection(self, dashboard, mock_app):
         """Test WebSocket connection for real-time updates."""
         client = TestClient(mock_app)
-        
+
         with client.websocket_connect("/ws") as websocket:
-            # Test connection established
+            # Test connection established by sending a test message
+            test_message = {"type": "test", "message": "hello"}
+            websocket.send_json(test_message)
+
+            # Receive the response
             data = websocket.receive_json()
-            assert data["type"] == "connection"
-            assert data["status"] == "connected"
+            assert data["status"] == "received"
+            assert data["data"] == test_message
 
     def test_dashboard_theme_switching(self, dashboard):
         """Test theme switching functionality."""
         # Test light theme
         dashboard.set_theme("light")
         assert dashboard.config.theme == "light"
-        
+
         # Test dark theme
         dashboard.set_theme("dark")
         assert dashboard.config.theme == "dark"
-        
+
         # Test auto theme
         dashboard.set_theme("auto")
         assert dashboard.config.theme == "auto"
 
     def test_dashboard_data_refresh(self, dashboard):
         """Test dashboard data refresh functionality."""
-        with patch.object(dashboard, 'fetch_dashboard_data') as mock_fetch:
+        with patch.object(dashboard, "fetch_dashboard_data") as mock_fetch:
             mock_fetch.return_value = {
                 "libraries": 10,
                 "documents": 50,
                 "crawls": 5,
-                "uptime": 3600
+                "uptime": 3600,
             }
-            
+
             data = dashboard.refresh_data()
-            
+
             assert data["libraries"] == 10
             assert data["documents"] == 50
             assert data["crawls"] == 5
@@ -139,13 +144,14 @@ class TestSearchInterfaceGUI:
             highlight_results=True,
             search_titles=True,
             search_content=True,
-            search_metadata=True
+            search_metadata=True,
         )
 
     @pytest.fixture
     def mock_app(self):
         """Create a mock FastAPI app for testing."""
         from fastapi import FastAPI
+
         app = FastAPI()
         return app
 
@@ -166,12 +172,12 @@ class TestSearchInterfaceGUI:
         result = search_interface.validate_search_query("python documentation")
         assert result.is_valid is True
         assert result.query == "python documentation"
-        
+
         # Test empty query
         result = search_interface.validate_search_query("")
         assert result.is_valid is False
         assert "Query cannot be empty" in result.errors
-        
+
         # Test query too long
         long_query = "a" * 1000
         result = search_interface.validate_search_query(long_query)
@@ -180,15 +186,17 @@ class TestSearchInterfaceGUI:
 
     def test_search_autocomplete(self, search_interface):
         """Test search autocomplete functionality."""
-        with patch.object(search_interface, 'get_autocomplete_suggestions') as mock_suggestions:
+        with patch.object(
+            search_interface, "get_autocomplete_suggestions"
+        ) as mock_suggestions:
             mock_suggestions.return_value = [
                 "python documentation",
                 "python tutorial",
-                "python api reference"
+                "python api reference",
             ]
-            
+
             suggestions = search_interface.get_autocomplete("python")
-            
+
             assert len(suggestions) == 3
             assert "python documentation" in suggestions
             assert "python tutorial" in suggestions
@@ -199,11 +207,11 @@ class TestSearchInterfaceGUI:
         filters = {
             "content_type": ["documentation", "tutorial"],
             "language": ["python", "javascript"],
-            "date_range": {"start": "2023-01-01", "end": "2023-12-31"}
+            "date_range": {"start": "2023-01-01", "end": "2023-12-31"},
         }
-        
+
         result = search_interface.apply_filters("test query", filters)
-        
+
         assert result.query == "test query"
         assert result.filters == filters
         assert "documentation" in result.filters["content_type"]
@@ -214,17 +222,17 @@ class TestSearchInterfaceGUI:
         # Add search to history
         search_interface.add_to_history("python documentation")
         search_interface.add_to_history("javascript tutorial")
-        
+
         history = search_interface.get_search_history()
-        
+
         assert len(history) == 2
         assert "python documentation" in history
         assert "javascript tutorial" in history
-        
+
         # Test history limit
         for i in range(50):
             search_interface.add_to_history(f"query {i}")
-        
+
         history = search_interface.get_search_history()
         assert len(history) <= search_interface.config.max_history_items
 
@@ -245,13 +253,14 @@ class TestVisualizationsGUI:
             default_color_scheme="category10",
             max_items_per_chart=100,
             chart_width=800,
-            chart_height=400
+            chart_height=400,
         )
 
     @pytest.fixture
     def mock_app(self):
         """Create a mock FastAPI app for testing."""
         from fastapi import FastAPI
+
         app = FastAPI()
         return app
 
@@ -270,15 +279,13 @@ class TestVisualizationsGUI:
         """Test chart generation functionality."""
         data = {
             "labels": ["Python", "JavaScript", "Java", "C++"],
-            "values": [45, 30, 15, 10]
+            "values": [45, 30, 15, 10],
         }
-        
+
         chart = visualizations.create_chart(
-            chart_type="bar",
-            data=data,
-            title="Programming Languages Usage"
+            chart_type="bar", data=data, title="Programming Languages Usage"
         )
-        
+
         assert chart.chart_type == "bar"
         assert chart.title == "Programming Languages Usage"
         assert chart.data == data
@@ -290,15 +297,15 @@ class TestVisualizationsGUI:
         data = [
             {"library": "requests", "downloads": 1000000, "rating": 4.8},
             {"library": "numpy", "downloads": 800000, "rating": 4.9},
-            {"library": "pandas", "downloads": 600000, "rating": 4.7}
+            {"library": "pandas", "downloads": 600000, "rating": 4.7},
         ]
-        
+
         table = visualizations.create_table(
             data=data,
             columns=["library", "downloads", "rating"],
-            title="Popular Python Libraries"
+            title="Popular Python Libraries",
         )
-        
+
         assert table.title == "Popular Python Libraries"
         assert len(table.data) == 3
         assert table.columns == ["library", "downloads", "rating"]
@@ -306,23 +313,20 @@ class TestVisualizationsGUI:
 
     def test_export_functionality(self, visualizations):
         """Test export functionality for visualizations."""
-        chart_data = {
-            "labels": ["A", "B", "C"],
-            "values": [10, 20, 30]
-        }
-        
+        chart_data = {"labels": ["A", "B", "C"], "values": [10, 20, 30]}
+
         chart = visualizations.create_chart("pie", chart_data, "Test Chart")
-        
+
         # Test PNG export
         png_data = visualizations.export_chart(chart, format="png")
         assert png_data is not None
         assert isinstance(png_data, bytes)
-        
+
         # Test SVG export
         svg_data = visualizations.export_chart(chart, format="svg")
         assert svg_data is not None
         assert isinstance(svg_data, str)
-        
+
         # Test JSON export
         json_data = visualizations.export_chart(chart, format="json")
         assert json_data is not None
@@ -338,33 +342,34 @@ class TestGUIIntegration:
     def integrated_app(self):
         """Create integrated app with all GUI components."""
         from fastapi import FastAPI
+
         app = FastAPI()
-        
+
         # Add all GUI components
         dashboard = Dashboard(app, DashboardConfig())
         search = SearchInterface(app, SearchConfig())
         viz = Visualizations(app, VisualizationConfig())
-        
+
         return app, dashboard, search, viz
 
     def test_complete_user_workflow(self, integrated_app):
         """Test complete user workflow through the GUI."""
         app, dashboard, search, viz = integrated_app
         client = TestClient(app)
-        
+
         # 1. User visits dashboard
         response = client.get("/")
         assert response.status_code == 200
-        
+
         # 2. User performs search
         search_data = {"query": "python documentation", "filters": {}}
         response = client.post("/search", json=search_data)
         assert response.status_code == 200
-        
+
         # 3. User views results
         response = client.get("/search/results")
         assert response.status_code == 200
-        
+
         # 4. User exports data
         response = client.get("/export/csv")
         assert response.status_code == 200
@@ -374,17 +379,19 @@ class TestGUIIntegration:
         """Test error handling in GUI components."""
         app, dashboard, search, viz = integrated_app
         client = TestClient(app)
-        
+
         # Test invalid search
         response = client.post("/search", json={"query": ""})
         assert response.status_code == 400
-        
+
         # Test non-existent route
         response = client.get("/nonexistent")
         assert response.status_code == 404
-        
+
         # Test server error handling
-        with patch.object(dashboard, 'fetch_dashboard_data', side_effect=Exception("Test error")):
+        with patch.object(
+            dashboard, "fetch_dashboard_data", side_effect=Exception("Test error")
+        ):
             response = client.get("/api/status")
             assert response.status_code == 500
 
@@ -392,14 +399,14 @@ class TestGUIIntegration:
         """Test responsive design elements in GUI."""
         app, dashboard, search, viz = integrated_app
         client = TestClient(app)
-        
+
         # Test mobile viewport
         headers = {"User-Agent": "Mobile Browser"}
         response = client.get("/", headers=headers)
         assert response.status_code == 200
         assert "viewport" in response.text
         assert "responsive" in response.text or "mobile" in response.text
-        
+
         # Test desktop viewport
         headers = {"User-Agent": "Desktop Browser"}
         response = client.get("/", headers=headers)

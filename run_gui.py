@@ -707,7 +707,9 @@ async def handle_scraping_background(
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render the main scraping dashboard."""
-    return templates.TemplateResponse(request, "scraping_dashboard.html", {"request": request})
+    return templates.TemplateResponse(
+        request, "scraping_dashboard.html", {"request": request}
+    )
 
 
 @app.get("/home", response_class=HTMLResponse)
@@ -719,7 +721,9 @@ async def home_page(request: Request):
 @app.get("/test-dashboard", response_class=HTMLResponse)
 async def test_dashboard(request: Request):
     """Render the test dashboard page."""
-    return templates.TemplateResponse(request, "scraping_dashboard.html", {"request": request})
+    return templates.TemplateResponse(
+        request, "scraping_dashboard.html", {"request": request}
+    )
 
 
 @app.get("/libraries", response_class=HTMLResponse)
@@ -918,13 +922,299 @@ async def discover_docs(request: Request):
 
             # Treat as package name
             else:
-                urls = await doc_finder.find_package_docs(input_str)
-                for url_info in urls:
-                    all_urls[url_info["url"]] = url_info
+                package_info = await get_package_docs(input_str)
+                if "docs" in package_info:
+                    for doc_info in package_info["docs"]:
+                        all_urls[doc_info["url"]] = doc_info
+                elif "error" not in package_info:
+                    # If no docs but no error, try DuckDuckGo search
+                    ddg_results = await search_duckduckgo(f"{input_str} documentation")
+                    for doc_info in ddg_results:
+                        all_urls[doc_info["url"]] = doc_info
 
         return JSONResponse({"urls": all_urls})
     except Exception as e:
         logger.error(f"Discovery error: {str(e)}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/multi-library/analyze")
+async def analyze_multi_library_project(request: Request):
+    """Analyze multi-library project and generate unified documentation."""
+    try:
+        data = await request.json()
+        project_type = data.get("project_type", "python")
+        dependencies_file = data.get("dependencies_file", "")
+
+        if not dependencies_file:
+            return JSONResponse(
+                {"error": "Dependencies file content is required"}, status_code=400
+            )
+
+        # Import required modules with error handling
+        try:
+            from src.processors.compatibility_checker import CompatibilityChecker
+            from src.processors.dependency_parser import DependencyParser
+            from src.processors.unified_doc_generator import (
+                UnifiedDocumentationGenerator,
+            )
+            from src.visualizers.dependency_graph import DependencyGraphGenerator
+        except ImportError as e:
+            logger.error(f"Import error in multi-library endpoint: {e}")
+            return JSONResponse(
+                {"error": f"Module import failed: {str(e)}"}, status_code=500
+            )
+
+        # Parse dependencies
+        parser = DependencyParser()
+
+        if project_type == "python":
+            dependencies = parser.parse_requirements(dependencies_file)
+        elif project_type == "javascript":
+            dependencies = parser.parse_package_json(dependencies_file)
+        else:
+            dependencies = parser.parse_file(
+                f"dependencies.{project_type}", dependencies_file
+            )
+
+        # Get documentation URLs for each dependency
+        documentation_urls = {}
+        for dependency in dependencies:
+            lib_name = dependency["name"]
+            lib_type = dependency["type"]
+
+            try:
+                if lib_type == "python":
+                    # Try PyPI first
+                    package_info = await get_package_docs(lib_name)
+                    if "docs" in package_info:
+                        documentation_urls[lib_name] = package_info["docs"]
+                    else:
+                        # Fallback to DuckDuckGo search
+                        ddg_results = await search_duckduckgo(
+                            f"{lib_name} documentation"
+                        )
+                        documentation_urls[lib_name] = ddg_results[:3]
+                else:
+                    # Generic search for other types
+                    ddg_results = await search_duckduckgo(f"{lib_name} documentation")
+                    documentation_urls[lib_name] = ddg_results[:3]
+            except Exception as e:
+                logger.warning(f"Failed to get docs for {lib_name}: {e}")
+                documentation_urls[lib_name] = []
+
+        # Generate unified documentation
+        doc_generator = UnifiedDocumentationGenerator()
+
+        # Create mock library docs for unified generation
+        library_docs = {}
+        for lib_name in documentation_urls:
+            library_docs[lib_name] = {
+                "content": f"Documentation for {lib_name}",
+                "api_reference": [f"{lib_name}.main()"],
+                "examples": [f"Basic {lib_name} usage example"],
+            }
+
+        unified_docs = doc_generator.generate_unified_docs(library_docs)
+
+        # Check compatibility
+        compatibility_checker = CompatibilityChecker()
+        compatibility_report = compatibility_checker.check_compatibility(dependencies)
+
+        # Generate dependency graph
+        graph_generator = DependencyGraphGenerator()
+        dependency_graph = graph_generator.create_graph(dependencies)
+
+        return JSONResponse(
+            {
+                "status": "success",
+                "dependencies": dependencies,
+                "documentation_urls": documentation_urls,
+                "unified_docs": unified_docs,
+                "compatibility_report": compatibility_report,
+                "dependency_graph": dependency_graph.to_dict(),
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Multi-library analysis failed: {e}")
+        return JSONResponse({"error": f"Analysis failed: {str(e)}"}, status_code=500)
+
+
+@app.get("/api/test")
+async def test_endpoint():
+    """Simple test endpoint to verify API routing works."""
+    return JSONResponse({"status": "success", "message": "Test endpoint working"})
+
+
+@app.post("/api/relevance/detect")
+async def relevance_detection_endpoint(request: Request):
+    """Content relevance detection endpoint."""
+    try:
+        data = await request.json()
+        content = data.get("content", "")
+        method = data.get("method", "hybrid")
+        threshold = data.get("threshold", 0.6)
+
+        if not content:
+            return JSONResponse({"error": "Content is required"}, status_code=400)
+
+        # Import relevance detection modules
+        from src.processors.relevance_detection import (
+            HybridRelevanceDetector,
+            NLPRelevanceDetector,
+            RuleBasedRelevanceDetector,
+        )
+
+        # Select detector based on method
+        if method == "nlp":
+            detector = NLPRelevanceDetector()
+        elif method == "rule_based":
+            detector = RuleBasedRelevanceDetector()
+        else:  # hybrid
+            detector = HybridRelevanceDetector()
+
+        # Analyze content
+        import time
+
+        start_time = time.time()
+        result = detector.is_documentation_relevant(content)
+        processing_time = time.time() - start_time
+
+        return JSONResponse(
+            {
+                "is_relevant": result.get("is_relevant", False),
+                "confidence": result.get("confidence", result.get("score", 0.5)),
+                "method_used": method,
+                "processing_time": round(processing_time, 3),
+                "reasoning": result.get("reasoning", ""),
+                "threshold_used": threshold,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Relevance detection error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/relevance/detect-batch")
+async def batch_relevance_detection_endpoint(request: Request):
+    """Batch content relevance detection endpoint."""
+    try:
+        data = await request.json()
+        contents = data.get("contents", [])
+        method = data.get("method", "rule_based")  # Use faster method for batch
+
+        if not contents:
+            return JSONResponse({"error": "Contents list is required"}, status_code=400)
+
+        # Import relevance detection modules
+        from src.processors.relevance_detection import (
+            HybridRelevanceDetector,
+            NLPRelevanceDetector,
+            RuleBasedRelevanceDetector,
+        )
+
+        # Select detector based on method
+        if method == "nlp":
+            detector = NLPRelevanceDetector()
+        elif method == "rule_based":
+            detector = RuleBasedRelevanceDetector()
+        else:  # hybrid
+            detector = HybridRelevanceDetector()
+
+        # Process all contents
+        results = []
+        for item in contents:
+            content_id = item.get("id", "unknown")
+            content = item.get("content", "")
+
+            if content:
+                result = detector.is_documentation_relevant(content)
+                results.append(
+                    {
+                        "id": content_id,
+                        "is_relevant": result.get("is_relevant", False),
+                        "confidence": result.get(
+                            "confidence", result.get("score", 0.5)
+                        ),
+                        "reasoning": result.get("reasoning", ""),
+                    }
+                )
+            else:
+                results.append(
+                    {
+                        "id": content_id,
+                        "is_relevant": False,
+                        "confidence": 0.0,
+                        "reasoning": "Empty content",
+                    }
+                )
+
+        return JSONResponse(
+            {"results": results, "method_used": method, "total_processed": len(results)}
+        )
+
+    except Exception as e:
+        logger.error(f"Batch relevance detection error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/search/semantic")
+async def semantic_search_endpoint(request: Request):
+    """Advanced semantic search endpoint."""
+    try:
+        data = await request.json()
+        query = data.get("query", "")
+        limit = data.get("limit", 5)
+        filters = data.get("filters", {})
+
+        if not query:
+            return JSONResponse({"error": "Query is required"}, status_code=400)
+
+        # Import search engine
+        from src.search.semantic_search import SemanticSearchEngine
+
+        # Create and use search engine (in production, this would be cached)
+        search_engine = SemanticSearchEngine()
+
+        # Mock documentation content for demo
+        mock_docs = {
+            "requests": {
+                "content": "HTTP library for Python, built for human beings",
+                "sections": [
+                    {"title": "Quick Start", "content": "Making requests is simple"}
+                ],
+                "tags": ["http", "web", "python"],
+                "difficulty": "beginner",
+            },
+            "fastapi": {
+                "content": "Modern, fast web framework for building APIs with Python",
+                "sections": [
+                    {"title": "First Steps", "content": "Create FastAPI instance"}
+                ],
+                "tags": ["web", "api", "framework", "python"],
+                "difficulty": "intermediate",
+            },
+        }
+
+        # Index documents
+        search_engine.index_documents(mock_docs)
+
+        # Perform search
+        results = search_engine.search(query, limit, filters)
+
+        return JSONResponse(
+            {
+                "results": results,
+                "total_count": len(results),
+                "query": query,
+                "query_time": 0.1,  # Mock query time
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Semantic search error: {e}")
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
@@ -934,9 +1224,19 @@ async def start_crawl(request: Request):
     try:
         # Get URLs from request body
         data = await request.json()
+        logger.info(f"Received crawl request data: {data}")
+
         urls = data.get("urls", [])
         if not urls:
             return JSONResponse({"error": "No URLs provided"}, status_code=400)
+
+        # Log additional configuration parameters if present
+        backend_type = data.get("backend", "auto")
+        max_depth = data.get("maxDepth", 3)
+        advanced_options = data.get("advancedOptions", {})
+        logger.info(
+            f"Configuration: backend={backend_type}, max_depth={max_depth}, advanced_options={advanced_options}"
+        )
 
         # Initialize backend selector and config
         selector = BackendSelector()
@@ -946,17 +1246,22 @@ async def start_crawl(request: Request):
             headers={"User-Agent": "Crawl4AI/1.0 Documentation Crawler"},
             follow_redirects=True,
             verify_ssl=False,  # Disable SSL verification since we had issues
-            max_depth=5,
+            max_depth=max_depth,
         )
         Crawl4AIBackend(config=crawl4ai_config)
 
         results = []
         for url in urls:
             try:
-                url_info = normalize_url(url)
+                # Use create_url_info instead of normalize_url to get proper URL object
+                url_info = create_url_info(url)
                 if not url_info.is_valid:
                     results.append(
-                        {"url": url, "status": "error", "message": "Invalid URL"}
+                        {
+                            "url": url,
+                            "status": "error",
+                            "message": f"Invalid URL: {url_info.error_message}",
+                        }
                     )
                     continue
 
@@ -993,13 +1298,28 @@ async def start_crawl(request: Request):
                     )
 
             except Exception as e:
-                logger.error(f"Crawl error: {str(e)}")
+                logger.error(f"Error during crawling: {str(e)}")
                 results.append({"url": url, "status": "error", "message": str(e)})
 
-        return JSONResponse({"status": "completed", "results": results})
+        # Generate task ID for tracking
+        import uuid
+
+        task_id = str(uuid.uuid4())
+
+        # Return response format that frontend expects
+        return JSONResponse(
+            {
+                "status": "success",
+                "message": "Scraping started",
+                "task_id": task_id,
+                "url": urls[0] if urls else None,
+                "backend": backend_type,
+                "results": results,
+            }
+        )
 
     except Exception as e:
-        logger.error(f"Crawl error: {str(e)}")
+        logger.error(f"Error during crawling: {str(e)}")
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
 

@@ -16,17 +16,41 @@
                 <h5 class="card-title">Documentation Source</h5>
                 <form id="scrapingForm" class="mb-3">
                     <div class="mb-3">
-                        <label for="docUrl" class="form-label">Documentation URL</label>
+                        <label for="docUrl" class="form-label">Documentation URL or Library Name</label>
                         <div class="input-group">
-                            <input type="url" class="form-control" id="docUrl" required
-                                   placeholder="https://docs.example.com"
+                            <input type="text" class="form-control" id="docUrl" required
+                                   placeholder="https://docs.example.com or library-name"
                                    data-bs-toggle="tooltip"
                                    data-bs-placement="top"
-                                   title="Enter the root URL of the documentation you want to scrape">
+                                   title="Enter a URL or library name (e.g., 'requests', 'fastapi', 'react')">
+                            <button class="btn btn-outline-primary" type="button" id="searchLibraryBtn"
+                                    data-bs-toggle="tooltip" title="Search for library documentation">
+                                <i class="bi bi-search"></i> Find Docs
+                            </button>
                             <button class="btn btn-outline-secondary" type="button" id="helpBtn"
                                     data-bs-toggle="modal" data-bs-target="#helpModal">
                                 <i class="bi bi-question-circle"></i>
                             </button>
+                        </div>
+                        <div class="form-text">
+                            <small>Enter a URL directly or a library name to search for documentation automatically</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Library Search Results -->
+                    <div id="librarySearchResults" class="mb-3 d-none">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">
+                                    <i class="bi bi-search"></i> Found Documentation Sources
+                                    <button type="button" class="btn-close float-end" id="closeSearchResults"></button>
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="searchResultsList">
+                                    <!-- Search results will be populated here -->
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="row">
@@ -83,7 +107,17 @@
                     <div id="comprehensiveSettings" class="mb-4">
                         <h6 class="text-success"><i class="bi bi-speedometer2"></i> Comprehensive Scraping Configuration</h6>
                         <div class="row">
-                            <div class="col-md-4">
+                            <div class="col-md-3">
+                                <div class="mb-3">
+                                    <label for="scrapingMode" class="form-label">Scraping Mode</label>
+                                    <select class="form-select" id="scrapingMode">
+                                        <option value="comprehensive">Comprehensive</option>
+                                        <option value="fast">Fast</option>
+                                        <option value="deep">Deep</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
                                 <div class="mb-3">
                                     <label for="maxDepth" class="form-label">Max Crawl Depth</label>
                                     <input type="number" class="form-control" id="maxDepth"
@@ -94,7 +128,7 @@
                                     <div class="form-text">Recommended: 3-4 levels</div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="mb-3">
                                     <label for="maxPages" class="form-label">Max Pages per Library</label>
                                     <input type="number" class="form-control" id="maxPages"
@@ -105,7 +139,7 @@
                                     <div class="form-text">Recommended: 30-50 pages</div>
                                 </div>
                             </div>
-                            <div class="col-md-4">
+                            <div class="col-md-3">
                                 <div class="mb-3">
                                     <label for="outputFormat" class="form-label">Output Format</label>
                                     <select class="form-select" id="outputFormat">
@@ -214,8 +248,12 @@
                             with complete section coverage including user guides, API references, and examples.
                         </div>
                     </div>
+                    <!-- Error/Success Messages -->
+                    <div id="error-message" class="alert alert-danger d-none" role="alert"></div>
+                    <div id="success-message" class="alert alert-success d-none" role="alert"></div>
+                    
                     <div class="d-flex justify-content-between">
-                        <button type="submit" class="btn btn-primary">
+                        <button type="submit" class="btn btn-primary" id="start-scraping-button">
                             Start Scraping
                         </button>
                         <button type="button" id="stopBtn" class="btn btn-danger" disabled>
@@ -363,6 +401,34 @@
             </div>
         </div>
     </div>
+    
+    <!-- Scraping Results -->
+    <div class="col-12 mb-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Scraping Results</h5>
+                <div id="scraping-results" class="d-none">
+                    <div class="table-responsive">
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>URL</th>
+                                    <th>Status</th>
+                                    <th>Content Size</th>
+                                    <th>Last Updated</th>
+                                </tr>
+                            </thead>
+                            <tbody id="results-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="no-results" class="text-center text-muted">
+                    <p>No scraping results yet. Start a scraping job to see results here.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Help Modal -->
@@ -375,12 +441,14 @@
             </div>
             <div class="modal-body">
                 <div class="mb-4">
-                    <h6>1. Enter Documentation URL</h6>
-                    <p>Start by entering the root URL of the documentation you want to scrape. For example:</p>
+                    <h6>1. Enter Documentation URL or Library Name</h6>
+                    <p>You can either enter a direct URL or search for a library by name:</p>
                     <ul>
-                        <li>https://docs.example.com/</li>
-                        <li>https://example.com/documentation/</li>
+                        <li><strong>Direct URLs:</strong> https://docs.example.com/, https://example.com/documentation/</li>
+                        <li><strong>Library Names:</strong> requests, fastapi, react, numpy, pandas</li>
+                        <li><strong>GitHub Repos:</strong> user/repo-name</li>
                     </ul>
+                    <p>Click "Find Docs" to automatically search for documentation sources!</p>
                 </div>
                 <div class="mb-4">
                     <h6>2. Choose Scraping Method</h6>
@@ -516,8 +584,8 @@
 <script>
     let downloadModal, helpModal;
     const ws = new WebSocketManager('/ws/scraping');
-
     document.addEventListener('DOMContentLoaded', function() {
+
         // Initialize tooltips
         const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
@@ -537,8 +605,7 @@
             document.getElementById('docUrl').value = prefilledUrl;
             if (isQuickStart) {
                 // Auto-start scraping for quick start
-                document.getElementById('scrapingMode').value = 'comprehensive';
-                updateScrapingSettings();
+                updateConfigPreset();
                 // Focus on the start button
                 document.querySelector('button[type="submit"]').focus();
             }
@@ -641,6 +708,14 @@
 
         // Save preset button handler
         document.getElementById('savePresetBtn').addEventListener('click', saveCustomPreset);
+
+        // Library search button handler
+        document.getElementById('searchLibraryBtn').addEventListener('click', searchForLibraryDocs);
+
+        // Close search results handler
+        document.getElementById('closeSearchResults').addEventListener('click', () => {
+            document.getElementById('librarySearchResults').classList.add('d-none');
+        });
 
         // Initialize backend description
         updateBackendDescription();
@@ -800,24 +875,55 @@
                 excludePatterns: document.getElementById('excludePatterns').value.split(',').map(s => s.trim()).filter(s => s)
             };
 
+            // Collect advanced processing options
+            const advancedOptions = {
+                enableQualityCheck: document.getElementById('enableQualityCheck').checked,
+                enableNLP: document.getElementById('enableNLP').checked,
+                enableVersionTracking: document.getElementById('enableVersionTracking').checked,
+                createIndex: document.getElementById('createIndex').checked,
+                createTOC: document.getElementById('createTOC').checked,
+                groupByTopic: document.getElementById('groupByTopic').checked,
+                extractAssets: document.getElementById('extractAssets').checked,
+                extractCodeBlocks: document.getElementById('extractCodeBlocks').checked
+            };
+
+            // Show loading state
+            showLoading();
+            hideErrorMessage();
+            
             try {
-                const response = await fetch('/api/scraping/start', {
+                const response = await fetch('/crawl', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify(formData)
+                    body: JSON.stringify({
+                        url: formData.url,
+                        backend: formData.backend,
+                        max_depth: formData.maxDepth,
+                        max_pages: formData.maxPages,
+                        output_format: formData.outputFormat,
+                        include_patterns: formData.includePatterns,
+                        exclude_patterns: formData.excludePatterns,
+                        advanced_options: advancedOptions
+                    })
                 });
 
+                hideLoading();
+                
                 if (response.ok) {
+                    const result = await response.json();
                     form.querySelector('button[type="submit"]').disabled = true;
                     stopBtn.disabled = false;
+                    showSuccessMessage('Scraping started successfully!');
+                    showScrapingResults(result);
                 } else {
                     const error = await response.json();
-                    alert(`Error: ${error.detail || 'Failed to start scraping'}`);
+                    showErrorMessage(`Error: ${error.detail || error.message || 'Failed to start scraping'}`);
                 }
             } catch (error) {
-                alert('Error starting scraping process');
+                hideLoading();
+                showErrorMessage('Network error: Unable to connect to the server');
                 console.error(error);
             }
         });
@@ -908,5 +1014,159 @@
         document.getElementById('stopBtn').disabled = true;
         downloadModal.show();
     });
+
+    // Helper functions for UI updates
+    function showErrorMessage(message) {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.textContent = message;
+        errorDiv.classList.remove('d-none');
+        hideSuccessMessage();
+    }
+
+    function hideErrorMessage() {
+        document.getElementById('error-message').classList.add('d-none');
+    }
+
+    function showSuccessMessage(message) {
+        const successDiv = document.getElementById('success-message');
+        successDiv.textContent = message;
+        successDiv.classList.remove('d-none');
+        hideErrorMessage();
+    }
+
+    function hideSuccessMessage() {
+        document.getElementById('success-message').classList.add('d-none');
+    }
+
+    function showScrapingResults(result) {
+        const resultsDiv = document.getElementById('scraping-results');
+        const noResultsDiv = document.getElementById('no-results');
+        const tableBody = document.getElementById('results-table-body');
+        
+        // Show results section
+        resultsDiv.classList.remove('d-none');
+        noResultsDiv.classList.add('d-none');
+        
+        // Add result to table
+        if (result && result.status === 'success') {
+            const row = tableBody.insertRow(0); // Insert at top
+            row.innerHTML = `
+                <td>${result.url || 'N/A'}</td>
+                <td><span class="badge bg-success">Success</span></td>
+                <td>${result.content_size || 'N/A'}</td>
+                <td>${new Date().toLocaleString()}</td>
+            `;
+        }
+    }
+
+    async function searchForLibraryDocs() {
+        const input = document.getElementById('docUrl').value.trim();
+        if (!input) {
+            showErrorMessage('Please enter a library name or URL to search');
+            return;
+        }
+
+        // Check if it's already a URL
+        if (input.startsWith('http://') || input.startsWith('https://')) {
+            showSuccessMessage('URL detected - ready to scrape directly');
+            return;
+        }
+
+        // Show loading state
+        const searchBtn = document.getElementById('searchLibraryBtn');
+        const originalText = searchBtn.innerHTML;
+        searchBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Searching...';
+        searchBtn.disabled = true;
+
+        try {
+            const response = await fetch('/discover', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ inputs: [input] })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Search failed: ${response.status}`);
+            }
+
+            const data = await response.json();
+            displayLibrarySearchResults(data.urls || {}, input);
+
+        } catch (error) {
+            showErrorMessage(`Search failed: ${error.message}`);
+            console.error('Library search error:', error);
+        } finally {
+            // Restore button state
+            searchBtn.innerHTML = originalText;
+            searchBtn.disabled = false;
+        }
+    }
+
+    function displayLibrarySearchResults(urls, searchTerm) {
+        const resultsDiv = document.getElementById('librarySearchResults');
+        const resultsList = document.getElementById('searchResultsList');
+
+        if (Object.keys(urls).length === 0) {
+            resultsList.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    No documentation found for "${searchTerm}". Try a different search term or enter a URL directly.
+                </div>
+            `;
+            resultsDiv.classList.remove('d-none');
+            return;
+        }
+
+        // Create results HTML
+        let resultsHTML = `
+            <div class="mb-3">
+                <strong>Found ${Object.keys(urls).length} documentation source(s) for "${searchTerm}":</strong>
+            </div>
+        `;
+
+        Object.entries(urls).forEach(([url, info], index) => {
+            const source = info.source || 'Unknown';
+            const isRecommended = index === 0; // First result is recommended
+            
+            resultsHTML += `
+                <div class="card mb-2 ${isRecommended ? 'border-primary' : ''}">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="flex-grow-1">
+                                <div class="fw-bold">
+                                    ${url}
+                                    ${isRecommended ? '<span class="badge bg-primary ms-2">Recommended</span>' : ''}
+                                </div>
+                                <small class="text-muted">Source: ${source}</small>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary" onclick="selectLibraryUrl('${url}')">
+                                <i class="bi bi-check-circle"></i> Use This
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        resultsList.innerHTML = resultsHTML;
+        resultsDiv.classList.remove('d-none');
+        
+        // Show success message
+        showSuccessMessage(`Found ${Object.keys(urls).length} documentation sources! Select one to continue.`);
+    }
+
+    function selectLibraryUrl(url) {
+        // Set the selected URL in the input field
+        document.getElementById('docUrl').value = url;
+        
+        // Hide the search results
+        document.getElementById('librarySearchResults').classList.add('d-none');
+        
+        // Show success message
+        showSuccessMessage(`Selected: ${url} - Ready to start scraping!`);
+        
+        // Focus on the start button
+        document.getElementById('start-scraping-button').focus();
+    }
 </script>
 {% endblock %}

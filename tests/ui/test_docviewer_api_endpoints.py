@@ -1,7 +1,7 @@
 """Integration tests for DocViewerApp API endpoints using TestClient."""
 
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -23,7 +23,7 @@ def mock_doc_organizer():
         version_id="v1.0.0",
         timestamp=datetime.now(),
         hash="test_hash",
-        changes={"content": {"formatted_content": "Test content for lib1"}}
+        changes={"content": {"formatted_content": "Test content for lib1"}},
     )
 
     # Mock document data with library name in URL
@@ -154,20 +154,17 @@ def test_api_diff(test_client):
         "version2": "2.0.0",
         "format": "side_by_side",
     }
-    
+
     with patch(
-        "src.ui.doc_viewer_complete.DocViewer._get_diff", 
-        return_value={"diff_html": "<div class='diff'>Test diff content</div>"}
+        "src.ui.doc_viewer_complete.DocViewer._get_diff",
+        return_value={"diff_html": "<div class='diff'>Test diff content</div>"},
     ):
         response = test_client.post("/api/diff", json=diff_request)
         assert response.status_code == 200
         assert "diff_html" in response.json()
 
     # Test 404 for failed diff generation
-    with patch(
-        "src.ui.doc_viewer_complete.DocViewer._get_diff", 
-        return_value=None
-    ):
+    with patch("src.ui.doc_viewer_complete.DocViewer._get_diff", return_value=None):
         diff_request["library"] = "nonexistent"
         response = test_client.post("/api/diff", json=diff_request)
         assert response.status_code == 404
@@ -183,15 +180,17 @@ def test_api_search(test_client):
         "topics": ["documentation"],
         "content_type": "text/markdown",
     }
-    
+
     with patch(
-        "src.ui.doc_viewer_complete.DocViewer._search", 
-        return_value=[{
-            "title": "Search Result 1",
-            "url": "http://example.com/test/result1.md",
-            "snippet": "This is a <em>test</em> result snippet.",
-            "score": 0.95,
-        }]
+        "src.ui.doc_viewer_complete.DocViewer._search",
+        return_value=[
+            {
+                "title": "Search Result 1",
+                "url": "http://example.com/test/result1.md",
+                "snippet": "This is a <em>test</em> result snippet.",
+                "score": 0.95,
+            }
+        ],
     ):
         response = test_client.post("/api/search", json=search_request)
         assert response.status_code == 200
@@ -200,10 +199,7 @@ def test_api_search(test_client):
         assert len(data["results"]) > 0
 
     # Test empty results
-    with patch(
-        "src.ui.doc_viewer_complete.DocViewer._search", 
-        return_value=[]
-    ):
+    with patch("src.ui.doc_viewer_complete.DocViewer._search", return_value=[]):
         search_request["query"] = "nonexistent"
         response = test_client.post("/api/search", json=search_request)
         assert response.status_code == 200

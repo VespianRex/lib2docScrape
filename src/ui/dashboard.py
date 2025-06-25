@@ -58,15 +58,16 @@ class Dashboard:
 
         # Set up templates - use absolute path relative to this file
         import os
-        template_path = os.path.join(os.path.dirname(__file__), self.config.templates_dir)
+
+        template_path = os.path.join(
+            os.path.dirname(__file__), self.config.templates_dir
+        )
         self.templates = Jinja2Templates(directory=template_path)
 
         # Set up static files - use absolute path relative to this file
         static_path = os.path.join(os.path.dirname(__file__), self.config.static_dir)
         if os.path.exists(static_path):
-            self.app.mount(
-                "/static", StaticFiles(directory=static_path), name="static"
-            )
+            self.app.mount("/static", StaticFiles(directory=static_path), name="static")
 
         # Set up routes
         self._setup_routes()
@@ -98,7 +99,7 @@ class Dashboard:
             "documents": 0,
             "crawls": 0,
             "uptime": 0,
-            "activity": []
+            "activity": [],
         }
 
     def refresh_data(self) -> dict[str, Any]:
@@ -110,6 +111,7 @@ class Dashboard:
         """
         # Call the async version synchronously for testing
         import asyncio
+
         try:
             loop = asyncio.get_event_loop()
             return loop.run_until_complete(self.fetch_dashboard_data())
@@ -155,7 +157,7 @@ class Dashboard:
                     "status": "ok",
                     "timestamp": datetime.now().isoformat(),
                     "version": "1.0.0",
-                    **dashboard_data
+                    **dashboard_data,
                 }
             except Exception as e:
                 logger.error(f"Error fetching dashboard data: {e}")

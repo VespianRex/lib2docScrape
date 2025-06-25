@@ -59,7 +59,12 @@ async def test_crawl_valid_url(backend, mock_session):
     mock_processed_content.content = {"formatted_content": "Test content", "links": []}
     mock_processed_content.metadata = {"keywords": "test"}
     mock_processed_content.headings = [{"level": 1, "text": "Test"}]
-    mock_processed_content.assets = {"images": [], "stylesheets": [], "scripts": [], "media": []}
+    mock_processed_content.assets = {
+        "images": [],
+        "stylesheets": [],
+        "scripts": [],
+        "media": [],
+    }
     mock_processed_content.has_errors = False
 
     # Patch the session creation and content processor
@@ -229,7 +234,12 @@ async def test_process_content(backend):
     mock_processed_content.content = {"formatted_content": "Test Content", "links": []}
     mock_processed_content.metadata = {"keywords": "test"}
     mock_processed_content.headings = [{"level": 1, "text": "Test"}]
-    mock_processed_content.assets = {"images": [], "stylesheets": [], "scripts": [], "media": []}
+    mock_processed_content.assets = {
+        "images": [],
+        "stylesheets": [],
+        "scripts": [],
+        "media": [],
+    }
     mock_processed_content.has_errors = False
 
     # Patch the content processor

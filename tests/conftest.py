@@ -42,7 +42,6 @@ from src.utils.url import URLInfo
 
 # Added import for ScrapyConfig and ScrapyBackend
 # Import fixtures from fixtures directory
-from tests.fixtures.organizer_fixtures import create_test_content
 
 
 class MockSuccessBackend(CrawlerBackend):

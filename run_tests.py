@@ -151,8 +151,12 @@ def run_tests(files: list[str], args: argparse.Namespace) -> tuple[int, Optional
             pytest_args.append("--cov-report=html")
 
     # Add parallel execution
-    if args.workers > 0:
+    if args.workers > 0:  # Specific number of workers
         pytest_args.extend(["-n", str(args.workers)])
+    elif args.workers == 0:  # 0 now explicitly means 'auto' for parallel execution
+        pytest_args.extend(["-n", "auto"])
+    # If args.workers is negative, pytest will handle it (e.g. error or serial execution)
+    # The default for args.workers is 0, so this makes 'auto' the default.
 
     # Add warning control
     if args.no_warnings:
@@ -162,12 +166,16 @@ def run_tests(files: list[str], args: argparse.Namespace) -> tuple[int, Optional
     if args.maxfail > 0:
         pytest_args.extend(["--maxfail", str(args.maxfail)])
 
-    # Run tests using uv
-    command = ["uv", "pytest"] + pytest_args
-    process = subprocess.run(command, capture_output=True, text=True)
-    print(process.stdout)
-    print(process.stderr)
-    exit_code = process.returncode
+    # Add default timeout for all tests
+    pytest_args.extend(["--timeout", "300"])  # 300 seconds = 5 minutes
+
+    # Run tests
+    command = ["pytest"] + pytest_args
+    print(f"Running command: {' '.join(command)}")
+    print("=" * 80)
+
+    # Run without capturing output so we see real-time progress
+    exit_code = subprocess.run(command).returncode
 
     return exit_code, cov_report_path
 
@@ -206,21 +214,21 @@ def print_summary(
 def check_dependencies() -> None:
     """Check if all required dependencies are installed."""
     required = [
-        "pytest",
-        "pytest-asyncio",
-        "pytest-cov",
-        "pytest-xdist",
-        "beautifulsoup4",
-        "aiohttp",
-        "pydantic",
+        ("pytest", "pytest"),
+        ("pytest-asyncio", "pytest_asyncio"),
+        ("pytest-cov", "pytest_cov"),
+        ("pytest-xdist", "xdist"),
+        ("beautifulsoup4", "bs4"),
+        ("aiohttp", "aiohttp"),
+        ("pydantic", "pydantic"),
     ]
 
     missing = []
-    for package in required:
+    for package_name, import_name in required:
         try:
-            __import__(package.replace("-", "_"))
+            __import__(import_name)
         except ImportError:
-            missing.append(package)
+            missing.append(package_name)
 
     if missing:
         print("Error: Missing required dependencies:")
@@ -234,6 +242,7 @@ def check_dependencies() -> None:
 def main() -> None:
     """Main entry point."""
     setup_logging(level="DEBUG")  # Enable debug logging for tests
+
     # Parse arguments
     args = parse_args()
 

@@ -4,14 +4,14 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.crawler import CrawlResult, CrawlTarget, DocumentationCrawler
+from src.crawler import CrawlerConfig, CrawlResult, CrawlTarget, DocumentationCrawler
 
 
 @pytest.mark.asyncio
 class TestDocumentationCrawlerCrawlIntegration:
     @pytest.fixture
     def crawler(self):
-        return DocumentationCrawler()
+        return DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
 
     @pytest.fixture
     def target_cfg(self):

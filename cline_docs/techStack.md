@@ -1,8 +1,10 @@
 # Technology Stack
-Last Updated: 2025-05-23 12:05
+Last Updated: 2025-06-17 17:05
 
 ## Testing Framework
 - pytest - Main testing framework
+- pytest-xdist - For parallel test execution
+- pytest-timeout - For setting timeouts on tests
 - coverage.py - Code coverage measurement
 - UV - Package manager for dependency management
 

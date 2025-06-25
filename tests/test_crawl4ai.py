@@ -1,12 +1,10 @@
 import asyncio
-import ssl
 
 import pytest
 
 from src.backends.crawl4ai_backend import Crawl4AIBackend, Crawl4AIConfig
 from src.backends.selector import BackendCriteria, BackendSelector
 from src.utils.url.factory import create_url_info  # Import factory
-from tests.test_crawl4ai_extended import MockClientSession, MockResponse
 
 
 @pytest.fixture

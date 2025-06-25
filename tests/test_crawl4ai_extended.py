@@ -393,7 +393,9 @@ async def test_error_propagation(crawl4ai_backend: Crawl4AIBackend) -> None:
     for url, expected_status in error_cases:
         url_info_err = create_url_info(url)
         result = await crawl4ai_backend.crawl(url_info_err)
-        assert result.status == expected_status  # Backend preserves actual HTTP status codes
+        assert (
+            result.status == expected_status
+        )  # Backend preserves actual HTTP status codes
         # HTTP error status codes don't necessarily set error messages - they're successful fetches with error status
         if expected_status >= 400:
             assert result.status >= 400  # Verify it's an error status
@@ -411,8 +413,7 @@ async def test_retry_behavior(crawl4ai_backend: Crawl4AIBackend, monkeypatch) ->
         attempts.append(1)
         if len(attempts) < 3:
             raise aiohttp.ClientConnectorError(
-                connection_key=MagicMock(),
-                os_error=OSError("Temporary failure")
+                connection_key=MagicMock(), os_error=OSError("Temporary failure")
             )
         return MockResponse(url, 200, "<html>Success</html>", {})
 
@@ -465,7 +466,9 @@ async def test_metrics_accuracy(
 
         crawl_duration = end_time - start_time
         # The fixture resets start_time to 0.0, but the backend should set it during crawl
-        assert metrics["start_time"] > 0, f"Expected start_time to be set, got {metrics['start_time']}"
+        assert (
+            metrics["start_time"] > 0
+        ), f"Expected start_time to be set, got {metrics['start_time']}"
         assert metrics["end_time"] is not None
         assert (
             abs(metrics["end_time"] - end_time) < 0.01
@@ -494,7 +497,12 @@ async def test_resource_cleanup(crawl4ai_backend: Crawl4AIBackend, mocker) -> No
     mock_response.headers = {"content-type": "text/html"}
     mock_response.text = mocker.AsyncMock(return_value="<html>Test</html>")
 
-    mock_session.get = mocker.AsyncMock(return_value=mocker.AsyncMock(__aenter__=mocker.AsyncMock(return_value=mock_response), __aexit__=mocker.AsyncMock(return_value=None)))
+    mock_session.get = mocker.AsyncMock(
+        return_value=mocker.AsyncMock(
+            __aenter__=mocker.AsyncMock(return_value=mock_response),
+            __aexit__=mocker.AsyncMock(return_value=None),
+        )
+    )
 
     crawl4ai_backend._session = mock_session
 
@@ -503,7 +511,9 @@ async def test_resource_cleanup(crawl4ai_backend: Crawl4AIBackend, mocker) -> No
         if crawl4ai_backend._session is None:
             crawl4ai_backend._session = mock_session
 
-    mocker.patch.object(crawl4ai_backend, "_ensure_session", side_effect=mock_ensure_session)
+    mocker.patch.object(
+        crawl4ai_backend, "_ensure_session", side_effect=mock_ensure_session
+    )
 
     crawl4ai_backend._processing_semaphore = mocker.AsyncMock()
     crawl4ai_backend._processing_semaphore._value = (

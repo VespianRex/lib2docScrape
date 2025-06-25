@@ -1,20 +1,41 @@
 /**
- * Jest Setup for GUI Testing
+ * Bun Test Setup for GUI Testing
  * 
  * This file sets up the testing environment for comprehensive GUI testing
- * of the lib2docScrape application.
+ * of the lib2docScrape application using Bun's test runner.
  */
 
-// Import testing utilities
-import '@testing-library/jest-dom';
-import 'jest-fetch-mock';
+// Import Happy DOM for browser-like environment
+import { GlobalRegistrator } from '@happy-dom/global-registrator';
+
+// Register DOM globals
+GlobalRegistrator.register();
 
 // Mock fetch for API calls
-global.fetch = require('jest-fetch-mock');
+global.fetch = fetch || (() => Promise.resolve({ ok: true, json: () => ({}) }));
 
 // Mock WebSocket for real-time features
-import WS from 'jest-websocket-mock';
-global.WebSocket = WS;
+class MockWebSocket {
+  constructor(url) {
+    this.url = url;
+    this.readyState = 1; // OPEN
+    this.onopen = null;
+    this.onmessage = null;
+    this.onclose = null;
+    this.onerror = null;
+  }
+  
+  send(data) {
+    // Mock send functionality
+  }
+  
+  close() {
+    this.readyState = 3; // CLOSED
+    if (this.onclose) this.onclose();
+  }
+}
+
+global.WebSocket = MockWebSocket;
 
 // Mock Bootstrap components
 global.bootstrap = {

@@ -46,46 +46,46 @@ class Crawl4AIConfig(BaseModel):
     circuit_breaker_reset_timeout: float = 60.0
     javascript_enabled: bool = False
 
-    @field_validator('max_retries')
+    @field_validator("max_retries")
     @classmethod
     def validate_max_retries(cls, v):
         if v < 0:
-            raise ValueError('max_retries must be non-negative')
+            raise ValueError("max_retries must be non-negative")
         return v
 
-    @field_validator('timeout')
+    @field_validator("timeout")
     @classmethod
     def validate_timeout(cls, v):
         if v <= 0:
-            raise ValueError('timeout must be positive')
+            raise ValueError("timeout must be positive")
         return v
 
-    @field_validator('max_depth')
+    @field_validator("max_depth")
     @classmethod
     def validate_max_depth(cls, v):
         if v < 0:
-            raise ValueError('max_depth must be non-negative')
+            raise ValueError("max_depth must be non-negative")
         return v
 
-    @field_validator('max_pages')
+    @field_validator("max_pages")
     @classmethod
     def validate_max_pages(cls, v):
         if v < 0:
-            raise ValueError('max_pages must be non-negative')
+            raise ValueError("max_pages must be non-negative")
         return v
 
-    @field_validator('rate_limit')
+    @field_validator("rate_limit")
     @classmethod
     def validate_rate_limit(cls, v):
         if v <= 0:
-            raise ValueError('rate_limit must be positive')
+            raise ValueError("rate_limit must be positive")
         return v
 
-    @field_validator('concurrent_requests')
+    @field_validator("concurrent_requests")
     @classmethod
     def validate_concurrent_requests(cls, v):
         if v <= 0:
-            raise ValueError('concurrent_requests must be positive')
+            raise ValueError("concurrent_requests must be positive")
         return v
 
 
@@ -120,10 +120,12 @@ class Crawl4AIBackend(CrawlerBackend):
         )
 
         # Initialize additional metrics specific to Crawl4AI backend
-        self.metrics.update({
-            "successful_requests": 0,
-            "failed_requests": 0,
-        })
+        self.metrics.update(
+            {
+                "successful_requests": 0,
+                "failed_requests": 0,
+            }
+        )
 
     async def _ensure_session(self):
         """Ensure an aiohttp session exists."""
@@ -327,7 +329,9 @@ class Crawl4AIBackend(CrawlerBackend):
 
         # Check max pages limit before fetching
         if len(self._crawled_urls) >= self.config.max_pages:
-            logger.warning(f"Max pages limit reached ({self.config.max_pages}), skipping {url}")
+            logger.warning(
+                f"Max pages limit reached ({self.config.max_pages}), skipping {url}"
+            )
             return CrawlResult(
                 url=url,
                 content={},
@@ -367,7 +371,9 @@ class Crawl4AIBackend(CrawlerBackend):
             # Process content
             processed_data = await self.process(result)
             if "error" in processed_data:
-                logger.warning(f"Content processing failed for {url}: {processed_data['error']}")
+                logger.warning(
+                    f"Content processing failed for {url}: {processed_data['error']}"
+                )
                 self.metrics["failed_requests"] += 1
                 crawl_time = time.time() - start_time
                 await self.update_metrics(crawl_time, False)
@@ -383,7 +389,7 @@ class Crawl4AIBackend(CrawlerBackend):
             self.metrics["successful_requests"] += 1
             crawl_time = time.time() - start_time
             await self.update_metrics(crawl_time, True)
-            
+
             return CrawlResult(
                 url=url,
                 content=processed_data,

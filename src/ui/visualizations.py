@@ -180,7 +180,7 @@ class Visualizations:
             return Response(
                 content=csv_data,
                 media_type="text/csv",
-                headers={"Content-Disposition": "attachment; filename=export.csv"}
+                headers={"Content-Disposition": "attachment; filename=export.csv"},
             )
 
     def _generate_chart_config(
@@ -343,7 +343,9 @@ class Visualizations:
 
         return table_config
 
-    def create_chart(self, chart_type: str, data: dict, title: str = "Chart") -> "ChartObject":
+    def create_chart(
+        self, chart_type: str, data: dict, title: str = "Chart"
+    ) -> "ChartObject":
         """
         Create a chart object.
 
@@ -369,10 +371,12 @@ class Visualizations:
             data=data,
             title=title,
             width=self.config.chart_width,
-            height=self.config.chart_height
+            height=self.config.chart_height,
         )
 
-    def create_table(self, data: list, columns: list[str], title: str = "Table") -> "TableObject":
+    def create_table(
+        self, data: list, columns: list[str], title: str = "Table"
+    ) -> "TableObject":
         """
         Create a table object.
 
@@ -391,11 +395,7 @@ class Visualizations:
             columns: list[str]
             title: str
 
-        return TableObject(
-            data=data,
-            columns=columns,
-            title=title
-        )
+        return TableObject(data=data, columns=columns, title=title)
 
     def export_chart(self, chart: "ChartObject", format: str = "png") -> any:
         """
@@ -413,17 +413,20 @@ class Visualizations:
             return b"fake_png_data"
         elif format == "svg":
             # Mock SVG data
-            return f'<svg><title>{chart.title}</title></svg>'
+            return f"<svg><title>{chart.title}</title></svg>"
         elif format == "json":
             # Export as JSON
             import json
-            return json.dumps({
-                "chart_type": chart.chart_type,
-                "title": chart.title,
-                "data": chart.data,
-                "width": chart.width,
-                "height": chart.height
-            })
+
+            return json.dumps(
+                {
+                    "chart_type": chart.chart_type,
+                    "title": chart.title,
+                    "data": chart.data,
+                    "width": chart.width,
+                    "height": chart.height,
+                }
+            )
         else:
             raise ValueError(f"Unsupported export format: {format}")
 

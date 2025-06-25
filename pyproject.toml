@@ -9,7 +9,7 @@ description = "A comprehensive web scraping tool for library documentation with 
 authors = [{name = "lib2docScrape Team"}]
 readme = "README.md"
 license = {text = "MIT"}
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 keywords = ["documentation", "scraping", "web-scraping", "library", "docs"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -60,11 +60,20 @@ dependencies = [
     "pytest-cov>=6.0.0",
     "pytest-mock>=3.14.0",
     "pytest-xdist>=3.6.0",
+    "pytest-timeout>=2.3.1",
     "pre-commit>=4.2.0",
     "python-multipart>=0.0.20",
     "html2text>=2025.4.15",
     "uvicorn>=0.34.3",
     "jinja2>=3.1.6",
+    "pytest-json-report>=1.5.0",
+    "toml>=0.10.2",
+    "packaging>=24.2",
+    "scikit-learn>=1.6.1",
+    "sentence-transformers>=4.1.0",
+    "smolagents>=1.19.0",
+    "litellm>=1.71.2",
+    "llama-cpp-python>=0.3.9",
 ]
 
 [project.optional-dependencies]
@@ -75,6 +84,7 @@ dev = [
     "pytest-asyncio>=0.24.0",
     "pytest-mock>=3.10.0",
     "pytest-xdist>=3.6.0",
+    "pytest-timeout>=2.3.1",
     "hypothesis>=6.92.1",
 
     # HTTP mocking for tests
@@ -135,13 +145,19 @@ python_files = "test_*.py"
 python_functions = "test_*"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
-# For parallel execution, use: pytest -n auto or pytest -n 2
-# Parallel execution is beneficial for larger test suites or slower tests
+
+# Optimized parallel execution settings
+# Use run_tests_optimized.py for best performance, or manually:
+# uv run pytest -n auto --dist=worksteal
 addopts = [
     "--strict-markers",
     "--strict-config",
-    "--verbose",
+    "--tb=short",
+    "--maxfail=10",
+    "--durations=10",
 ]
+
+# Test markers for intelligent grouping and filtering
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests",
@@ -151,6 +167,31 @@ markers = [
     "real_world: marks tests that use real websites",
     "performance: marks tests as performance benchmarks",
     "e2e: marks tests as end-to-end tests",
+    "network: marks tests that require network access",
+    "filesystem: marks tests that access filesystem",
+    "gui: marks tests for GUI components",
+    "backend: marks tests for backend components",
+    "crawler: marks tests for crawler functionality",
+    "processor: marks tests for content processing",
+    "organizer: marks tests for document organization",
+    "quality: marks tests for quality checking",
+    "config: marks tests for configuration",
+    "utils: marks tests for utility functions",
+    "models: marks tests for data models",
+    "storage: marks tests for storage functionality",
+    "url: marks tests for URL handling",
+    "versioning: marks tests for version management",
+]
+
+# Timeout and warning configurations
+timeout = 300
+timeout_method = "thread"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+    "ignore::UserWarning:scrapy.*",
+    "ignore::UserWarning:playwright.*",
+    "ignore::UserWarning:aiohttp.*",
 ]
 
 [tool.ruff]

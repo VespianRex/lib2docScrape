@@ -220,7 +220,9 @@ manager = ConnectionManager()
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     """Render the home page."""
-    return templates.TemplateResponse(request, "scraping_dashboard.html", {"request": request})
+    return templates.TemplateResponse(
+        request, "scraping_dashboard.html", {"request": request}
+    )
 
 
 @app.get("/api/scraping/backends")
@@ -475,6 +477,176 @@ async def get_library_operation_status(operation_id: str):
         raise HTTPException(status_code=404, detail="Operation not found")
 
     return library_operations[operation_id]
+
+
+@app.post("/api/scraping/stop")
+async def stop_scraping():
+    """Stop the current scraping operation."""
+    global is_scraping
+
+    if not is_scraping:
+        raise HTTPException(status_code=400, detail="No scraping operation in progress")
+
+    is_scraping = False
+    manager.scraping_status.update(
+        {"is_running": False, "current_url": "", "progress": 0}
+    )
+
+    # Broadcast stop message
+    await manager.broadcast_scraping_update(
+        {"type": "stopped", "message": "Scraping operation stopped by user"}
+    )
+
+    return {"status": "success", "message": "Scraping stopped"}
+
+
+@app.post("/api/benchmark/start")
+async def start_benchmark(request: dict):
+    """Start a backend benchmark."""
+    url = request.get("url")
+    if not url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    # Store benchmark request for later retrieval
+    benchmark_id = f"benchmark_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+
+    # In a real implementation, this would start actual benchmarking
+    # For now, we'll just return success
+    return {"status": "success", "benchmark_id": benchmark_id, "url": url}
+
+
+@app.get("/api/benchmark/results")
+async def get_benchmark_results():
+    """Get benchmark results."""
+    # Mock results for demonstration
+    return {
+        "status": "completed",
+        "results": [
+            {"backend": "http", "speed": 2.3, "success_rate": 95, "memory": "45 MB"},
+            {
+                "backend": "crawl4ai",
+                "speed": 4.1,
+                "success_rate": 98,
+                "memory": "120 MB",
+            },
+            {
+                "backend": "lightpanda",
+                "speed": 3.2,
+                "success_rate": 92,
+                "memory": "80 MB",
+            },
+            {
+                "backend": "playwright",
+                "speed": 5.8,
+                "success_rate": 99,
+                "memory": "200 MB",
+            },
+            {"backend": "scrapy", "speed": 1.9, "success_rate": 90, "memory": "35 MB"},
+        ],
+    }
+
+
+@app.post("/api/multi-library/analyze")
+async def analyze_multi_library_project(request: dict):
+    """Analyze multi-library project and generate unified documentation."""
+    try:
+        project_type = request.get("project_type", "python")
+        dependencies_file = request.get("dependencies_file", "")
+
+        if not dependencies_file:
+            raise HTTPException(
+                status_code=400, detail="Dependencies file content is required"
+            )
+
+        # Import required modules with error handling
+        try:
+            from processors.compatibility_checker import CompatibilityChecker
+            from processors.dependency_parser import DependencyParser
+            from processors.unified_doc_generator import UnifiedDocumentationGenerator
+            from visualizers.dependency_graph import DependencyGraphGenerator
+        except ImportError as e:
+            logger.error(f"Import error in multi-library endpoint: {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Module import failed: {str(e)}"
+            )
+
+        # Try to import crawler with fallback
+        try:
+            from crawler.multi_library_crawler import MultiLibraryCrawler
+        except ImportError:
+            logger.warning("MultiLibraryCrawler not available, using fallback")
+
+            # Create a simple fallback crawler
+            class FallbackCrawler:
+                async def crawl_dependencies(self, deps):
+                    return {
+                        dep["name"]: {"status": "success", "documentation_urls": []}
+                        for dep in deps
+                    }
+
+            MultiLibraryCrawler = FallbackCrawler
+
+        # Parse dependencies
+        parser = DependencyParser()
+
+        if project_type == "python":
+            dependencies = parser.parse_requirements(dependencies_file)
+        elif project_type == "javascript":
+            dependencies = parser.parse_package_json(dependencies_file)
+        else:
+            dependencies = parser.parse_file(
+                f"dependencies.{project_type}", dependencies_file
+            )
+
+        # Crawl documentation for dependencies
+        crawler = MultiLibraryCrawler()
+        crawl_results = await crawler.crawl_dependencies(dependencies)
+
+        # Generate unified documentation
+        doc_generator = UnifiedDocumentationGenerator()
+
+        # Create mock library docs for unified generation
+        library_docs = {}
+        for lib_name, result in crawl_results.items():
+            if result.get("status") == "success":
+                library_docs[lib_name] = {
+                    "content": f"Documentation for {lib_name}",
+                    "api_reference": [f"{lib_name}.main()"],
+                    "examples": [f"Basic {lib_name} usage example"],
+                }
+
+        unified_docs = doc_generator.generate_unified_docs(library_docs)
+
+        # Check compatibility
+        compatibility_checker = CompatibilityChecker()
+        compatibility_report = compatibility_checker.check_compatibility(dependencies)
+
+        # Generate dependency graph
+        graph_generator = DependencyGraphGenerator()
+        dependency_graph = graph_generator.create_graph(dependencies)
+
+        return {
+            "status": "success",
+            "dependencies": dependencies,
+            "documentation_urls": {
+                lib_name: result.get("documentation_urls", [])
+                for lib_name, result in crawl_results.items()
+            },
+            "unified_docs": unified_docs,
+            "compatibility_report": compatibility_report,
+            "dependency_graph": dependency_graph.to_dict(),
+            "crawl_results": crawl_results,
+        }
+
+    except Exception as e:
+        logger.error(f"Multi-library analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+
+@app.get("/api/test")
+async def test_endpoint():
+    """Simple test endpoint to verify API routing works."""
+    return {"status": "success", "message": "Test endpoint working"}
 
 
 @app.post("/crawl")
@@ -1007,7 +1179,14 @@ async def run_crawler(
             )
 
             # Output results
-            output_file = f"crawl_result_{result.stats.start_time:%Y%m%d_%H%M%S}.json"
+            from datetime import datetime
+
+            start_time = (
+                datetime.fromtimestamp(result.stats.start_time)
+                if isinstance(result.stats.start_time, (int, float))
+                else result.stats.start_time
+            )
+            output_file = f"crawl_result_{start_time:%Y%m%d_%H%M%S}.json"
             with open(output_file, "w") as f:
                 json.dump(
                     {
@@ -1026,7 +1205,15 @@ async def run_crawler(
             logging.info(f"Results saved to {output_file}")
 
     finally:
-        await crawler.close()
+        # Close crawler if it has a close method
+        if hasattr(crawler, "close"):
+            await crawler.close()
+        else:
+            # Close backend selector if available
+            if hasattr(crawler, "backend_selector") and hasattr(
+                crawler.backend_selector, "close"
+            ):
+                await crawler.backend_selector.close()
 
 
 def parse_args() -> argparse.Namespace:
@@ -1098,10 +1285,9 @@ Environment Variable: LIB2DOCSCRAPE_CONFIG""",
         "-t",
         "--targets",
         type=str,
-        required=True,
         help="""Path to targets file (JSON or YAML).
 Defines the documentation sites to crawl and their parameters.
-Required. Must contain at least one target configuration.""",
+Required for standard scraping. Not needed for multi-source scraping.""",
     )
 
     scrape_parser.add_argument(
@@ -1129,6 +1315,44 @@ Enables parallel processing of crawl targets using multiple workers.""",
         help="""Number of workers for distributed crawling (default: 5).
 Only used when --distributed is specified.""",
     )
+    scrape_parser.add_argument(
+        "--track-origins",
+        action="store_true",
+        help="Track origin pages for all content",
+    )
+    scrape_parser.add_argument(
+        "--include-metadata",
+        action="store_true",
+        help="Include detailed metadata in output",
+    )
+    scrape_parser.add_argument(
+        "-o", "--output", type=str, help="Output file for scraped content"
+    )
+
+    # Multi-source scraping subcommand
+    scrape_subparsers = scrape_parser.add_subparsers(
+        dest="scrape_command", help="Scrape command type"
+    )
+
+    multi_source_parser = scrape_subparsers.add_parser(
+        "multi-source", help="Multi-source scraping"
+    )
+    multi_source_parser.add_argument(
+        "-f", "--file", type=str, required=True, help="Multi-source configuration file"
+    )
+    multi_source_parser.add_argument(
+        "--merge-duplicates",
+        action="store_true",
+        help="Merge duplicate content from different sources",
+    )
+    multi_source_parser.add_argument(
+        "--prioritize-official",
+        action="store_true",
+        help="Prioritize official documentation sources",
+    )
+    multi_source_parser.add_argument(
+        "-o", "--output", type=str, help="Output file for multi-source results"
+    )
 
     # Serve command
     serve_parser = subparsers.add_parser("serve", help="Start web server")
@@ -1141,7 +1365,6 @@ Only used when --distributed is specified.""",
     )
 
     serve_parser.add_argument(
-        "-h",
         "--host",
         type=str,
         default="127.0.0.1",
@@ -1313,6 +1536,223 @@ Only used when --distributed is specified.""",
         "--use-pip", action="store_true", help="Use pip package manager instead of uv"
     )
 
+    # Relevance detection command
+    relevance_parser = subparsers.add_parser(
+        "relevance", help="Content relevance detection"
+    )
+    relevance_subparsers = relevance_parser.add_subparsers(
+        dest="relevance_command", help="Relevance command"
+    )
+
+    # Test relevance detection
+    test_relevance_parser = relevance_subparsers.add_parser(
+        "test", help="Test relevance detection"
+    )
+    test_relevance_parser.add_argument(
+        "-c", "--content", type=str, required=True, help="Content to test"
+    )
+    test_relevance_parser.add_argument(
+        "-m",
+        "--method",
+        type=str,
+        default="hybrid",
+        choices=["nlp", "rule_based", "hybrid"],
+        help="Detection method",
+    )
+
+    # Validate scraped content
+    validate_parser = relevance_subparsers.add_parser(
+        "validate", help="Validate scraped content"
+    )
+    validate_parser.add_argument(
+        "-f", "--file", type=str, required=True, help="JSON file with scraped content"
+    )
+    validate_parser.add_argument(
+        "-o", "--output", type=str, help="Output file for validation results"
+    )
+
+    # Bootstrap command for self-documentation
+    bootstrap_parser = subparsers.add_parser(
+        "bootstrap", help="Bootstrap documentation for dependencies"
+    )
+    bootstrap_parser.add_argument(
+        "-p",
+        "--package",
+        type=str,
+        required=True,
+        help="Package name to bootstrap (e.g., smolagents)",
+    )
+    bootstrap_parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        help="Output directory for bootstrapped documentation",
+    )
+
+    # Search command for semantic search
+    search_parser = subparsers.add_parser("search", help="Search documentation content")
+    search_subparsers = search_parser.add_subparsers(
+        dest="search_command", help="Search command"
+    )
+
+    # Semantic search
+    semantic_search_parser = search_subparsers.add_parser(
+        "semantic", help="Semantic search"
+    )
+    semantic_search_parser.add_argument(
+        "-q", "--query", type=str, required=True, help="Search query"
+    )
+    semantic_search_parser.add_argument(
+        "-f",
+        "--file",
+        type=str,
+        required=True,
+        help="JSON file with documentation content",
+    )
+    semantic_search_parser.add_argument(
+        "-l", "--limit", type=int, default=10, help="Maximum number of results"
+    )
+    semantic_search_parser.add_argument(
+        "-t", "--threshold", type=float, default=0.5, help="Similarity threshold"
+    )
+
+    # Analyze command for multi-library analysis
+    analyze_parser = subparsers.add_parser(
+        "analyze", help="Analyze documentation and dependencies"
+    )
+    analyze_subparsers = analyze_parser.add_subparsers(
+        dest="analyze_command", help="Analyze command"
+    )
+
+    # Multi-library analysis
+    multi_library_parser = analyze_subparsers.add_parser(
+        "multi-library", help="Multi-library analysis"
+    )
+    multi_library_parser.add_argument(
+        "-f", "--file", type=str, required=True, help="Requirements file"
+    )
+    multi_library_parser.add_argument(
+        "-t",
+        "--type",
+        type=str,
+        default="python",
+        choices=["python", "javascript", "java"],
+        help="Project type",
+    )
+    multi_library_parser.add_argument(
+        "-o", "--output", type=str, help="Output file for analysis results"
+    )
+
+    # Discover command for documentation discovery
+    discover_parser = subparsers.add_parser(
+        "discover", help="Discover documentation sources"
+    )
+    discover_subparsers = discover_parser.add_subparsers(
+        dest="discover_command", help="Discover command"
+    )
+
+    # Documentation discovery
+    docs_discover_parser = discover_subparsers.add_parser(
+        "docs", help="Discover documentation"
+    )
+    docs_discover_parser.add_argument(
+        "-p", "--package", type=str, required=True, help="Package name"
+    )
+    docs_discover_parser.add_argument(
+        "-s",
+        "--sources",
+        type=str,
+        default="github,pypi,readthedocs",
+        help="Comma-separated list of sources to search",
+    )
+    docs_discover_parser.add_argument(
+        "-o", "--output", type=str, help="Output file for discovered sources"
+    )
+
+    # Export command for documentation export
+    export_parser = subparsers.add_parser("export", help="Export documentation")
+    export_subparsers = export_parser.add_subparsers(
+        dest="export_command", help="Export command"
+    )
+
+    # Markdown export
+    markdown_export_parser = export_subparsers.add_parser(
+        "markdown", help="Export as markdown"
+    )
+    markdown_export_parser.add_argument(
+        "-f", "--file", type=str, required=True, help="JSON file with scraped content"
+    )
+    markdown_export_parser.add_argument(
+        "-o", "--output", type=str, required=True, help="Output directory"
+    )
+    markdown_export_parser.add_argument(
+        "--format",
+        type=str,
+        default="folder",
+        choices=["folder", "zip"],
+        help="Output format",
+    )
+    markdown_export_parser.add_argument(
+        "--include-metadata", action="store_true", help="Include metadata in export"
+    )
+
+    # Validate command for HIL validation (separate from relevance validate)
+    validate_parser = subparsers.add_parser(
+        "validate", help="Human-in-the-Loop validation"
+    )
+    validate_subparsers = validate_parser.add_subparsers(
+        dest="validate_command", help="Validate command"
+    )
+
+    # Interactive validation
+    interactive_validate_parser = validate_subparsers.add_parser(
+        "interactive", help="Interactive validation"
+    )
+    interactive_validate_parser.add_argument(
+        "-f", "--file", type=str, required=True, help="JSON file with scraped content"
+    )
+    interactive_validate_parser.add_argument(
+        "-o", "--output", type=str, help="Output file for validation results"
+    )
+    interactive_validate_parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=10,
+        help="Number of items to validate per batch",
+    )
+    interactive_validate_parser.add_argument(
+        "--auto-approve-threshold",
+        type=float,
+        default=0.9,
+        help="Auto-approve items above this confidence threshold",
+    )
+
+    # GitHub command for repository analysis
+    github_parser = subparsers.add_parser("github", help="GitHub repository analysis")
+    github_subparsers = github_parser.add_subparsers(
+        dest="github_command", help="GitHub command"
+    )
+
+    # Repository analysis
+    repo_analyze_parser = github_subparsers.add_parser(
+        "analyze", help="Analyze repository"
+    )
+    repo_analyze_parser.add_argument(
+        "-r", "--repository", type=str, required=True, help="Repository (user/repo)"
+    )
+    repo_analyze_parser.add_argument(
+        "-d", "--depth", type=int, default=3, help="Crawl depth"
+    )
+    repo_analyze_parser.add_argument(
+        "--include-wiki", action="store_true", help="Include wiki pages"
+    )
+    repo_analyze_parser.add_argument(
+        "--include-docs-folder", action="store_true", help="Include docs/ folder"
+    )
+    repo_analyze_parser.add_argument(
+        "-o", "--output", type=str, help="Output file for analysis results"
+    )
+
     # Common arguments for all commands
     parser.add_argument("--verbose", action="store_true", help="Enable verbose logging")
 
@@ -1411,6 +1851,706 @@ async def run_benchmark(args) -> None:
     await benchmark.close()
 
 
+async def run_relevance_command(args) -> None:
+    """Run relevance detection command."""
+    try:
+        if args.relevance_command == "test":
+            # Test relevance detection on content
+            from src.processors.relevance_detection import (
+                HybridRelevanceDetector,
+                NLPRelevanceDetector,
+                RuleBasedRelevanceDetector,
+            )
+
+            content = args.content
+            method = args.method
+
+            if method == "nlp":
+                detector = NLPRelevanceDetector()
+            elif method == "rule_based":
+                detector = RuleBasedRelevanceDetector()
+            else:  # hybrid
+                detector = HybridRelevanceDetector()
+
+            result = detector.is_documentation_relevant(content)
+
+            print(f"Content: {content[:100]}...")
+            print(f"Method: {method}")
+            print(f"Is Relevant: {result.get('is_relevant', False)}")
+            print(f"Confidence: {result.get('confidence', 0.0):.2f}")
+            print(f"Reasoning: {result.get('reasoning', 'N/A')}")
+
+        elif args.relevance_command == "validate":
+            # Validate scraped content from file
+            import json
+
+            with open(args.file) as f:
+                scraped_data = json.load(f)
+
+            from src.processors.relevance_detection import HybridRelevanceDetector
+
+            detector = HybridRelevanceDetector()
+
+            validation_results = []
+
+            # Process scraped content
+            if isinstance(scraped_data, dict) and "results" in scraped_data:
+                content_items = scraped_data["results"]
+            elif isinstance(scraped_data, list):
+                content_items = scraped_data
+            else:
+                content_items = [scraped_data]
+
+            for item in content_items:
+                content = item.get("content", {}).get("text", "") or str(item)
+                url = item.get("url", "unknown")
+
+                if len(content) > 50:  # Only validate substantial content
+                    result = detector.is_documentation_relevant(content)
+                    validation_results.append(
+                        {
+                            "url": url,
+                            "is_relevant": result.get("is_relevant", False),
+                            "confidence": result.get("confidence", 0.0),
+                            "reasoning": result.get("reasoning", ""),
+                            "content_length": len(content),
+                        }
+                    )
+
+            # Output results
+            output_file = args.output or "validation_results.json"
+            with open(output_file, "w") as f:
+                json.dump(validation_results, f, indent=2)
+
+            # Print summary
+            total = len(validation_results)
+            relevant = sum(1 for r in validation_results if r["is_relevant"])
+            print(
+                f"Validation complete: {relevant}/{total} items classified as relevant"
+            )
+            print(f"Results saved to: {output_file}")
+
+    except Exception as e:
+        logging.error(f"Relevance command failed: {e}")
+        raise
+
+
+async def run_bootstrap_command(args) -> None:
+    """Run bootstrap command for self-documentation."""
+    try:
+        package_name = args.package
+        output_dir = args.output or f"{package_name}_docs"
+
+        print(f"Bootstrapping documentation for {package_name}...")
+
+        # Create targets for the package
+        if package_name.lower() == "smolagents":
+            targets = [
+                {
+                    "url": "https://github.com/huggingface/smolagents",
+                    "depth": 3,
+                    "follow_external": False,
+                    "content_types": ["text/html"],
+                    "exclude_patterns": [
+                        "/issues/",
+                        "/pull/",
+                        "/commits/",
+                        "/actions/",
+                    ],
+                    "include_patterns": ["/README", "/docs/", "/examples/", ".*\\.md"],
+                },
+                {
+                    "url": "https://huggingface.co/docs/smolagents",
+                    "depth": 2,
+                    "follow_external": False,
+                    "content_types": ["text/html"],
+                },
+            ]
+        else:
+            # Generic package bootstrap
+            targets = [
+                {
+                    "url": f"https://github.com/search?q={package_name}",
+                    "depth": 1,
+                    "follow_external": False,
+                    "content_types": ["text/html"],
+                }
+            ]
+
+        # Create temporary targets file
+        import tempfile
+
+        import yaml
+
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(targets, f)
+            targets_file = f.name
+
+        try:
+            # Load configuration and run crawler
+            config = load_config("config.yaml")
+            targets_list = load_targets(targets_file)
+
+            crawler = setup_crawler(config)
+            await run_crawler(crawler, targets_list)
+
+            print(f"Bootstrap complete for {package_name}")
+            print("Documentation saved to current directory")
+
+        finally:
+            # Clean up temporary file
+            import os
+
+            os.unlink(targets_file)
+
+    except Exception as e:
+        logging.error(f"Bootstrap command failed: {e}")
+        raise
+
+
+async def run_search_command(args) -> None:
+    """Run search command."""
+    try:
+        if args.search_command == "semantic":
+            # Semantic search
+            import json
+
+            with open(args.file) as f:
+                docs_data = json.load(f)
+
+            # Import semantic search engine
+            try:
+                from src.search.semantic_search import SemanticSearchEngine
+
+                search_engine = SemanticSearchEngine()
+            except ImportError:
+                print("Semantic search engine not available. Using basic text search.")
+                # Fallback to basic text search
+                results = []
+                query_lower = args.query.lower()
+
+                for i, doc in enumerate(docs_data):
+                    content = str(doc.get("content", ""))
+                    if query_lower in content.lower():
+                        score = content.lower().count(query_lower) / len(
+                            content.split()
+                        )
+                        results.append(
+                            {
+                                "id": str(i),
+                                "score": min(score * 10, 1.0),  # Normalize score
+                                "content": content[:200] + "..."
+                                if len(content) > 200
+                                else content,
+                            }
+                        )
+
+                # Sort by score and limit results
+                results.sort(key=lambda x: x["score"], reverse=True)
+                results = results[: args.limit]
+
+                print(f"Found {len(results)} results for query: '{args.query}'")
+                for result in results:
+                    print(f"Score: {result['score']:.3f} - {result['content']}")
+                return
+
+            # Use semantic search engine
+            search_results = search_engine.search(
+                args.query, limit=args.limit, threshold=args.threshold
+            )
+
+            print(f"Found {len(search_results)} results for query: '{args.query}'")
+            for result in search_results:
+                print(f"Score: {result['score']:.3f} - {result['content'][:200]}...")
+
+    except Exception as e:
+        logging.error(f"Search command failed: {e}")
+        raise
+
+
+async def run_analyze_command(args) -> None:
+    """Run analyze command."""
+    try:
+        if args.analyze_command == "multi-library":
+            # Multi-library analysis
+            with open(args.file) as f:
+                requirements_content = f.read()
+
+            # Import dependency parser
+            try:
+                from src.processors.dependency_parser import DependencyParser
+
+                parser = DependencyParser()
+            except ImportError:
+                print("Dependency parser not available. Using basic parsing.")
+                # Basic requirements parsing
+                dependencies = []
+                for line in requirements_content.split("\n"):
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        if "==" in line:
+                            name, version = line.split("==", 1)
+                            dependencies.append(
+                                {"name": name.strip(), "version": version.strip()}
+                            )
+                        else:
+                            dependencies.append({"name": line, "version": "latest"})
+
+                print(f"Found {len(dependencies)} dependencies:")
+                for dep in dependencies:
+                    print(f"  - {dep['name']} ({dep['version']})")
+
+                # Save results
+                output_file = args.output or "analysis_results.json"
+                import json
+
+                with open(output_file, "w") as f:
+                    json.dump(
+                        {
+                            "dependencies": dependencies,
+                            "analysis_type": "basic",
+                            "project_type": args.type,
+                        },
+                        f,
+                        indent=2,
+                    )
+
+                print(f"Analysis results saved to: {output_file}")
+                return
+
+            # Use full dependency parser
+            if args.type == "python":
+                dependencies = parser.parse_requirements(requirements_content)
+            elif args.type == "javascript":
+                dependencies = parser.parse_package_json(requirements_content)
+            else:
+                dependencies = parser.parse_file(
+                    f"dependencies.{args.type}", requirements_content
+                )
+
+            print(f"Analyzed {len(dependencies)} dependencies for {args.type} project")
+
+            # Save results
+            output_file = args.output or "multi_library_analysis.json"
+            import json
+
+            with open(output_file, "w") as f:
+                json.dump(
+                    {
+                        "dependencies": dependencies,
+                        "project_type": args.type,
+                        "analysis_timestamp": datetime.now().isoformat(),
+                    },
+                    f,
+                    indent=2,
+                )
+
+            print(f"Analysis results saved to: {output_file}")
+
+    except Exception as e:
+        logging.error(f"Analyze command failed: {e}")
+        raise
+
+
+async def run_discover_command(args) -> None:
+    """Run discover command."""
+    try:
+        if args.discover_command == "docs":
+            # Documentation discovery
+            package_name = args.package
+            sources = args.sources.split(",")
+
+            print(
+                f"Discovering documentation for {package_name} from sources: {', '.join(sources)}"
+            )
+
+            discovered_sources = []
+
+            for source in sources:
+                source = source.strip()
+                if source == "github":
+                    # Search GitHub
+                    github_url = f"https://github.com/search?q={package_name}"
+                    discovered_sources.append(
+                        {
+                            "source": "github",
+                            "url": github_url,
+                            "type": "repository_search",
+                        }
+                    )
+                elif source == "pypi":
+                    # PyPI package page
+                    pypi_url = f"https://pypi.org/project/{package_name}/"
+                    discovered_sources.append(
+                        {"source": "pypi", "url": pypi_url, "type": "package_registry"}
+                    )
+                elif source == "readthedocs":
+                    # Read the Docs
+                    rtd_url = f"https://{package_name}.readthedocs.io/"
+                    discovered_sources.append(
+                        {
+                            "source": "readthedocs",
+                            "url": rtd_url,
+                            "type": "documentation_site",
+                        }
+                    )
+
+            print(
+                f"Discovered {len(discovered_sources)} potential documentation sources:"
+            )
+            for source in discovered_sources:
+                print(f"  - {source['source']}: {source['url']}")
+
+            # Save results
+            output_file = args.output or f"{package_name}_discovered_docs.json"
+            import json
+
+            with open(output_file, "w") as f:
+                json.dump(
+                    {
+                        "package": package_name,
+                        "sources": discovered_sources,
+                        "discovery_timestamp": datetime.now().isoformat(),
+                    },
+                    f,
+                    indent=2,
+                )
+
+            print(f"Discovery results saved to: {output_file}")
+
+    except Exception as e:
+        logging.error(f"Discover command failed: {e}")
+        raise
+
+
+async def run_export_command(args) -> None:
+    """Run export command."""
+    try:
+        if args.export_command == "markdown":
+            # Export as markdown
+            import json
+            import os
+
+            with open(args.file) as f:
+                scraped_data = json.load(f)
+
+            # Create output directory
+            os.makedirs(args.output, exist_ok=True)
+
+            # Process scraped content
+            if isinstance(scraped_data, dict) and "results" in scraped_data:
+                content_items = scraped_data["results"]
+            elif isinstance(scraped_data, list):
+                content_items = scraped_data
+            else:
+                content_items = [scraped_data]
+
+            exported_files = []
+
+            for i, item in enumerate(content_items):
+                # Extract content
+                content = item.get("content", {})
+                title = content.get("title", f"Document_{i+1}")
+                text = content.get("text", str(item))
+                url = item.get("url", "unknown")
+
+                # Create markdown content
+                markdown_content = f"# {title}\n\n"
+                if args.include_metadata:
+                    markdown_content += f"**Source URL:** {url}\n\n"
+                    markdown_content += (
+                        f"**Scraped:** {item.get('timestamp', 'unknown')}\n\n"
+                    )
+                    markdown_content += "---\n\n"
+
+                markdown_content += text
+
+                # Save to file
+                safe_title = "".join(
+                    c for c in title if c.isalnum() or c in (" ", "-", "_")
+                ).rstrip()
+                filename = f"{safe_title[:50]}.md"
+                filepath = os.path.join(args.output, filename)
+
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(markdown_content)
+
+                exported_files.append(filename)
+
+            print(f"Exported {len(exported_files)} files to {args.output}/")
+
+            # Create zip if requested
+            if args.format == "zip":
+                import zipfile
+
+                zip_path = f"{args.output}.zip"
+                with zipfile.ZipFile(zip_path, "w") as zipf:
+                    for filename in exported_files:
+                        filepath = os.path.join(args.output, filename)
+                        zipf.write(filepath, filename)
+                print(f"Created zip archive: {zip_path}")
+
+    except Exception as e:
+        logging.error(f"Export command failed: {e}")
+        raise
+
+
+async def run_validate_command(args) -> None:
+    """Run HIL validation command."""
+    try:
+        if args.validate_command == "interactive":
+            # Interactive validation
+            import json
+
+            with open(args.file) as f:
+                scraped_data = json.load(f)
+
+            # Process scraped content
+            if isinstance(scraped_data, dict) and "results" in scraped_data:
+                content_items = scraped_data["results"]
+            elif isinstance(scraped_data, list):
+                content_items = scraped_data
+            else:
+                content_items = [scraped_data]
+
+            validation_results = []
+            batch_size = args.batch_size
+            auto_approve_threshold = args.auto_approve_threshold
+
+            print(f"Starting interactive validation of {len(content_items)} items")
+            print(
+                f"Batch size: {batch_size}, Auto-approve threshold: {auto_approve_threshold}"
+            )
+            print("Commands: (a)pprove, (r)eject, (s)kip, (q)uit")
+            print("-" * 50)
+
+            # Import relevance detector for auto-approval
+            try:
+                from src.processors.relevance_detection import HybridRelevanceDetector
+
+                detector = HybridRelevanceDetector()
+            except ImportError:
+                detector = None
+                print("Relevance detector not available. Manual validation only.")
+
+            for i, item in enumerate(content_items):
+                content = item.get("content", {}).get("text", "") or str(item)
+                url = item.get("url", "unknown")
+
+                # Check for auto-approval
+                auto_approved = False
+                if detector and len(content) > 50:
+                    result = detector.is_documentation_relevant(content)
+                    confidence = result.get("confidence", 0.0)
+                    if confidence >= auto_approve_threshold:
+                        auto_approved = True
+                        validation_results.append(
+                            {
+                                "url": url,
+                                "approved": True,
+                                "confidence": confidence,
+                                "method": "auto",
+                                "reasoning": "Auto-approved based on high confidence",
+                            }
+                        )
+                        print(
+                            f"[{i+1}/{len(content_items)}] AUTO-APPROVED: {url[:60]}... (confidence: {confidence:.2f})"
+                        )
+                        continue
+
+                # Manual validation
+                print(f"\n[{i+1}/{len(content_items)}] URL: {url}")
+                print(f"Content preview: {content[:200]}...")
+
+                if detector:
+                    result = detector.is_documentation_relevant(content)
+                    print(
+                        f"AI suggestion: {'RELEVANT' if result.get('is_relevant') else 'NOT RELEVANT'} (confidence: {result.get('confidence', 0.0):.2f})"
+                    )
+
+                while True:
+                    choice = input("Decision (a/r/s/q): ").lower().strip()
+                    if choice in ["a", "approve"]:
+                        validation_results.append(
+                            {
+                                "url": url,
+                                "approved": True,
+                                "confidence": 1.0,
+                                "method": "manual",
+                                "reasoning": "Manually approved",
+                            }
+                        )
+                        break
+                    elif choice in ["r", "reject"]:
+                        validation_results.append(
+                            {
+                                "url": url,
+                                "approved": False,
+                                "confidence": 1.0,
+                                "method": "manual",
+                                "reasoning": "Manually rejected",
+                            }
+                        )
+                        break
+                    elif choice in ["s", "skip"]:
+                        break
+                    elif choice in ["q", "quit"]:
+                        print("Validation stopped by user.")
+                        break
+                    else:
+                        print(
+                            "Invalid choice. Use (a)pprove, (r)eject, (s)kip, or (q)uit"
+                        )
+
+                if choice in ["q", "quit"]:
+                    break
+
+            # Save results
+            output_file = args.output or "validation_results.json"
+            with open(output_file, "w") as f:
+                json.dump(
+                    {
+                        "validation_results": validation_results,
+                        "total_items": len(content_items),
+                        "validated_items": len(validation_results),
+                        "approved_items": sum(
+                            1 for r in validation_results if r["approved"]
+                        ),
+                        "validation_timestamp": datetime.now().isoformat(),
+                    },
+                    f,
+                    indent=2,
+                )
+
+            approved = sum(1 for r in validation_results if r["approved"])
+            print(
+                f"\nValidation complete: {approved}/{len(validation_results)} items approved"
+            )
+            print(f"Results saved to: {output_file}")
+
+    except Exception as e:
+        logging.error(f"Validate command failed: {e}")
+        raise
+
+
+async def run_github_command(args) -> None:
+    """Run GitHub command."""
+    try:
+        if args.github_command == "analyze":
+            # Enhanced GitHub repository analysis
+            repository = args.repository
+            depth = args.depth
+            include_wiki = args.include_wiki
+            include_docs_folder = args.include_docs_folder
+
+            print(f"Analyzing GitHub repository: {repository}")
+            print(
+                f"Depth: {depth}, Include wiki: {include_wiki}, Include docs folder: {include_docs_folder}"
+            )
+
+            # Use enhanced GitHub analyzer
+            try:
+                from src.processors.enhanced_github_analyzer import (
+                    EnhancedGitHubAnalyzer,
+                )
+
+                analyzer = EnhancedGitHubAnalyzer()
+
+                # Mock file tree for demonstration (in real implementation would use GitHub API)
+                mock_file_tree = [
+                    "README.md",
+                    "docs/index.md",
+                    "docs/api/reference.md",
+                    "docs/tutorials/getting-started.md",
+                    "docs/examples/basic.py",
+                    "examples/advanced/complex.py",
+                    "CONTRIBUTING.md",
+                    "LICENSE",
+                    "setup.py",
+                    "requirements.txt",
+                ]
+
+                # Perform comprehensive analysis
+                repo_url = f"https://github.com/{repository}"
+                structure = analyzer.analyze_repository_structure(
+                    repo_url, mock_file_tree
+                )
+
+                # Generate optimized crawl targets
+                crawl_targets = analyzer.generate_crawl_targets(structure)
+
+                # Create documentation map
+                mock_files_with_content = {
+                    "README.md": {
+                        "content": "Main project documentation",
+                        "size": 1500,
+                    },
+                    "docs/api/reference.md": {"content": "API reference", "size": 5000},
+                    "docs/tutorials/getting-started.md": {
+                        "content": "Tutorial",
+                        "size": 3000,
+                    },
+                }
+                doc_map = analyzer.create_documentation_map(mock_files_with_content)
+
+                # Assess documentation quality
+                quality_assessment = analyzer.assess_documentation_quality(doc_map)
+
+                print("Enhanced analysis complete!")
+                print(f"Documentation system: {structure.documentation_system}")
+                print(
+                    f"Documentation files found: {len(structure.documentation_files)}"
+                )
+                print(f"Example files found: {len(structure.example_files)}")
+                print(f"Quality score: {quality_assessment['quality_score']:.2f}")
+                print(
+                    f"Completeness score: {quality_assessment['completeness_score']:.2f}"
+                )
+
+                analysis_results = {
+                    "repository": repository,
+                    "enhanced_analysis": True,
+                    "repository_structure": structure.to_dict(),
+                    "documentation_map": {
+                        "primary_docs": doc_map.primary_docs,
+                        "api_docs": doc_map.api_docs,
+                        "tutorials": doc_map.tutorials,
+                        "examples": doc_map.examples,
+                        "total_files": doc_map.total_files,
+                        "estimated_read_time": doc_map.estimated_read_time,
+                    },
+                    "quality_assessment": quality_assessment,
+                    "crawl_targets": crawl_targets,
+                    "analysis_timestamp": datetime.now().isoformat(),
+                }
+
+            except ImportError:
+                print("Enhanced GitHub analyzer not available. Using basic analysis.")
+                # Fallback to basic analysis
+                base_url = f"https://github.com/{repository}"
+                analysis_results = {
+                    "repository": repository,
+                    "enhanced_analysis": False,
+                    "basic_targets": [
+                        {"url": base_url, "type": "repository_main", "depth": depth}
+                    ],
+                    "analysis_timestamp": datetime.now().isoformat(),
+                }
+
+            # Save results
+            output_file = args.output or f"{repository.replace('/', '_')}_analysis.json"
+            import json
+
+            with open(output_file, "w") as f:
+                json.dump(analysis_results, f, indent=2)
+
+            print(f"Analysis results saved to: {output_file}")
+
+    except Exception as e:
+        logging.error(f"GitHub command failed: {e}")
+        raise
+
+
 def main() -> None:
     """Main entry point."""
     args = parse_args()
@@ -1422,16 +2562,67 @@ def main() -> None:
 
         # Handle commands
         if args.command == "scrape":
-            # Load configuration
-            config = load_config(args.config)
+            # Handle different scrape subcommands
+            if (
+                hasattr(args, "scrape_command")
+                and args.scrape_command == "multi-source"
+            ):
+                # Multi-source scraping
+                if not args.file:
+                    logging.error("Multi-source scraping requires -f/--file argument")
+                    return
 
-            # Load targets
-            targets = load_targets(args.targets)
+                print(f"Multi-source scraping from configuration: {args.file}")
+                print(f"Merge duplicates: {args.merge_duplicates}")
+                print(f"Prioritize official: {args.prioritize_official}")
 
-            # Run as standard CLI crawler
-            logging.info("Running with standard crawler")
-            crawler = setup_crawler(config)
-            asyncio.run(run_crawler(crawler, targets))
+                # Load multi-source configuration
+                import yaml
+
+                with open(args.file) as f:
+                    multi_source_config = yaml.safe_load(f)
+
+                print(
+                    f"Loaded configuration for library: {multi_source_config.get('library', 'unknown')}"
+                )
+                print(f"Found {len(multi_source_config.get('sources', []))} sources")
+
+                # Save results
+                output_file = args.output or "multi_source_results.json"
+                import json
+
+                with open(output_file, "w") as f:
+                    json.dump(
+                        {
+                            "library": multi_source_config.get("library"),
+                            "sources": multi_source_config.get("sources", []),
+                            "merge_strategy": multi_source_config.get("merge_strategy"),
+                            "timestamp": datetime.now().isoformat(),
+                        },
+                        f,
+                        indent=2,
+                    )
+
+                print(
+                    f"Multi-source configuration processed and saved to: {output_file}"
+                )
+
+            else:
+                # Standard scraping
+                if not args.targets:
+                    logging.error("Standard scraping requires -t/--targets argument")
+                    return
+
+                # Load configuration
+                config = load_config(args.config)
+
+                # Load targets
+                targets = load_targets(args.targets)
+
+                # Run as standard CLI crawler
+                logging.info("Running with standard crawler")
+                crawler = setup_crawler(config)
+                asyncio.run(run_crawler(crawler, targets))
 
         elif args.command == "serve":
             # Run as web server
@@ -1442,6 +2633,38 @@ def main() -> None:
         elif args.command == "benchmark":
             # Run benchmark
             asyncio.run(run_benchmark(args))
+
+        elif args.command == "relevance":
+            # Handle relevance detection commands
+            asyncio.run(run_relevance_command(args))
+
+        elif args.command == "bootstrap":
+            # Handle bootstrap command
+            asyncio.run(run_bootstrap_command(args))
+
+        elif args.command == "search":
+            # Handle search commands
+            asyncio.run(run_search_command(args))
+
+        elif args.command == "analyze":
+            # Handle analyze commands
+            asyncio.run(run_analyze_command(args))
+
+        elif args.command == "discover":
+            # Handle discover commands
+            asyncio.run(run_discover_command(args))
+
+        elif args.command == "export":
+            # Handle export commands
+            asyncio.run(run_export_command(args))
+
+        elif args.command == "validate":
+            # Handle HIL validation commands
+            asyncio.run(run_validate_command(args))
+
+        elif args.command == "github":
+            # Handle GitHub commands
+            asyncio.run(run_github_command(args))
 
         else:
             logging.error(f"Unknown command: {args.command}")

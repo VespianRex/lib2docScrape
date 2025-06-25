@@ -84,14 +84,21 @@ class RealWorldTestValidator:
 @pytest.mark.asyncio
 async def test_simple_site_crawling(simple_test_sites, fast_crawler_config):
     """Test crawling simple websites with basic validation."""
-    if not simple_test_sites:
+    # Await the fixture if it's a coroutine
+    sites = (
+        await simple_test_sites
+        if asyncio.iscoroutine(simple_test_sites)
+        else simple_test_sites
+    )
+
+    if not sites:
         pytest.skip("No simple test sites available")
 
     validator = RealWorldTestValidator()
     backend = HTTPBackend(HTTPBackendConfig())
     crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
 
-    for site in simple_test_sites[:2]:  # Test first 2 available sites
+    for site in sites[:2]:  # Test first 2 available sites
         logger.info(f"Testing site: {site.name} ({site.url})")
 
         # Create crawl target
@@ -147,7 +154,14 @@ async def test_simple_site_crawling(simple_test_sites, fast_crawler_config):
 @pytest.mark.asyncio
 async def test_documentation_site_crawling(documentation_sites, fast_crawler_config):
     """Test crawling documentation websites with content validation."""
-    if not documentation_sites:
+    # Await the fixture if it's a coroutine
+    sites = (
+        await documentation_sites
+        if asyncio.iscoroutine(documentation_sites)
+        else documentation_sites
+    )
+
+    if not sites:
         pytest.skip("No documentation sites available")
 
     validator = RealWorldTestValidator()
@@ -162,7 +176,7 @@ async def test_documentation_site_crawling(documentation_sites, fast_crawler_con
         quality_checker=quality_checker,
     )
 
-    for site in documentation_sites[:1]:  # Test first available doc site
+    for site in sites[:1]:  # Test first available doc site
         logger.info(f"Testing documentation site: {site.name} ({site.url})")
 
         target = CrawlTarget(
@@ -209,7 +223,14 @@ async def test_documentation_site_crawling(documentation_sites, fast_crawler_con
 @pytest.mark.asyncio
 async def test_backend_comparison(simple_test_sites, fast_crawler_config):
     """Compare different backends on the same sites."""
-    if not simple_test_sites:
+    # Await the fixture if it's a coroutine
+    sites = (
+        await simple_test_sites
+        if asyncio.iscoroutine(simple_test_sites)
+        else simple_test_sites
+    )
+
+    if not sites:
         pytest.skip("No test sites available")
 
     backends = {
@@ -218,7 +239,7 @@ async def test_backend_comparison(simple_test_sites, fast_crawler_config):
         "file": FileBackend(),  # Will only work for file:// URLs
     }
 
-    site = simple_test_sites[0]  # Use first available site
+    site = sites[0]  # Use first available site
     target = CrawlTarget(url=site.url, depth=1, max_pages=3)
 
     results = {}
@@ -280,10 +301,17 @@ async def test_backend_comparison(simple_test_sites, fast_crawler_config):
 @pytest.mark.asyncio
 async def test_performance_benchmarking(simple_test_sites, fast_crawler_config):
     """Basic performance benchmarking of the crawling system."""
-    if not simple_test_sites:
+    # Await the fixture if it's a coroutine
+    sites = (
+        await simple_test_sites
+        if asyncio.iscoroutine(simple_test_sites)
+        else simple_test_sites
+    )
+
+    if not sites:
         pytest.skip("No test sites available")
 
-    site = simple_test_sites[0]
+    site = sites[0]
     backend = HTTPBackend(HTTPBackendConfig())
     crawler = DocumentationCrawler(config=fast_crawler_config, backend=backend)
 

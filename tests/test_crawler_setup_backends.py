@@ -8,12 +8,12 @@ from src.backends.http_backend import HTTPBackend
 from src.backends.selector import BackendCriteria, BackendSelector
 
 # Import the DocumentationCrawler class from the old module for testing
-from src.crawler import DocumentationCrawler
+from src.crawler import CrawlerConfig, DocumentationCrawler
 
 
 def test_setup_backends_no_exception():
     """Test 13.1: Execution without Error"""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
     try:
         crawler._setup_backends()
     except Exception as e:

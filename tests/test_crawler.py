@@ -984,7 +984,7 @@ def http_backend():
 @pytest.mark.asyncio
 async def test_default_initialization():
     """Test 5.1: Default initialization of DocumentationCrawler."""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
 
     # Verify config instance
     assert isinstance(crawler.config, CrawlerConfig)
@@ -1053,7 +1053,7 @@ async def test_specific_backend_initialization(http_backend):
 
 def test_generate_search_queries_library_with_version():
     """Test 15.1: Library with version."""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
     identity = ProjectIdentity(name="MyLib", type=ProjectType.LIBRARY, version="1.2.3")
     queries = crawler._generate_search_queries(
         "http://example.com/mylib/1.2.3/docs", identity
@@ -1065,7 +1065,7 @@ def test_generate_search_queries_library_with_version():
 
 def test_generate_search_queries_library_without_version():
     """Test 15.2: Library without version."""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
     identity = ProjectIdentity(name="MyLib", type=ProjectType.LIBRARY, version=None)
     queries = crawler._generate_search_queries(
         "http://example.com/mylib/docs", identity
@@ -1082,7 +1082,7 @@ def test_generate_search_queries_library_without_version():
 
 def test_generate_search_queries_non_library_type():
     """Test 15.3: Non-library project type."""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
     identity = ProjectIdentity(
         name="MyFramework", type=ProjectType.FRAMEWORK, version="2.0"
     )
@@ -1102,7 +1102,7 @@ def test_generate_search_queries_non_library_type():
 
 def test_generate_search_queries_attribute_error_on_version():
     """Test 15.4: AttributeError during version parsing (non-string version)."""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
     identity = ProjectIdentity(
         name="MyLib", type=ProjectType.LIBRARY, version=123
     )  # Invalid version type

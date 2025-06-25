@@ -15,7 +15,7 @@ Classifier: Programming Language :: Python :: 3.11
 Classifier: Programming Language :: Python :: 3.12
 Classifier: Topic :: Software Development :: Documentation
 Classifier: Topic :: Internet :: WWW/HTTP :: Indexing/Search
-Requires-Python: >=3.9
+Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 Requires-Dist: aiohttp>=3.9.1
 Requires-Dist: requests>=2.31.0
@@ -42,17 +42,27 @@ Requires-Dist: pytest-asyncio>=0.25.3
 Requires-Dist: pytest-cov>=6.0.0
 Requires-Dist: pytest-mock>=3.14.0
 Requires-Dist: pytest-xdist>=3.6.0
+Requires-Dist: pytest-timeout>=2.3.1
 Requires-Dist: pre-commit>=4.2.0
 Requires-Dist: python-multipart>=0.0.20
 Requires-Dist: html2text>=2025.4.15
 Requires-Dist: uvicorn>=0.34.3
 Requires-Dist: jinja2>=3.1.6
+Requires-Dist: pytest-json-report>=1.5.0
+Requires-Dist: toml>=0.10.2
+Requires-Dist: packaging>=24.2
+Requires-Dist: scikit-learn>=1.6.1
+Requires-Dist: sentence-transformers>=4.1.0
+Requires-Dist: smolagents>=1.19.0
+Requires-Dist: litellm>=1.71.2
+Requires-Dist: llama-cpp-python>=0.3.9
 Provides-Extra: dev
 Requires-Dist: pytest>=8.3.4; extra == "dev"
 Requires-Dist: pytest-cov>=6.0.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.24.0; extra == "dev"
 Requires-Dist: pytest-mock>=3.10.0; extra == "dev"
 Requires-Dist: pytest-xdist>=3.6.0; extra == "dev"
+Requires-Dist: pytest-timeout>=2.3.1; extra == "dev"
 Requires-Dist: hypothesis>=6.92.1; extra == "dev"
 Requires-Dist: responses>=0.25.0; extra == "dev"
 Requires-Dist: aioresponses>=0.7.0; extra == "dev"
@@ -122,7 +132,7 @@ A comprehensive web scraping tool for library documentation with multiple backen
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Clone the repository
-git clone https://github.com/yourusername/lib2docscrape.git
+git clone https://github.com/VespianRex/lib2docscrape.git
 cd lib2docscrape
 
 # Install with development dependencies
@@ -391,4 +401,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 **lib2docScrape** - *Comprehensive documentation scraping made simple*
 
-*Last Updated: January 27, 2025*

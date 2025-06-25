@@ -184,7 +184,7 @@ async def test_crawler_with_direct_backend(crawler_config, mock_backend):
 @pytest.mark.asyncio
 async def test_find_links_recursive():
     """Test _find_links_recursive method."""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
 
     # Test with a dictionary containing a link
     structure_dict = {
@@ -220,7 +220,7 @@ async def test_find_links_recursive():
 @pytest.mark.asyncio
 async def test_should_crawl_url():
     """Test _should_crawl_url method."""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
 
     # Create a target with specific rules
     target = CrawlTarget(
@@ -486,7 +486,7 @@ async def test_process_url_already_visited(crawler):
 @pytest.mark.asyncio
 async def test_initialize_crawl_queue():
     """Test _initialize_crawl_queue method with URL."""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
 
     # Create a target with a URL
     target = CrawlTarget(
@@ -509,7 +509,7 @@ async def test_initialize_crawl_queue_with_package(mock_discover_doc_url):
     # Mock the discover_doc_url method to return a URL
     mock_discover_doc_url.return_value = "https://docs.example-package.org"
 
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
 
     # Create a target with a package name
     target = CrawlTarget(url="example-package", depth=2, content_types=["text/html"])
@@ -535,7 +535,7 @@ async def test_initialize_crawl_queue_with_package_discovery_failure(
     # Mock the discover_doc_url method to return None
     mock_discover_doc_url.return_value = None
 
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
 
     # Create a target with a package name
     target = CrawlTarget(url="unknown-package", depth=2, content_types=["text/html"])
@@ -547,7 +547,7 @@ async def test_initialize_crawl_queue_with_package_discovery_failure(
 
 def test_generate_search_queries():
     """Test _generate_search_queries method."""
-    crawler = DocumentationCrawler()
+    crawler = DocumentationCrawler(config=CrawlerConfig(use_duckduckgo=False))
 
     # Test with library type and version
     identity = ProjectIdentity(
@@ -680,7 +680,7 @@ async def test_crawl_with_duckduckgo(mock_ddg_search):
         },
     ]
 
-    # Create a crawler with DuckDuckGo enabled
+    # Create a crawler with DuckDuckGo enabled but mocked
     config = CrawlerConfig(use_duckduckgo=True)
     crawler = DocumentationCrawler(config=config)
 
@@ -700,7 +700,7 @@ async def test_crawl_with_duckduckgo(mock_ddg_search):
         excluded_paths=[],
     )
 
-    # Verify the DuckDuckGo search method was called
+    # Verify the DuckDuckGo search method was called (on the patched mock)
     assert mock_ddg_search.called
 
     # Clean up

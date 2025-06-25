@@ -470,10 +470,18 @@ class TestCrawl4AIBackend:
         # Mock content processor
         processed_content = MagicMock()
         processed_content.title = "Test Page"
-        processed_content.content = {"formatted_content": "Test Content This is a test page.", "links": []}
+        processed_content.content = {
+            "formatted_content": "Test Content This is a test page.",
+            "links": [],
+        }
         processed_content.metadata = {"description": "Test description"}
         processed_content.headings = [{"level": 1, "text": "Test Content"}]
-        processed_content.assets = {"images": [], "stylesheets": [], "scripts": [], "media": []}
+        processed_content.assets = {
+            "images": [],
+            "stylesheets": [],
+            "scripts": [],
+            "media": [],
+        }
         processed_content.has_errors = False
 
         crawl4ai_backend.content_processor.process = AsyncMock(
@@ -483,7 +491,10 @@ class TestCrawl4AIBackend:
         result = await crawl4ai_backend.process(content)
 
         assert result["title"] == "Test Page"
-        assert result["content"] == {"formatted_content": "Test Content This is a test page.", "links": []}
+        assert result["content"] == {
+            "formatted_content": "Test Content This is a test page.",
+            "links": [],
+        }
         assert "description" in result["metadata"]
         assert len(result["links"]) == 2
         assert result["links"][0]["url"].endswith("/page1")

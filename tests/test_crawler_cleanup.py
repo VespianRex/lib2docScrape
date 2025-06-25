@@ -8,10 +8,11 @@ import pytest
 # Import BackendCriteria from src.backends.selector
 try:
     from src.backends.selector import BackendCriteria
-    from src.crawler import DocumentationCrawler
+    from src.crawler import CrawlerConfig, DocumentationCrawler
 except ImportError:
     DocumentationCrawler = None
     BackendCriteria = None
+    CrawlerConfig = None
 
 # Always use local test doubles for these tests to ensure isolation and pass regardless of import/alias issues.
 
